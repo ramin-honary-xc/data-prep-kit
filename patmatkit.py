@@ -8,7 +8,7 @@ from DataPrepKit.FileSet import image_file_suffix_set, image_file_format_suffix
 
 import argparse
 import sys
-from pathlib import PurePath
+from pathlib import PurePath, Path
 
 import PyQt5.QtWidgets as qt
 
@@ -173,7 +173,7 @@ def main():
           If a filename suffix string is supplied as this argument, the resulting image of
           the pattern matching convolution is saved to a file of the same name as the input
           file with the prefix apended to the filename (but before the file extension).
-          """
+          """,
       )
 
     arper.add_argument(
@@ -190,6 +190,21 @@ def main():
           f'Encoding symbols accepted as this argument include:\n'
           f'{image_file_suffix_set!r}',
         )
+
+    arper.add_argument(
+        '--config',
+        dest='config_file_path',
+        action='store',
+        default=None,
+        type=Path,
+        help="""
+          All of settings, whether specified as CLI arguments, or  set in the GUI, can be saved to a
+          configuration  file. Use  this  argument  to specify  the  location  of the  configuration
+          file. If it does not  exist, it is created as soon as image  processing begins. If it does
+          exist, the file is  used to change the default settings. Settings specified  in the GUI or
+          on the CLI as arguments can still override the settings specified in the config file.
+          """,
+      )
 
     arper.add_argument(
         'inputs',
