@@ -1,3 +1,8 @@
+#! /usr/bin/env python3
+
+import argparse
+import sys
+import argparse
 import os
 import os.path
 from pathlib import PurePath
@@ -6,6 +11,123 @@ import cv2 as cv
 import numpy as np
 from scipy.signal import argrelextrema
 
+import PyQt5.QtCore as qt
+import PyQt5.QtGui as qt
+import PyQt5.QtWidgets as qt
+
+arper = argparse.ArgumentParser( \
+    description="""
+      Does "pattern matching" -- finding instances of a smaller image in a larger image.
+      """, \
+    exit_on_error=False, \
+    epilog="""
+      This program will search for a pattern image in each input image, regions found
+      to be close to 100% similar within a certain specified threshold value will
+      be cropped and saved as a separate image file in a specified output directory.
+
+      The --gui option enables GUI mode (disabled by default), where you can view
+      each image and the bounding boxes for each region that matches a pattern. If
+      you do not enable GUI mode, this program operates in "batch mode", creating the
+      output directory and images without user intervention.
+      """ \
+  )
+
+arper.add_argument (\
+    '-v', '--verbose', \
+    dest='verbose', \
+    action='store_true', \
+    default=False, \
+    help="""
+      Reports number of matching regions per input image,
+      reports each file that is created.
+      """ \
+  )
+
+arper.add_argument( \
+    '--gui', \
+    dest='gui', \
+    action='store_true', \
+    default=False, \
+    help="""
+      Inlcude this arugment to launch the GUI utility.
+      """ \
+  )
+
+arper.add_argument( \
+    '--no-gui', \
+    dest='gui', \
+    action='store_false', \
+    help="""
+      Program runs in "batch mode," without presenting a GUI or requesting user feedback.
+      """ \
+  )
+
+def threshold(val):
+    val = float(val)
+    if val >= 0.0 and val <= 100.0:
+        return (float(val) / 100.0)
+    else:
+        raise ValueError("threshold must be percentage value between 0 and 100")
+
+arper.add_argument( \
+    '-t', '--threshold', \
+    dest='threshold', \
+    action='store', \
+    default='95', \
+    type=threshold, \
+    help="""
+      The minimum percentage of similarity reqiured between a pattern and a
+      region of the image in order for the region to be selected and cropped.
+      """
+  )
+
+arper.add_argument( \
+    '-p', '--pattern', \
+    dest='pattern', \
+    action='store', \
+    default=PurePath('./pattern.png'), \
+    type=PurePath, \
+    help="""
+      Specify the file path of the image to be used as the pattern.
+      """ \
+  )
+
+arper.add_argument( \
+    '-o', '--output-dir', \
+    dest='output_dir', \
+    action='store', \
+    default=PurePath('./matched-images'), \
+    type=PurePath, \
+    help="""
+      Specify the output directory into which multiple image files can be created.
+      """
+  )
+
+arper.add_argument( \
+    '--save-map', \
+    dest='save_map', \
+    action='store', \
+    default=None, \
+    help="""
+      If a filename suffix string is supplied as this argument, the resulting image of
+      the pattern matching convolution is saved to a file of the same name as the input
+      file with the prefix apended to the filename (but before the file extension).
+      """ \
+  )
+
+arper.add_argument( \
+    'inputs', \
+    nargs='*', \
+    action='store', \
+    type=PurePath, \
+    help="""    
+      A set of images, or directories containing images, in which the pattern image is searched.
+      Directories are searched for images, but not recursively. See the --recursive option.
+      """ \
+  )
+
+#---------------------------------------------------------------------------------------------------
+
 def float_to_uint32(input_image):
     height, width = input_image.shape
     output_image = np.empty((height, width), dtype=np.uint8)
@@ -13,6 +135,19 @@ def float_to_uint32(input_image):
         for x in range(width):
             output_image[y,x] = round(input_image[y,x] * 255)
     return output_image
+
+def flatten_list(input):
+    result = []
+    for x in input:
+        if type(x) == type([]):
+            result.extend(x)
+        else:
+            result.append(x)
+    input.clear()
+    input.extend(result)
+    return input
+
+#---------------------------------------------------------------------------------------------------
 
 class RegionSize():
     def __init__(self, x, y, width, height):
@@ -186,13 +321,16 @@ class DistanceMap():
         self.memoized_regions[threshold] = results
         return results
 
-def test_crop_matched_patterns(
+def crop_matched_patterns(
         target_image_path=PurePath('./test-target.png'), \
         pattern_image_path=PurePath('./test-pattern.png'), \
         results_dir=PurePath('./test-results'), \
         threshold=0.78, \
-        save_distance_map=PurePath('./convolution.png') \
+        save_distance_map="_map" \
       ):
+    #TODO: the "save_distance_map" argument should be used as a
+    #      file name suffix, not a file name.
+
     # Create results directory if it does not exist
     if not os.path.isdir(results_dir):
         os.mkdir(results_dir)
@@ -221,5 +359,89 @@ def test_crop_matched_patterns(
     for reg in regions:
         reg.crop_write_image(target_image, results_dir)
 
+def batch_crop_matched_patterns(
+        target_images=[PurePath('./test-target.png')], \
+        pattern_image_path=PurePath('./test-pattern.png'), \
+        results_dir=PurePath('./test-results'), \
+        threshold=0.78, \
+        save_distance_map="_map" \
+      ):
+    for image in target_images:
+        crop_matched_patterns( \
+            image, \
+            pattern_image_path, \
+            results_dir, \
+            threshold, \
+            save_distance_map \
+          )
+
+#---------------------------------------------------------------------------------------------------
+
+class FilesTab(qt.QWidget):
+
+    def __init__(self, parent):
+        super(FilesTab, self).__init__(parent)
+        self.target_image_paths = search_target_images(parent.config.inputs)
+        #self.layout = qt.VBoxLayout(self)
+        #self.list_widget = qt.QListWidget(layout)
+        self.list_widget = qt.QListWidget(self)
+        for item in parent.target_image_paths:
+            self.list_widget.addItem(qt.QListWidgetItem(str(item)))
+
+class PatternMatcher(qt.QTabWidget):
+
+    def __init__(self, config, parent=None):
+        super(PatternMatcher, self).__init__(parent)
+        #----------------------------------------
+        # Setup the model
+        self.config = config
+        self.target_image_paths = search_target_images(config.inputs)
+        #----------------------------------------
+        # Setup the GUI
+        self.setWindowTitle('Image Pattern Matching Kit')
+        #self.tab_bar = qt.QTabWidget()
+        self.setTabPosition(qt.QTabWidget.North)
+        self.files_tab = FilesTab(self)
+        self.inspect_tab = qt.QWidget()
+        self.addTab(self.files_tab, "Select")
+        self.addTab(self.inspect_tab, "Inspect")
+
+#---------------------------------------------------------------------------------------------------
+
+def filename_filter(filepath):
+    ext = filepath.suffix.lower()
+    return (ext == '.png') or (ext == '.jpg') or (ext == '.jpeg')
+
+def search_target_images(filepath_args):
+    result = []
+    for filepath in filepath_args:
+        if os.path.isdir(filepath):
+            for root, _dirs, files in os.walk(filepath):
+                root = PurePath(root)
+                for filename in files:
+                    filepath = PurePath(filename)
+                    if filename_filter(filepath):
+                        result.append(root / filepath)
+    return result
+
+def main():
+    (config, remaining_argv) = arper.parse_known_args()
+    print(config)
+    #flatten_list(config.inputs)
+    if config.gui:
+        app = qt.QApplication(remaining_argv)
+        appWindow = PatternMatcher(config)
+        appWindow.show()
+        sys.exit(app.exec_())
+    else:
+        target_image_paths = search_target_images(config.inputs)
+        batch_crop_matched_patterns( \
+            target_image_path=target_image_paths, \
+            pattern_image_path=config.pattern, \
+            results_dir=config.output_dir, \
+            threshold=config.threshold, \
+            save_distance_map=config.save_map \
+          )
+
 if __name__ == '__main__':
-    test_crop_matched_patterns()
+    main()
