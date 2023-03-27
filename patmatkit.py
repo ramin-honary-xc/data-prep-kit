@@ -11,8 +11,8 @@ import cv2 as cv
 import numpy as np
 from scipy.signal import argrelextrema
 
-import PyQt5.QtCore as qt
-import PyQt5.QtGui as qt
+import PyQt5.QtCore as qcore
+import PyQt5.QtGui as qgui
 import PyQt5.QtWidgets as qt
 
 arper = argparse.ArgumentParser( \
@@ -377,16 +377,133 @@ def batch_crop_matched_patterns(
 
 #---------------------------------------------------------------------------------------------------
 
+class FileListItem(qt.QListWidgetItem):
+
+    def __init__(self, path):
+        super(FileListItem, self).__init__(str(path))
+        self.path = path
+
+    def get_path(self):
+        return self.path
+
 class FilesTab(qt.QWidget):
 
     def __init__(self, parent):
         super(FilesTab, self).__init__(parent)
-        self.target_image_paths = search_target_images(parent.config.inputs)
-        #self.layout = qt.VBoxLayout(self)
-        #self.list_widget = qt.QListWidget(layout)
-        self.list_widget = qt.QListWidget(self)
+        #---------- Setup visible widgets ----------
+        self.main_view     = parent
+        self.layout        = qt.QHBoxLayout(self)
+        self.list_widget   = qt.QListWidget(self)
+        self.preview_scene = qt.QGraphicsScene(self)
+        self.preview_view  = qt.QGraphicsView(self.preview_scene, self)
+        self.preview_view.setViewportUpdateMode(4) # 4: QGraphicsView::BoundingRectViewportUpdate
+        self.preview_view.setResizeAnchor(1) # 1: QGraphicsView::AnchorViewCenter
+        #self.preview_view.setCacheMode(qt.CacheNone)
+        self.layout.addWidget(self.list_widget)
+        self.layout.addWidget(self.preview_view)
+        self.display_pixmap = qgui.QPixmap()
+        self.display_pixmap_path = None
+        #---------- Populate list view ----------
         for item in parent.target_image_paths:
-            self.list_widget.addItem(qt.QListWidgetItem(str(item)))
+            self.list_widget.addItem(FileListItem(item))
+        #---------- Connect signal handlers ----------
+        self.list_widget.currentItemChanged.connect(self.item_change_handler)
+        self.list_widget.itemActivated.connect(self.activate_handler)
+
+    def activate_handler(self, item):
+        self.main_view.match_on_file(item.get_path())
+
+    def item_change_handler(self, item, _old):
+        self.display_path_handler(item)
+
+    def display_path_handler(self, item):
+        self.preview_scene.clear()
+        self.preview_view.resetTransform()
+        self.preview_scene.setSceneRect(qcore.QRectF())
+        self.display_pixmap_path = item
+        if self.display_pixmap.load(str(self.display_pixmap_path.get_path())):
+            pass
+        else:
+            print(f'Failed to load {str(self.display_pixmap_path.get_path())}')
+        self.pixmap_item = qt.QGraphicsPixmapItem(self.display_pixmap)
+        self.preview_scene.addItem(self.pixmap_item)
+        self.preview_view.fitInView(self.pixmap_item, 1) # 1: qcore.AspectRatioMode::KeepAspectRatio
+
+class PatternSetupTab(qt.QWidget):
+
+    def __init__(self, config, parent=None):
+        super(PatternSetupTab, self).__init__(parent)
+        self.layout = qt.QHBoxLayout(self)
+        self.preview_scene = qt.QGraphicsScene(self)
+        self.preview_view = qt.QGraphicsView(self)
+        self.layout.addWidget(self.preview_view)
+        self.display_pixmap = qgui.QPixmap()
+        if config.pattern is not None:
+            print(f'config.pattern = "{config.pattern}"')
+            self.show_pattern_image_path(config.pattern)
+        else:
+            print(f'config.pattern = None')
+            pass
+
+    def show_pattern_image_path(self, pattern_path):
+        self.display_pixmap_path = pattern_path
+        print(f'display_pixmap.load("{(str(self.display_pixmap_path))}")')
+        loaded = self.display_pixmap.load(str(self.display_pixmap_path))
+        print(f'-> {loaded}')
+        self.preview_scene.clear()
+        self.preview_view.resetTransform()
+        self.pixmap_item = qt.QGraphicsPixmapItem(self.display_pixmap)
+        self.preview_scene.addItem(self.pixmap_item)
+        self.preview_view.centerOn(self.pixmap_item)
+
+class InspectTab(qt.QWidget):
+
+    def __init__(self, parent=None):
+        super(InspectTab, self).__init__(parent)
+        self.distance_map = None
+        self.show_nothing()
+
+    def show_nothing(self):
+        self.layout = qt.QVBoxLayout(self)
+        self.layout.addWidget(qt.QLabel('Please select SEARCH target image and PATTERN image.'))
+
+    def show_distance_map(self, distance_map):
+        self.distance_map = distance_map
+
+class CachedCVImageLoader():
+
+    def __init__(self, notify, path=None):
+        self.path = path
+        self.notify = notify
+        self.image = None
+
+    def load_image(self, path=None):
+        if path is None:
+            path = self.path
+            self.force_load_image(path)
+        elif path != self.path:
+            self.force_load_image(path)
+        else:
+            pass
+
+    def force_load_image(self, path):
+        self.image  = cv.imread(str(path))
+        if path is not None:
+            if self.image is None:
+                self.path = None
+                self.notify.showMessage( \
+                    f'Failed to load image file {str(path)}' \
+                  )
+            else:
+                print(f'CachedCVImageLoader({str(self.path)}).force_load_image(str({path})) -> OK')
+                self.path = path
+        else:
+            pass
+
+    def get_image(self):
+        if self.image is None:
+            print(f'warning: CachedCVImageLoader({str(self.path)}).get_image() returned None')
+        return self.image
 
 class PatternMatcher(qt.QTabWidget):
 
@@ -395,16 +512,46 @@ class PatternMatcher(qt.QTabWidget):
         #----------------------------------------
         # Setup the model
         self.config = config
-        self.target_image_paths = search_target_images(config.inputs)
+        self.target_image_paths = search_target_images(self.config.inputs)
+        self.cache = {}
+        self.notify = qt.QErrorMessage(self)
+        self.pattern = CachedCVImageLoader(self.notify, self.config.pattern)
+        self.pattern.load_image()
+        self.target = CachedCVImageLoader(self.notify)
         #----------------------------------------
         # Setup the GUI
         self.setWindowTitle('Image Pattern Matching Kit')
+        self.resize(800, 600)
         #self.tab_bar = qt.QTabWidget()
         self.setTabPosition(qt.QTabWidget.North)
         self.files_tab = FilesTab(self)
-        self.inspect_tab = qt.QWidget()
-        self.addTab(self.files_tab, "Select")
+        self.pattern_tab = PatternSetupTab(config, self)
+        self.inspect_tab = InspectTab(self)
+        self.addTab(self.files_tab, "Search")
+        self.addTab(self.pattern_tab, "Pattern")
         self.addTab(self.inspect_tab, "Inspect")
+        self.currentChanged.connect(self.change_tab_handler)
+
+    def match_on_file(self, target_image_path):
+        print(f'PatternMatcher.match_on_file({target_image_path})')
+        self.target.load_image(target_image_path)
+        if (self.pattern.get_image() is not None) and (self.target.get_image() is not None):
+            if target_image_path in self.cache:
+                distance_map = self.cache[target_path]
+            else:
+                self.target.load_image(target_image_path)
+                distance_map = DistanceMap(self.target.get_image(), self.pattern.get_image())
+            self.setCurrentWidget(self.inspect_tab)
+        else:
+            self.setCurrentWidget(self.pattern_tab)
+            self.notify.showMessage( \
+                'A pattern image must be set for matching on the selected image.' \
+              )
+
+    def change_tab_handler(self, index):
+        print(f'PatternMatcher(QTabWidget).currentChanged({index})')
+        super(PatternMatcher, self).setCurrentIndex(index)
+        self.widget(index).update()
 
 #---------------------------------------------------------------------------------------------------
 
@@ -422,6 +569,10 @@ def search_target_images(filepath_args):
                     filepath = PurePath(filename)
                     if filename_filter(filepath):
                         result.append(root / filepath)
+                    else:
+                        pass
+        else:
+            result.append(PurePath(filepath))
     return result
 
 def main():
