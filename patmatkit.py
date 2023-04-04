@@ -15,6 +15,8 @@ import PyQt5.QtCore as qcore
 import PyQt5.QtGui as qgui
 import PyQt5.QtWidgets as qt
 
+####################################################################################################
+
 arper = argparse.ArgumentParser( \
     description="""
       Does "pattern matching" -- finding instances of a smaller image in a larger image.
@@ -393,14 +395,16 @@ class FilesTab(qt.QWidget):
         #---------- Setup visible widgets ----------
         self.main_view     = parent
         self.layout        = qt.QHBoxLayout(self)
+        self.splitter      = qt.QSplitter(1, self)
         self.list_widget   = qt.QListWidget(self)
         self.preview_scene = qt.QGraphicsScene(self)
         self.preview_view  = qt.QGraphicsView(self.preview_scene, self)
         self.preview_view.setViewportUpdateMode(4) # 4: QGraphicsView::BoundingRectViewportUpdate
         self.preview_view.setResizeAnchor(1) # 1: QGraphicsView::AnchorViewCenter
         #self.preview_view.setCacheMode(qt.CacheNone)
-        self.layout.addWidget(self.list_widget)
-        self.layout.addWidget(self.preview_view)
+        self.splitter.addWidget(self.list_widget)
+        self.splitter.addWidget(self.preview_view)
+        self.layout.addWidget(self.splitter)
         self.display_pixmap = qgui.QPixmap()
         self.display_pixmap_path = None
         #---------- Populate list view ----------
@@ -433,9 +437,9 @@ class PatternSetupTab(qt.QWidget):
 
     def __init__(self, config, parent=None):
         super(PatternSetupTab, self).__init__(parent)
-        self.layout = qt.QHBoxLayout(self)
-        self.preview_scene = qt.QGraphicsScene(self)
-        self.preview_view = qt.QGraphicsView(self)
+        self.layout         = qt.QHBoxLayout(self)
+        self.preview_scene  = qt.QGraphicsScene(self)
+        self.preview_view   = qt.QGraphicsView(self.preview_scene)
         self.layout.addWidget(self.preview_view)
         self.display_pixmap = qgui.QPixmap()
         if config.pattern is not None:
@@ -454,28 +458,106 @@ class PatternSetupTab(qt.QWidget):
         self.preview_view.resetTransform()
         self.pixmap_item = qt.QGraphicsPixmapItem(self.display_pixmap)
         self.preview_scene.addItem(self.pixmap_item)
-        self.preview_view.centerOn(self.pixmap_item)
+        items = self.preview_scene.items(0)
+        rect = self.preview_scene.sceneRect()
+        print(rect)
+        for i, item in zip(range(0, len(items)), items):
+            print(f'{i}: {item}')
+        #self.preview_view.centerOn(self.pixmap_item)
 
 class InspectTab(qt.QWidget):
 
     def __init__(self, parent=None):
         super(InspectTab, self).__init__(parent)
         self.distance_map = None
-        self.show_nothing()
+        self.threshold    = 95.5
+        # The layout of this widget is a top bar with a threshold slider and a graphics view or
+        # message view. The graphics view or message view can be changed depending on whether
+        # the target and pattern are both selected.
+        self.layout = qt.QVBoxLayout(self)
+        self.threshold_slider = qt.QSlider(1, self)
+        self.threshold_slider.setMinimum(500)
+        self.threshold_slider.setMaximum(1000)
+        self.threshold_slider.setPageStep(50)
+        self.threshold_slider.setSingleStep(10)
+        self.threshold_slider.setValue(950)
+        self.threshold_slider.valueChanged.connect(self.threshold_slider_handler)
+        self.threshold_textbox = qt.QLineEdit('95.0', self)
+        self.threshold_textbox.setMaxLength(5)
+        font_metrics = qt.QLabel('100.0 %').fontMetrics()
+        self.threshold_textbox.setFixedWidth(font_metrics.width('100.0 %'))
+        self.threshold_textbox.editingFinished.connect(self.threshold_textbox_handler)
+        #---------- The top bar is always visible ----------
+        self.top_bar = qt.QHBoxLayout(self)
+        self.top_bar.addWidget(qt.QLabel('Threshold: '))
+        self.top_bar.addWidget(self.threshold_textbox)
+        self.top_bar.addWidget(self.threshold_slider)
+        self.layout.addLayout(self.top_bar)
+        #---------- Message shown when the graphics view cannot be shown. ----------
+        self.nothing_layout = qt.QVBoxLayout(self)
+        self.nothing_layout.addWidget( \
+            qt.QLabel('Please select SEARCH target image and PATTERN image.') \
+          )
+        #---------- Shown when we have computed the distance map. ----------
+        self.preview_layout = qt.QVBoxLayout(self)
+        self.preview_scene  = qt.QGraphicsScene(self)
+        self.preview_view   = qt.QGraphicsView(self.preview_scene)
+        self.preview_layout.addWidget(self.preview_view)
+        #---------- Initially, the nothing_layout is shown. ----------
+        self.current_layout = self.nothing_layout
+        self.layout.addLayout(self.current_layout)
+
+    def switch_current_display(self, new_current_layout):
+        if new_current_layout != self.current_layout:
+            self.layout.removeItem(self.current_layout)
+            self.current_layout = new_current_layout
+            self.layout.addLayout(self.current_layout)
+        else:
+            pass
+
+    def switch_image_display(self, pixmap):
+        self.preview_scene.clear()
+        self.preview_scene.addItem(qt.QGraphicsPixmapItem(pixmap))
 
     def show_nothing(self):
-        self.layout = qt.QVBoxLayout(self)
-        self.layout.addWidget(qt.QLabel('Please select SEARCH target image and PATTERN image.'))
+        self.switch_current_display(self, self.nothing_layout)
 
     def show_distance_map(self, distance_map):
-        self.distance_map = distance_map
+        self.switch_image_display(distance_map)
+        self.switch_current_display(self.preview_layout)
+
+    def show_target_image(self, target_image):
+        self.switch_image_display(qt.QGraphicsPixmapItem(target_image))
+        self.switch_current_display(self.preview_layout)
+
+    def threshold_slider_handler(self, new_value):
+        self.threshold_slider.setValue(new_value)
+        self.threshold_textbox.clear()
+        self.threshold_textbox.setText(f'{new_value/10.0}')
+
+    def reset_threshold_display(self):
+        self.threshold_textbox.setText(f'{self.threshold}')
+        self.threshold_slider.setValue(round(self.threshold * 10))
+
+    def threshold_textbox_handler(self):
+        # editingFinished signal handler
+        txt = self.threshold_textbox.text()
+        try:
+            new_value = float(txt)
+            if new_value >= 50.0 and new_value <= 100.0:
+                self.threshold = new_value
+            else:
+                pass
+        except ValueError as e:
+            pass
+        self.reset_threshold_display()
 
 class CachedCVImageLoader():
 
     def __init__(self, notify, path=None):
-        self.path = path
+        self.path   = path
         self.notify = notify
-        self.image = None
+        self.image  = None
 
     def load_image(self, path=None):
         if path is None:
@@ -500,6 +582,9 @@ class CachedCVImageLoader():
         else:
             pass
 
+    def get_path(self):
+        return self.path
+
     def get_image(self):
         if self.image is None:
             print(f'warning: CachedCVImageLoader({str(self.path)}).get_image() returned None')
@@ -513,11 +598,11 @@ class PatternMatcher(qt.QTabWidget):
         # Setup the model
         self.config = config
         self.target_image_paths = search_target_images(self.config.inputs)
-        self.cache = {}
-        self.notify = qt.QErrorMessage(self)
+        self.cache   = {}
+        self.notify  = qt.QErrorMessage(self)
         self.pattern = CachedCVImageLoader(self.notify, self.config.pattern)
         self.pattern.load_image()
-        self.target = CachedCVImageLoader(self.notify)
+        self.target  = CachedCVImageLoader(self.notify)
         #----------------------------------------
         # Setup the GUI
         self.setWindowTitle('Image Pattern Matching Kit')
@@ -541,6 +626,7 @@ class PatternMatcher(qt.QTabWidget):
             else:
                 self.target.load_image(target_image_path)
                 distance_map = DistanceMap(self.target.get_image(), self.pattern.get_image())
+            self.inspect_tab.show_target_image(qgui.QPixmap(str(self.target.get_path())))
             self.setCurrentWidget(self.inspect_tab)
         else:
             self.setCurrentWidget(self.pattern_tab)
@@ -593,6 +679,8 @@ def main():
             threshold=config.threshold, \
             save_distance_map=config.save_map \
           )
+
+####################################################################################################
 
 if __name__ == '__main__':
     main()
