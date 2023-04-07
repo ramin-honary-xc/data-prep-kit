@@ -393,6 +393,7 @@ def batch_crop_matched_patterns(
 # The Qt GUI
 
 class FileListItem(qt.QListWidgetItem):
+    """A QListWidgetItem for an element in the files list in the Files tab."""
 
     def __init__(self, path):
         super(FileListItem, self).__init__(str(path))
@@ -413,6 +414,7 @@ class ImagePreview(qt.QGraphicsView):
         self.setViewportUpdateMode(4) # 4: QGraphicsView::BoundingRectViewportUpdate
         self.setResizeAnchor(1) # 1: QGraphicsView::AnchorViewCenter
         self.setScene(self.preview_scene)
+        self.setContextMenuPolicy(2) # 2 = qcore::ContextMenuPolicy::ActionsContextMenu
 
     def resizeEvent(self, newSize):
         super(ImagePreview, self).resizeEvent(newSize)
@@ -483,6 +485,7 @@ class FilesTab(qt.QWidget):
         self.splitter.setObjectName('FilesTab splitter')
         self.list_widget   = qt.QListWidget(self)
         self.list_widget.setObjectName('FilesTab list_widget')
+        self.list_widget.setContextMenuPolicy(2) # 2 = qcore::ContextMenuPolicy::ActionsContextMenu
         self.image_preview  = ImagePreview(self)
         self.image_preview.setObjectName('FilesTab ImagePreview')
         self.splitter.addWidget(self.list_widget)
@@ -493,7 +496,11 @@ class FilesTab(qt.QWidget):
         for item in parent.target_image_paths:
             self.list_widget.addItem(FileListItem(item))
         #---------- Setup context menus ----------
-        
+        self.use_as_pattern = qt.QAction("Use as pattern", self)
+        self.use_as_pattern.setShortcut(qgui.QKeySequence.Find)
+        self.use_as_pattern.triggered.connect(self.use_current_item_as_pattern)
+        self.list_widget.addAction(self.use_as_pattern)
+        self.image_preview.addAction(self.use_as_pattern)
         #---------- Connect signal handlers ----------
         self.list_widget.currentItemChanged.connect(self.item_change_handler)
         self.list_widget.itemActivated.connect(self.activate_handler)
@@ -507,6 +514,11 @@ class FilesTab(qt.QWidget):
     def item_change_handler(self, item, _old):
         self.image_preview.display_path(item.get_path())
 
+    def use_current_item_as_pattern(self):
+        item = self.list_widget.currentItem()
+        path = item.get_path()
+        self.main_view.set_pattern_file(path, self.image_preview.get_pixmap())
+
 #---------------------------------------------------------------------------------------------------
 
 class PatternSetupTab(qt.QWidget):
@@ -514,6 +526,7 @@ class PatternSetupTab(qt.QWidget):
     def __init__(self, config, parent=None):
         super(PatternSetupTab, self).__init__(parent)
         self.setObjectName('PatternSetupTab')
+        self.file_path      = None
         self.layout         = qt.QHBoxLayout(self)
         self.preview_scene  = qt.QGraphicsScene(self)
         self.preview_view   = qt.QGraphicsView(self.preview_scene)
@@ -531,6 +544,11 @@ class PatternSetupTab(qt.QWidget):
         print(f'display_pixmap.load("{(str(self.display_pixmap_path))}")')
         loaded = self.display_pixmap.load(str(self.display_pixmap_path))
         print(f'-> {loaded}')
+        self.set_pattern_file(pattern_path, self.display_pixmap)
+
+    def set_pattern_file(self, pattern_path, pixmap):
+        self.file_path = pattern_path
+        self.display_pixmap = pixmap
         self.preview_scene.clear()
         self.preview_view.resetTransform()
         self.pixmap_item = qt.QGraphicsPixmapItem(self.display_pixmap)
@@ -728,6 +746,13 @@ class PatternMatcher(qt.QTabWidget):
     def get_config(self):
         return self.config
 
+    def change_tab_handler(self, index):
+        """Does the work of actually changing the GUI display to the "InspectTab".
+        """
+        print(f'PatternMatcher(QTabWidget).currentChanged({index})')
+        super(PatternMatcher, self).setCurrentIndex(index)
+        self.widget(index).update()
+
     def match_on_file(self, target_image_path):
         """This function is triggered when you double-click on an item in the image 
         list in the "FilesTab". It starts running the pattern matching algorithm and
@@ -751,12 +776,10 @@ class PatternMatcher(qt.QTabWidget):
               )
             return None
 
-    def change_tab_handler(self, index):
-        """Does the work of actually changing the GUI display to the "InspectTab".
-        """
-        print(f'PatternMatcher(QTabWidget).currentChanged({index})')
-        super(PatternMatcher, self).setCurrentIndex(index)
-        self.widget(index).update()
+    def set_pattern_file(self, path, pixmap):
+        self.pattern_tab.set_pattern_file(path, pixmap)
+        self.setCurrentWidget(self.pattern_tab)
+        self.pattern.load_image(path)
 
 ####################################################################################################
 # The main function, and functions for searching the filesystem for program input
