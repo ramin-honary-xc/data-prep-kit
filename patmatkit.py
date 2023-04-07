@@ -16,6 +16,7 @@ import PyQt5.QtGui as qgui
 import PyQt5.QtWidgets as qt
 
 ####################################################################################################
+# Parsing command line arguments
 
 arper = argparse.ArgumentParser( \
     description="""
@@ -128,7 +129,8 @@ arper.add_argument( \
       """ \
   )
 
-#---------------------------------------------------------------------------------------------------
+####################################################################################################
+# Miscelaneous utilities (that ought to already exist somewhere else, but do not).
 
 def float_to_uint32(input_image):
     height, width = input_image.shape
@@ -149,7 +151,8 @@ def flatten_list(input):
     input.extend(result)
     return input
 
-#---------------------------------------------------------------------------------------------------
+####################################################################################################
+# The pattern matcing program
 
 class RegionSize():
     def __init__(self, x, y, width, height):
@@ -176,6 +179,12 @@ class RegionSize():
         write_path = str(results_dir / self.as_file_name())
         print(f'crop_write_image -> {write_path}')
         cv.imwrite(write_path, self.crop_image(image))
+
+    def get_point_and_size(self):
+        """Return a 4-tuple (x,y, width,height)"""
+        return (self.x_min, self.y_min, self.x_max - self.x_min, self.y_max - self.y_min)
+
+#---------------------------------------------------------------------------------------------------
 
 class DistanceMap():
     """Construct DistanceMap() by providing a target image and a pattern
@@ -276,12 +285,11 @@ class DistanceMap():
         'compute_distance_map()' function above, and a threshold
         value, return a list of all regions where the distance map is
         less or equal to the complement of the threshold value.
-
         """
         if threshold < 0.5:
             raise ValueError("threshold too low, minimum is 0.5", {'threshold': threshold})
         elif threshold in self.memoized_regions:
-            return this.memoized_regions[threshold]
+            return self.memoized_regions[threshold]
         else:
             pass
 
@@ -290,7 +298,7 @@ class DistanceMap():
         dist_map_height, dist_map_width = self.distance_map.shape
         window_vcount = round(dist_map_height / self.window_height)
         window_hcount = round(dist_map_width  / self.window_width)
-        print(f"window_hcount = {window_vcount}, window_vcount = {window_hcount}")
+        #print(f"window_hcount = {window_vcount}, window_vcount = {window_hcount}")
 
         tiles = self.distance_map.reshape( \
             window_vcount, self.window_height, \
@@ -310,7 +318,7 @@ class DistanceMap():
                 global_y = y * self.window_height + min_y
                 global_x = x * self.window_width  + min_x
                 if tile[min_y, min_x] <= (1.0 - threshold):
-                    print(f"argmin(tiles[{y},{x}]) -> ({global_x}, {global_y})")
+                    #print(f"argmin(tiles[{y},{x}]) -> ({global_x}, {global_y})")
                     results.append( \
                         RegionSize( \
                             global_x, global_y, \
@@ -322,6 +330,9 @@ class DistanceMap():
 
         self.memoized_regions[threshold] = results
         return results
+
+#---------------------------------------------------------------------------------------------------
+# Front-end API to the pattern matching program, called in batch mode.
 
 def crop_matched_patterns(
         target_image_path=PurePath('./test-target.png'), \
@@ -369,6 +380,7 @@ def batch_crop_matched_patterns(
         save_distance_map="_map" \
       ):
     for image in target_images:
+        print(f'image = {image}\npattern_image_path = {pattern_image_path}\nresults_dir = {results_dir}\nthreshold = {threshold}\nsave_distance_map = {save_distance_map}')
         crop_matched_patterns( \
             image, \
             pattern_image_path, \
@@ -377,7 +389,8 @@ def batch_crop_matched_patterns(
             save_distance_map \
           )
 
-#---------------------------------------------------------------------------------------------------
+####################################################################################################
+# The Qt GUI
 
 class FileListItem(qt.QListWidgetItem):
 
@@ -387,6 +400,8 @@ class FileListItem(qt.QListWidgetItem):
 
     def get_path(self):
         return self.path
+
+#--------------------------------------------------------------------------------------------------
 
 class ImagePreview(qt.QGraphicsView):
 
@@ -425,6 +440,27 @@ class ImagePreview(qt.QGraphicsView):
         else:
             print(f'Failed to load {str(self.display_pixmap_path.get_path())}')
 
+class InspectImagePreview(ImagePreview):
+
+    def __init__(self, parent):
+        super(InspectImagePreview, self).__init__(parent)
+        self.pen = qgui.QPen(qgui.QColor(255, 0, 0, 255))
+        self.pen.setCosmetic(True)
+        self.pen.setWidth(3)
+
+    def place_rectangles(self, rectangle_list):
+        self.preview_scene.clear()
+        if self.pixmap_item is not None:
+            self.pixmap_item = qt.QGraphicsPixmapItem(self.display_pixmap)
+            self.preview_scene.addItem(self.pixmap_item)
+        else:
+            pass
+        for rectangle in rectangle_list:
+            bounds = rectangle.get_point_and_size()
+            self.preview_scene.addRect(*bounds, self.pen)
+
+#---------------------------------------------------------------------------------------------------
+
 class MessageBox(qt.QWidget):
 
     def __init__(self, message):
@@ -432,6 +468,8 @@ class MessageBox(qt.QWidget):
         self.layout = qt.QHBoxLayout(self)
         self.message = qt.QLabel(message)
         self.layout.addWidget(self.message)
+
+#---------------------------------------------------------------------------------------------------
 
 class FilesTab(qt.QWidget):
 
@@ -454,6 +492,8 @@ class FilesTab(qt.QWidget):
         #---------- Populate list view ----------
         for item in parent.target_image_paths:
             self.list_widget.addItem(FileListItem(item))
+        #---------- Setup context menus ----------
+        
         #---------- Connect signal handlers ----------
         self.list_widget.currentItemChanged.connect(self.item_change_handler)
         self.list_widget.itemActivated.connect(self.activate_handler)
@@ -466,6 +506,8 @@ class FilesTab(qt.QWidget):
 
     def item_change_handler(self, item, _old):
         self.image_preview.display_path(item.get_path())
+
+#---------------------------------------------------------------------------------------------------
 
 class PatternSetupTab(qt.QWidget):
 
@@ -494,11 +536,13 @@ class PatternSetupTab(qt.QWidget):
         self.pixmap_item = qt.QGraphicsPixmapItem(self.display_pixmap)
         self.preview_scene.addItem(self.pixmap_item)
 
+#---------------------------------------------------------------------------------------------------
+
 class PercentSlider(qt.QWidget):
 
-    def __init__(self, label, initValue, callback):
+    def __init__(self, label, init_value, callback):
         super(PercentSlider, self).__init__()
-        self.percent = initValue
+        self.percent = init_value
         self.callback = callback
         self.label = qt.QLabel(label)
         self.slider = qt.QSlider(1, self)
@@ -506,11 +550,11 @@ class PercentSlider(qt.QWidget):
         self.slider.setMaximum(1000)
         self.slider.setPageStep(50)
         self.slider.setSingleStep(10)
-        self.slider.setValue(950)
+        self.slider.setValue(round(self.percent * 1000.0))
         self.slider.setObjectName('InspectTab slider')
         self.slider.valueChanged.connect(self.value_changed_handler)
         self.setSizePolicy(self.slider.sizePolicy())
-        self.textbox = qt.QLineEdit('95.0', self)
+        self.textbox = qt.QLineEdit(str(round(self.percent * 1000.0) / 10.0), self)
         self.textbox.setMaxLength(5)
         self.textbox.setObjectName('InspectTab textbox')
         font_metrics = qt.QLabel('100.0 %').fontMetrics()
@@ -523,18 +567,19 @@ class PercentSlider(qt.QWidget):
         self.layout.addWidget(self.textbox)
         self.layout.addWidget(self.slider)
 
-    def get_percent():
+    def get_percent(self):
         return self.percent
 
     def value_changed_handler(self, new_value):
         self.slider.setValue(new_value)
         self.textbox.clear()
         self.textbox.setText(f'{new_value/10.0}')
+        self.percent = new_value / 1000.0
         self.callback(new_value)
 
     def reset_value(self):
         self.threshold_textbox.setText(f'{self.threshold}')
-        self.threshold_slider.setValue(round(self.threshold * 10))
+        self.threshold_slider.setValue(round(self.percent * 1000.0))
 
     def textbox_handler(self):
         # editingFinished signal handler
@@ -542,34 +587,40 @@ class PercentSlider(qt.QWidget):
         try:
             new_value = float(txt)
             if new_value >= 50.0 and new_value <= 100.0:
-                self.threshold = new_value
+                self.percent = new_value / 100.0
             else:
                 pass
         except ValueError as e:
             pass
         self.reset_value()
 
+#---------------------------------------------------------------------------------------------------
 
 class InspectTab(qt.QWidget):
 
-    def __init__(self, parent=None):
+    def __init__(self, parent):
         super(InspectTab, self).__init__(parent)
         self.distance_map = None
         self.setObjectName('InspectTab')
         # The layout of this widget is a top bar with a threshold slider and a graphics view or
         # message view. The graphics view or message view can be changed depending on whether
         # the target and pattern are both selected.
-        self.slider = PercentSlider("Threshold %", 95.0, self.slider_handler)
-        self.message_box = MessageBox('Please select SEARCH target image and PATTERN image.')
-        self.image_preview = ImagePreview(self)
-        self.image_preview.hide()
         self.layout = qt.QVBoxLayout(self)
         self.layout.setObjectName('InspectTab layout')
+        self.slider = PercentSlider( \
+            "Threshold %", \
+            parent.get_config().threshold, \
+            self.slider_handler \
+          )
         self.layout.addWidget(self.slider)
+        self.message_box = MessageBox('Please select SEARCH target image and PATTERN image.')
+        self.layout.addWidget(self.message_box)
+        self.image_preview = InspectImagePreview(self)
+        self.image_preview.hide()
         self.layout.addWidget(self.image_preview)
 
-    def slider_handler(self, newValue):
-        pass
+    def slider_handler(self, new_value):
+        self.place_rectangles()
 
     def switch_image_display(self, pixmap):
         print(f'InspectTab.switch_image_display({pixmap})')
@@ -585,15 +636,26 @@ class InspectTab(qt.QWidget):
         self.message_box.hide()
         self.image_preview.show()
 
-    def show_distance_map(self, distance_map):
-        self.switch_image_display(distance_map)
+    def show_distance_map(self, target_image, distance_map):
+        self.switch_image_display(target_image)
+        self.distance_map = distance_map
+        self.place_rectangles()
         self.show_image_preview()
 
-    def show_target_image(self, target_image):
-        self.switch_image_display(target_image)
-        self.show_image_preview()
+    def place_rectangles(self):
+        if self.distance_map is not None:
+            threshold = self.slider.get_percent()
+            self.image_preview.place_rectangles( \
+                self.distance_map.find_matching_regions(threshold) \
+              )
+        else:
+            print('WARNING: InspectTab.place_rectangles() called before distance_map was set')
+
+#---------------------------------------------------------------------------------------------------
 
 class CachedCVImageLoader():
+    """A tool for loading and caching image from a file into an OpenCV image buffer.
+    """
 
     def __init__(self, notify, path=None):
         self.path   = path
@@ -631,13 +693,18 @@ class CachedCVImageLoader():
             print(f'warning: CachedCVImageLoader({str(self.path)}).get_image() returned None')
         return self.image
 
+#---------------------------------------------------------------------------------------------------
+
 class PatternMatcher(qt.QTabWidget):
+    """The Qt Widget containing the GUI for the pattern matching program.
+    """
 
     def __init__(self, config, parent=None):
         super(PatternMatcher, self).__init__(parent)
         #----------------------------------------
         # Setup the model
         self.config = config
+        self.distance_map = None
         self.target_image_paths = search_target_images(self.config.inputs)
         self.cache   = {}
         self.notify  = qt.QErrorMessage(self)
@@ -658,7 +725,14 @@ class PatternMatcher(qt.QTabWidget):
         self.addTab(self.inspect_tab, "Inspect")
         self.currentChanged.connect(self.change_tab_handler)
 
+    def get_config(self):
+        return self.config
+
     def match_on_file(self, target_image_path):
+        """This function is triggered when you double-click on an item in the image 
+        list in the "FilesTab". It starts running the pattern matching algorithm and
+        changes the display of the GUI over to the "InspectTab".
+        """
         print(f'PatternMatcher.match_on_file("{target_image_path}")')
         self.target.load_image(target_image_path)
         if (self.pattern.get_image() is not None) and (self.target.get_image() is not None):
@@ -667,20 +741,25 @@ class PatternMatcher(qt.QTabWidget):
             else:
                 self.target.load_image(target_image_path)
                 distance_map = DistanceMap(self.target.get_image(), self.pattern.get_image())
-            self.inspect_tab.show_target_image(self.files_tab.get_display_pixmap())
+            self.inspect_tab.show_distance_map(self.files_tab.get_display_pixmap(), distance_map)
             self.setCurrentWidget(self.inspect_tab)
+            return self.distance_map
         else:
             self.setCurrentWidget(self.pattern_tab)
             self.notify.showMessage( \
                 'A pattern image must be set for matching on the selected image.' \
               )
+            return None
 
     def change_tab_handler(self, index):
+        """Does the work of actually changing the GUI display to the "InspectTab".
+        """
         print(f'PatternMatcher(QTabWidget).currentChanged({index})')
         super(PatternMatcher, self).setCurrentIndex(index)
         self.widget(index).update()
 
-#---------------------------------------------------------------------------------------------------
+####################################################################################################
+# The main function, and functions for searching the filesystem for program input
 
 def filename_filter(filepath):
     ext = filepath.suffix.lower()
@@ -714,7 +793,7 @@ def main():
     else:
         target_image_paths = search_target_images(config.inputs)
         batch_crop_matched_patterns( \
-            target_image_path=target_image_paths, \
+            target_images=target_image_paths, \
             pattern_image_path=config.pattern, \
             results_dir=config.output_dir, \
             threshold=config.threshold, \
