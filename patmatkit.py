@@ -287,7 +287,7 @@ class DistanceMap():
         less or equal to the complement of the threshold value.
         """
         if threshold < 0.5:
-            raise ValueError("threshold too low, minimum is 0.5", {'threshold': threshold})
+            raise ValueError("threshold {str(threshold)} too low, minimum is 0.5", {'threshold': threshold})
         elif threshold in self.memoized_regions:
             return self.memoized_regions[threshold]
         else:
@@ -331,6 +331,12 @@ class DistanceMap():
         self.memoized_regions[threshold] = results
         return results
 
+    def write_all_cropped_images(self, target_image, threshold, results_dir):
+        print(f'write_all_cropped_images: threshold = {str(threshold)}')
+        regions = self.find_matching_regions(threshold=threshold)
+        for reg in regions:
+            reg.crop_write_image(target_image, results_dir)
+
 #---------------------------------------------------------------------------------------------------
 # Front-end API to the pattern matching program, called in batch mode.
 
@@ -368,9 +374,7 @@ def crop_matched_patterns(
     else:
         pass
 
-    regions = distance_map.find_matching_regions(threshold = threshold)
-    for reg in regions:
-        reg.crop_write_image(target_image, results_dir)
+    distance_map.write_all_cropped_images(target_image, threshold, results_dir)
 
 def batch_crop_matched_patterns(
         target_images=[PurePath('./test-target.png')], \
@@ -501,6 +505,11 @@ class FilesTab(qt.QWidget):
         self.use_as_pattern.triggered.connect(self.use_current_item_as_pattern)
         self.list_widget.addAction(self.use_as_pattern)
         self.image_preview.addAction(self.use_as_pattern)
+        self.do_find_pattern = qt.QAction("Open and search this image", self)
+        self.do_find_pattern.setShortcut(qgui.QKeySequence.Open)
+        self.do_find_pattern.triggered.connect(self.activate_selected_item)
+        self.list_widget.addAction(self.do_find_pattern)
+        self.image_preview.addAction(self.do_find_pattern)
         #---------- Connect signal handlers ----------
         self.list_widget.currentItemChanged.connect(self.item_change_handler)
         self.list_widget.itemActivated.connect(self.activate_handler)
@@ -510,6 +519,10 @@ class FilesTab(qt.QWidget):
 
     def activate_handler(self, item):
         self.main_view.match_on_file(item.get_path())
+
+    def activate_selected_item(self):
+        item = self.list_widget.currentItem()
+        self.activate_handler(item)
 
     def item_change_handler(self, item, _old):
         self.image_preview.display_path(item.get_path())
@@ -618,6 +631,7 @@ class InspectTab(qt.QWidget):
 
     def __init__(self, parent):
         super(InspectTab, self).__init__(parent)
+        self.main_view = parent
         self.distance_map = None
         self.setObjectName('InspectTab')
         # The layout of this widget is a top bar with a threshold slider and a graphics view or
@@ -636,6 +650,12 @@ class InspectTab(qt.QWidget):
         self.image_preview = InspectImagePreview(self)
         self.image_preview.hide()
         self.layout.addWidget(self.image_preview)
+        #---------- Setup context menus ----------
+        self.do_save_selected = qt.QAction("Save all selected regions", self)
+        self.do_save_selected.setShortcut(qgui.QKeySequence.Save)
+        self.do_save_selected.setEnabled(False)
+        self.do_save_selected.triggered.connect(self.save_selected)
+        self.image_preview.addAction(self.do_save_selected)
 
     def slider_handler(self, new_value):
         self.place_rectangles()
@@ -659,6 +679,7 @@ class InspectTab(qt.QWidget):
         self.distance_map = distance_map
         self.place_rectangles()
         self.show_image_preview()
+        self.do_save_selected.setEnabled(True)
 
     def place_rectangles(self):
         if self.distance_map is not None:
@@ -668,6 +689,22 @@ class InspectTab(qt.QWidget):
               )
         else:
             print('WARNING: InspectTab.place_rectangles() called before distance_map was set')
+
+    def save_selected(self):
+        if self.distance_map is not None:
+            output_dir = self.main_view.get_config().output_dir
+            output_dir = \
+                qt.QFileDialog.getExistingDirectory( \
+                    self, "Write images to directory", \
+                    str(output_dir), \
+                    qt.QFileDialog.ShowDirsOnly \
+              )
+            output_dir = PurePath(output_dir)
+            threshold = self.slider.get_percent()
+            target_image = self.main_view.target.get_image()
+            self.distance_map.write_all_cropped_images(target_image, threshold, output_dir)
+        else:
+            print('WARNING: InspectTab.save_selected() called before distance_map was set')
 
 #---------------------------------------------------------------------------------------------------
 
