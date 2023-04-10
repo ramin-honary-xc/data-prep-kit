@@ -5,6 +5,7 @@ import sys
 import argparse
 import os
 import os.path
+import re
 from pathlib import PurePath
 import math
 import cv2 as cv
@@ -477,6 +478,13 @@ class MessageBox(qt.QWidget):
 
 #---------------------------------------------------------------------------------------------------
 
+def gather_QUrl_local_files(qurl_list):
+    urls = []
+    for url in qurl_list:
+        if url.isLocalFile():
+            urls.append(PurePath(url.toLocalFile()))
+    return urls
+
 class FilesTab(qt.QWidget):
 
     def __init__(self, parent):
@@ -486,6 +494,7 @@ class FilesTab(qt.QWidget):
         self.main_view     = parent
         self.layout        = qt.QHBoxLayout(self)
         self.splitter      = qt.QSplitter(1, self)
+        self.setAcceptDrops(True)
         self.splitter.setObjectName('FilesTab splitter')
         self.list_widget   = qt.QListWidget(self)
         self.list_widget.setObjectName('FilesTab list_widget')
@@ -497,16 +506,15 @@ class FilesTab(qt.QWidget):
         self.layout.addWidget(self.splitter)
         self.display_pixmap_path = None
         #---------- Populate list view ----------
-        for item in parent.target_image_paths:
-            self.list_widget.addItem(FileListItem(item))
+        self.reset_paths_list(self.main_view.target_image_paths)
         #---------- Setup context menus ----------
         self.use_as_pattern = qt.QAction("Use as pattern", self)
         self.use_as_pattern.setShortcut(qgui.QKeySequence.Find)
         self.use_as_pattern.triggered.connect(self.use_current_item_as_pattern)
         self.list_widget.addAction(self.use_as_pattern)
         self.image_preview.addAction(self.use_as_pattern)
-        self.do_find_pattern = qt.QAction("Open and search this image", self)
-        self.do_find_pattern.setShortcut(qgui.QKeySequence.Open)
+        self.do_find_pattern = qt.QAction("Search within this image", self)
+        self.do_find_pattern.setShortcut(qgui.QKeySequence.InsertParagraphSeparator)
         self.do_find_pattern.triggered.connect(self.activate_selected_item)
         self.list_widget.addAction(self.do_find_pattern)
         self.image_preview.addAction(self.do_find_pattern)
@@ -531,6 +539,31 @@ class FilesTab(qt.QWidget):
         item = self.list_widget.currentItem()
         path = item.get_path()
         self.main_view.set_pattern_file(path, self.image_preview.get_pixmap())
+
+    def reset_paths_list(self, paths_list):
+        """Populate the list view with an item for each file path."""
+        self.list_widget.clear()
+        for item in paths_list:
+            self.list_widget.addItem(FileListItem(item))
+
+    def dragEnterEvent(self, event):
+        print(f'InspectTab::dragEnterEvent({event})')
+        mime_data = event.mimeData()
+        if mime_data.hasUrls() or mime_data.hasText():
+            event.accept()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        mime_data = event.mimeData()
+        if mime_data.hasUrls():
+            event.accept()
+            self.main_view.add_target_image_paths(gather_QUrl_local_files(mime_data.urls()))
+        elif mime_data.hasText():
+            event.accept()
+            self.main_view.add_target_image_paths(split_linebreaks(mime_data.text()))
+        else:
+            event.ignore()
 
 #---------------------------------------------------------------------------------------------------
 
@@ -783,10 +816,17 @@ class PatternMatcher(qt.QTabWidget):
     def get_config(self):
         return self.config
 
+    def get_target_image_paths(self):
+        return self.target_image_paths
+
+    def add_target_image_paths(self, path_list):
+        found_paths = search_target_images(path_list)
+        self.target_image_paths = self.target_image_paths + found_paths
+        self.files_tab.reset_paths_list(self.target_image_paths)
+
     def change_tab_handler(self, index):
         """Does the work of actually changing the GUI display to the "InspectTab".
         """
-        print(f'PatternMatcher(QTabWidget).currentChanged({index})')
         super(PatternMatcher, self).setCurrentIndex(index)
         self.widget(index).update()
 
@@ -825,10 +865,17 @@ def filename_filter(filepath):
     ext = filepath.suffix.lower()
     return (ext == '.png') or (ext == '.jpg') or (ext == '.jpeg')
 
+linebreak = re.compile('[\\n\\r]')
+
+def split_linebreaks(str):
+    return linebreak.split(str)
+
 def search_target_images(filepath_args):
     result = []
     for filepath in filepath_args:
-        if os.path.isdir(filepath):
+        if filepath == '':
+            pass
+        elif os.path.isdir(filepath):
             for root, _dirs, files in os.walk(filepath):
                 root = PurePath(root)
                 for filename in files:
