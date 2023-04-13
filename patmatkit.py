@@ -508,16 +508,24 @@ class FilesTab(qt.QWidget):
         #---------- Populate list view ----------
         self.reset_paths_list(self.main_view.target_image_paths)
         #---------- Setup context menus ----------
+        ## Action: Use as pattern
         self.use_as_pattern = qt.QAction("Use as pattern", self)
         self.use_as_pattern.setShortcut(qgui.QKeySequence.Find)
         self.use_as_pattern.triggered.connect(self.use_current_item_as_pattern)
         self.list_widget.addAction(self.use_as_pattern)
         self.image_preview.addAction(self.use_as_pattern)
+        ## Action: Search within this image
         self.do_find_pattern = qt.QAction("Search within this image", self)
         self.do_find_pattern.setShortcut(qgui.QKeySequence.InsertParagraphSeparator)
         self.do_find_pattern.triggered.connect(self.activate_selected_item)
         self.list_widget.addAction(self.do_find_pattern)
         self.image_preview.addAction(self.do_find_pattern)
+        ## Action: open image files
+        self.open_image_files = qt.QAction("Open image files", self)
+        self.open_image_files.setShortcut(qgui.QKeySequence.Open)
+        self.open_image_files.triggered.connect(self.open_image_files_handler)
+        self.list_widget.addAction(self.open_image_files)
+        self.image_preview.addAction(self.open_image_files)
         #---------- Connect signal handlers ----------
         self.list_widget.currentItemChanged.connect(self.item_change_handler)
         self.list_widget.itemActivated.connect(self.activate_handler)
@@ -545,6 +553,22 @@ class FilesTab(qt.QWidget):
         self.list_widget.clear()
         for item in paths_list:
             self.list_widget.addItem(FileListItem(item))
+
+    def open_image_files_handler(self):
+        target_dir = self.main_view.get_config().output_dir
+        urls = \
+            qt.QFileDialog.getOpenFileUrls( \
+                self, "Open images in which to search for patterns", \
+                qcore.QUrl(str(target_dir)), \
+                'Images (*.png *.jpg *.jpeg)', '', \
+                qt.QFileDialog.ReadOnly, \
+                ["file"] \
+              )
+        urls = urls[0]
+        if len(urls) > 0:
+            self.main_view.add_target_image_paths(gather_QUrl_local_files(urls))
+        else:
+            pass
 
     def dragEnterEvent(self, event):
         print(f'InspectTab::dragEnterEvent({event})')
