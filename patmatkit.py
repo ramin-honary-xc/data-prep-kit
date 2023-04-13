@@ -541,12 +541,15 @@ class FilesTab(qt.QWidget):
         self.activate_handler(item)
 
     def item_change_handler(self, item, _old):
-        self.image_preview.display_path(item.get_path())
+        if item is not None:
+            self.image_preview.display_path(item.get_path())
+        else:
+            print('FilesTab.item_change_handler(item=None)')
 
     def use_current_item_as_pattern(self):
         item = self.list_widget.currentItem()
         path = item.get_path()
-        self.main_view.set_pattern_file(path, self.image_preview.get_pixmap())
+        self.main_view.set_pattern_pixmap(path, self.image_preview.get_pixmap())
 
     def reset_paths_list(self, paths_list):
         """Populate the list view with an item for each file path."""
@@ -564,6 +567,7 @@ class FilesTab(qt.QWidget):
                 qt.QFileDialog.ReadOnly, \
                 ["file"] \
               )
+        print(f'selected urls = {urls}')
         urls = urls[0]
         if len(urls) > 0:
             self.main_view.add_target_image_paths(gather_QUrl_local_files(urls))
@@ -596,10 +600,12 @@ class PatternSetupTab(qt.QWidget):
     def __init__(self, config, parent=None):
         super(PatternSetupTab, self).__init__(parent)
         self.setObjectName('PatternSetupTab')
-        self.file_path      = None
+        self.main_view      = parent
+        self.file_path      = self.main_view.get_config().pattern
         self.layout         = qt.QHBoxLayout(self)
         self.preview_scene  = qt.QGraphicsScene(self)
         self.preview_view   = qt.QGraphicsView(self.preview_scene)
+        self.preview_view.setContextMenuPolicy(2) # 2 = qcore::ContextMenuPolicy::ActionsContextMenu
         self.layout.addWidget(self.preview_view)
         self.display_pixmap = qgui.QPixmap()
         if config.pattern is not None:
@@ -608,21 +614,40 @@ class PatternSetupTab(qt.QWidget):
         else:
             print(f'config.pattern = None')
             pass
+        ## Action: open image files
+        self.open_pattern_file = qt.QAction("Open pattern file", self)
+        self.open_pattern_file.setShortcut(qgui.QKeySequence.Open)
+        self.open_pattern_file.triggered.connect(self.open_pattern_file_handler)
+        self.preview_view.addAction(self.open_pattern_file)
 
     def show_pattern_image_path(self, pattern_path):
         self.display_pixmap_path = pattern_path
-        print(f'display_pixmap.load("{(str(self.display_pixmap_path))}")')
         loaded = self.display_pixmap.load(str(self.display_pixmap_path))
-        print(f'-> {loaded}')
-        self.set_pattern_file(pattern_path, self.display_pixmap)
+        self.set_pattern_pixmap(pattern_path, self.display_pixmap)
 
-    def set_pattern_file(self, pattern_path, pixmap):
+    def set_pattern_pixmap(self, pattern_path, pixmap=None):
         self.file_path = pattern_path
         self.display_pixmap = pixmap
         self.preview_scene.clear()
         self.preview_view.resetTransform()
         self.pixmap_item = qt.QGraphicsPixmapItem(self.display_pixmap)
         self.preview_scene.addItem(self.pixmap_item)
+
+    def open_pattern_file_handler(self):
+        target_dir = self.main_view.get_config().pattern
+        url = \
+            qt.QFileDialog.getOpenFileUrl( \
+                self, "Open images in which to search for patterns", \
+                qcore.QUrl(str(target_dir)), \
+                'Images (*.png *.jpg *.jpeg)', '', \
+                qt.QFileDialog.ReadOnly, \
+                ["file"] \
+              )
+        url = url[0]
+        if (url is not None) and url.isLocalFile():
+            self.main_view.show_pattern_image_path(PurePath(url.toLocalFile()))
+        else:
+            print(f'URL {url} is not a local file')
 
 #---------------------------------------------------------------------------------------------------
 
@@ -718,16 +743,13 @@ class InspectTab(qt.QWidget):
         self.place_rectangles()
 
     def switch_image_display(self, pixmap):
-        print(f'InspectTab.switch_image_display({pixmap})')
         self.image_preview.set_pixmap(pixmap)
 
     def show_nothing(self):
-        print('InspectTab.show_nothing()')
         self.image_preview.hide()
         self.message_box.show()
 
     def show_image_preview(self):
-        print('InspectTab.show_image_preview()')
         self.message_box.hide()
         self.image_preview.show()
 
@@ -792,7 +814,7 @@ class CachedCVImageLoader():
                     f'Failed to load image file {str(path)}' \
                   )
             else:
-                print(f'CachedCVImageLoader({str(self.path)}).force_load_image(str({path})) -> OK')
+                #print(f'CachedCVImageLoader({str(self.path)}).force_load_image(str({path})) -> OK')
                 self.path = path
         else:
             pass
@@ -859,7 +881,6 @@ class PatternMatcher(qt.QTabWidget):
         list in the "FilesTab". It starts running the pattern matching algorithm and
         changes the display of the GUI over to the "InspectTab".
         """
-        print(f'PatternMatcher.match_on_file("{target_image_path}")')
         self.target.load_image(target_image_path)
         if (self.pattern.get_image() is not None) and (self.target.get_image() is not None):
             if target_image_path in self.cache:
@@ -877,8 +898,13 @@ class PatternMatcher(qt.QTabWidget):
               )
             return None
 
-    def set_pattern_file(self, path, pixmap):
-        self.pattern_tab.set_pattern_file(path, pixmap)
+    def show_pattern_image_path(self, path):
+        self.pattern_tab.show_pattern_image_path(path)
+        self.pattern.load_image(path)
+        self.setCurrentWidget(self.pattern_tab)
+
+    def set_pattern_pixmap(self, path, pixmap):
+        self.pattern_tab.set_pattern_pixmap(path, pixmap)
         self.setCurrentWidget(self.pattern_tab)
         self.pattern.load_image(path)
 
