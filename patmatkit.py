@@ -575,7 +575,6 @@ class FilesTab(qt.QWidget):
             pass
 
     def dragEnterEvent(self, event):
-        print(f'InspectTab::dragEnterEvent({event})')
         mime_data = event.mimeData()
         if mime_data.hasUrls() or mime_data.hasText():
             event.accept()
@@ -595,19 +594,54 @@ class FilesTab(qt.QWidget):
 
 #---------------------------------------------------------------------------------------------------
 
+class PatternPreview(qt.QGraphicsView):
+    """A QGraphicsView for displaying the pattern image. It does not
+    inherit from InspectImagePreview because it has different behavior
+    for displaying the image, and for drag and drop. This class may be
+    removed and replaced with a more featureful versino of
+    InspectImagePreview in the future.
+    """
+
+    def __init__(self, parent):
+        super(PatternPreview, self).__init__()
+        self.parent = parent
+        self.display_pixmap = qgui.QPixmap()
+        self.preview_scene  = qt.QGraphicsScene(self)
+        self.pixmap_item = None
+        self.setScene(self.preview_scene)
+        self.setContextMenuPolicy(2) # 2 = qcore::ContextMenuPolicy::ActionsContextMenu
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, event):
+        self.parent.dragEnterEvent(event)
+
+    def dropEvent(self, event):
+        self.parent.dropEvent(event)
+
+    def set_pattern_pixmap(self):
+        self.preview_scene.clear()
+        self.resetTransform()
+        self.pixmap_item = qt.QGraphicsPixmapItem(self.display_pixmap)
+        self.preview_scene.addItem(self.pixmap_item)
+
+    def show_pattern_image_path(self, pixmap_path, pixmap=None):
+        if pixmap is not None:
+            self.display_pixmap = pixmap
+        else:
+            loaded = self.display_pixmap.load(str(pixmap_path))
+        self.set_pattern_pixmap()
+
 class PatternSetupTab(qt.QWidget):
 
     def __init__(self, config, parent=None):
         super(PatternSetupTab, self).__init__(parent)
         self.setObjectName('PatternSetupTab')
+        self.setAcceptDrops(True)
         self.main_view      = parent
         self.file_path      = self.main_view.get_config().pattern
         self.layout         = qt.QHBoxLayout(self)
-        self.preview_scene  = qt.QGraphicsScene(self)
-        self.preview_view   = qt.QGraphicsView(self.preview_scene)
-        self.preview_view.setContextMenuPolicy(2) # 2 = qcore::ContextMenuPolicy::ActionsContextMenu
+        self.preview_view   = PatternPreview(self)
         self.layout.addWidget(self.preview_view)
-        self.display_pixmap = qgui.QPixmap()
         if config.pattern is not None:
             print(f'config.pattern = "{config.pattern}"')
             self.show_pattern_image_path(config.pattern)
@@ -622,16 +656,11 @@ class PatternSetupTab(qt.QWidget):
 
     def show_pattern_image_path(self, pattern_path):
         self.display_pixmap_path = pattern_path
-        loaded = self.display_pixmap.load(str(self.display_pixmap_path))
-        self.set_pattern_pixmap(pattern_path, self.display_pixmap)
+        self.preview_view.show_pattern_image_path(self.display_pixmap_path)
 
-    def set_pattern_pixmap(self, pattern_path, pixmap=None):
+    def set_pattern_pixmap(self, pattern_path, pixmap):
         self.file_path = pattern_path
-        self.display_pixmap = pixmap
-        self.preview_scene.clear()
-        self.preview_view.resetTransform()
-        self.pixmap_item = qt.QGraphicsPixmapItem(self.display_pixmap)
-        self.preview_scene.addItem(self.pixmap_item)
+        self.preview_view.show_pattern_image_path(pattern_path, pixmap)
 
     def open_pattern_file_handler(self):
         target_dir = self.main_view.get_config().pattern
@@ -648,6 +677,38 @@ class PatternSetupTab(qt.QWidget):
             self.main_view.show_pattern_image_path(PurePath(url.toLocalFile()))
         else:
             print(f'URL {url} is not a local file')
+
+    def dragEnterEvent(self, event):
+        mime_data = event.mimeData()
+        if mime_data.hasUrls():
+            urls = mime_data.urls()
+            if len(urls) == 1:
+                event.accept()
+            else:
+                event.ignore()
+        elif mime_data.hasText():
+            event.accept()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        mime_data = event.mimeData()
+        if mime_data.hasUrls():
+            url = mime_data.urls()
+            url = url[0]
+            if len(urls) == 1:
+                event.accept()
+                url = mime_data.urls()[0]
+                self.preview_view.show_pattern_image_path(PurePath(url.toLocalFile()))
+                self.main_view.show_pattern_image_path(PurePath(url.toLocalFile()))
+            else:
+                event.ignore()
+        elif mime_data.hasText():
+            event.accept()
+            self.preview_view.show_pattern_image_path(PurePath(mime_data.text()))
+            self.main_view.show_pattern_image_path(PurePath(mime_data.text()))
+        else:
+            event.ignore()
 
 #---------------------------------------------------------------------------------------------------
 
