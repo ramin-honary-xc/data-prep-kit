@@ -752,12 +752,12 @@ class PercentSlider(qt.QWidget):
         self.callback(new_value)
 
     def reset_value(self):
-        self.threshold_textbox.setText(f'{self.threshold}')
-        self.threshold_slider.setValue(round(self.percent * 1000.0))
+        self.textbox.setText(f'{self.percent * 100.0}')
+        self.slider.setValue(round(self.percent * 1000.0))
 
     def textbox_handler(self):
         # editingFinished signal handler
-        txt = self.threshold_textbox.text()
+        txt = self.textbox.text()
         try:
             new_value = float(txt)
             if new_value >= 50.0 and new_value <= 100.0:
