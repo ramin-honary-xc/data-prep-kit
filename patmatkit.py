@@ -171,15 +171,20 @@ class RegionSize():
     def as_file_name(self):
         return PurePath(f'{self.x_min:0>5}x{self.y_min:0>5}.png')
 
-    def crop_write_image(self, image, results_dir):
+    def crop_write_image(self, image, results_dir, file_prefix=None):
         """Takes an image to crop, crops it with 'crop_image()', takes a
         PurePath() 'results_dir', writes the cropped image to the file
         path given by (results_dir/self.as_file_name()) using
         'cv.imwrite()'.
         """
-        write_path = str(results_dir / self.as_file_name())
+        write_path = self.as_file_name()
+        if file_prefix:
+            write_path = PurePath(f'{str(file_prefix)}_{str(write_path)}')
+        else:
+            pass
+        write_path = results_dir / write_path
         print(f'crop_write_image -> {write_path}')
-        cv.imwrite(write_path, self.crop_image(image))
+        cv.imwrite(str(write_path), self.crop_image(image))
 
     def get_point_and_size(self):
         """Return a 4-tuple (x,y, width,height)"""
@@ -198,11 +203,12 @@ class DistanceMap():
     image.
     """
 
-    def __init__(self, target_image, pattern_image):
+    def __init__(self, target_image_path, target_image, pattern_image):
         """Takes two 2D-images, NumPy arrays loaded from files by
         OpenCV. Constructing this object computes the convolution and
         square-difference distance map.
         """
+        self.target_image_path = target_image_path
         pat_shape = pattern_image.shape
         self.pattern_height = pat_shape[0]
         self.pattern_width  = pat_shape[1]
@@ -335,8 +341,9 @@ class DistanceMap():
     def write_all_cropped_images(self, target_image, threshold, results_dir):
         print(f'write_all_cropped_images: threshold = {str(threshold)}')
         regions = self.find_matching_regions(threshold=threshold)
+        prefix = self.target_image_path.stem
         for reg in regions:
-            reg.crop_write_image(target_image, results_dir)
+            reg.crop_write_image(target_image, results_dir, prefix)
 
 #---------------------------------------------------------------------------------------------------
 # Front-end API to the pattern matching program, called in batch mode.
@@ -367,7 +374,7 @@ def crop_matched_patterns(
     else:
         pass
 
-    distance_map  = DistanceMap(target_image, pattern_image)
+    distance_map  = DistanceMap(target_image_path, target_image, pattern_image)
 
     if save_distance_map is not None:
         # Save the convolution image:
@@ -948,7 +955,11 @@ class PatternMatcher(qt.QTabWidget):
                 distance_map = self.cache[target_path]
             else:
                 self.target.load_image(target_image_path)
-                distance_map = DistanceMap(self.target.get_image(), self.pattern.get_image())
+                distance_map = DistanceMap( \
+                    target_image_path, \
+                    self.target.get_image(), \
+                    self.pattern.get_image() \
+                  )
             self.inspect_tab.show_distance_map(self.files_tab.get_display_pixmap(), distance_map)
             self.setCurrentWidget(self.inspect_tab)
             return self.distance_map
