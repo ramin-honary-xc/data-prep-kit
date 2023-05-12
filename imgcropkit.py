@@ -80,6 +80,84 @@ class ImagePreview(qt.QGraphicsView):
             print(f'Failed to load {str(self.display_pixmap_path.get_path())}')
 
 
+class CropRectTool():
+    """This class defines event handler functions that are called when
+    the tool for selecting the cropping rectangle is selected.
+    """
+
+    def __init__(self, scene, app_model):
+        self.scene = scene
+        self.app_model = app_model
+
+    def mousePressEvent(self, event):
+        rect = self.app_model.get_crop_rect()
+        rect.setTopLeft(event.lastScenePos())
+        self.app_model.set_crop_rect(rect)
+        self.scene.update_crop_rect_item()
+        event.accept()
+
+    def mouseMoveEvent(self, event):
+        rect = self.app_model.get_crop_rect()
+        rect.setBottomRight(event.lastScenePos())
+        self.app_model.set_crop_rect(rect)
+        self.scene.update_crop_rect_item()
+        event.accept()
+
+
+class GeometryScene(qt.QGraphicsScene):
+    """This is the scene controller used to manage mouse events on the
+    image view and allows the user to draw annotating shapes over the
+    image.
+    """
+
+    def __init__(self, app_model, graphics_view):
+        self.app_model = app_model
+        self.graphics_view = graphics_view
+        self.crop_rect_pen = qtgui.QColor(255, 0, 0)
+        self.event_handler = CropRectTool(app_model, graphics_view)
+        self.pixmap_item = None
+        self.crop_rect_item = None
+        self.reset_view()
+
+    def reset_view(self):
+        """Re-read the pixmap from the app_model and prepare to install it
+        into the scene.
+        """
+        pixmap    = self.app_model.get_display_pixmap()
+        crop_rect = self.app_model.get_crop_rect()
+        self.clear()
+        self.resetTransform()
+        #----------------------------------------
+        if pixmap is not None:
+            self.pixmap_item = qt.QGraphicsPixmapItem(pixmap)
+            self.addItem(self.pixmap_item)
+        else:
+            self.pixmap_item = None
+        #----------------------------------------
+        if crop_rect is not None:
+            self.crop_rect_item = self.addRect(crop_rect, self.crop_rect_pen, qtgui.QBrush())
+        else:
+            self.crop_rect_item = None
+        #----------------------------------------
+
+    def update_crop_rect_item(self):
+        """Updates the QGraphicsRectItem for the cropping rectangle in this
+        scene with the latest value for
+        self.app_model.get_crop_rect(). This function is called after
+        an event handler updates the cropping rectangle.
+        """
+        if self.crop_rect_item:
+            self.crop_rect_item.setRect(self.app_model.get_crop_rect())
+        else:
+            pass
+
+    def mousePressEvent(self, event):
+        self.event_handler.mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        self.event_handler.mouseMoveEvent(event)
+
+
 ################################################################################
 
 def gather_QUrl_local_files(qurl_list):
@@ -277,9 +355,17 @@ class MainAppModel():
     """
 
     def __init__(self):
-         self.set_image_list([])
-         self.set_shape_list([])
-         self.set_selected_image(None)
+        self.display_pixmap = None
+        self.set_image_list([])
+        self.set_shape_list([])
+        self.set_selected_image(None)
+        self.set_crop_rect(None)
+
+    def set_display_pixmap(self, display_pixmap):
+        self.display_pixmap = display_pixmap
+
+    def get_display_pixmap(self):
+        return self.display_pixmap
 
     def set_image_list(self, image_list):
         self.image_list = image_list
@@ -302,6 +388,16 @@ class MainAppModel():
     def add_image_list(self, path_list):
         found_paths = search_target_images(path_list)
         self.image_list = self.image_list + found_paths
+
+    def set_crop_rect(self, crop_rect):
+        """this field is of type qtcore.QRectF
+        """
+        self.crop_rect = crop_rect
+
+    def get_crop_rect(self):
+        """this field is of type qtcore.QRectF
+        """
+        return self.crop_rect
 
 
 ################################################################################
