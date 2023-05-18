@@ -91,16 +91,26 @@ class CropRectTool():
 
     def mousePressEvent(self, event):
         rect = self.app_model.get_crop_rect()
-        rect.setTopLeft(event.lastScenePos())
+        if rect is None:
+            rect = qcore.QRectF()
+            pt = event.lastScenePos()
+            rect.setBottomRight(pt)
+            rect.setTopLeft(pt)
+        else:
+            rect.setTopLeft(event.lastScenePos())
+        # Update the app_model.crop_rect
         self.app_model.set_crop_rect(rect)
         self.scene.update_crop_rect_item()
         event.accept()
 
     def mouseMoveEvent(self, event):
         rect = self.app_model.get_crop_rect()
-        rect.setBottomRight(event.lastScenePos())
-        self.app_model.set_crop_rect(rect)
-        self.scene.update_crop_rect_item()
+        if rect is None:
+            pass
+        else:
+            rect.setBottomRight(event.lastScenePos())
+            self.app_model.set_crop_rect(rect)
+            self.scene.update_crop_rect_item()
         event.accept()
 
 
@@ -110,14 +120,18 @@ class GeometryScene(qt.QGraphicsScene):
     image.
     """
 
-    def __init__(self, app_model, graphics_view):
+    def __init__(self, app_model):
+        super(GeometryScene, self).__init__()
         self.app_model = app_model
-        self.graphics_view = graphics_view
-        self.crop_rect_pen = qtgui.QColor(255, 0, 0)
-        self.event_handler = CropRectTool(app_model, graphics_view)
+        self.graphics_view = None
+        self.crop_rect_pen = qgui.QColor(255, 0, 0)
+        self.event_handler = CropRectTool(self, app_model)
         self.pixmap_item = None
         self.crop_rect_item = None
         self.reset_view()
+
+    def set_graphics_view(self, graphics_view):
+        self.graphics_view = graphics_view
 
     def reset_view(self):
         """Re-read the pixmap from the app_model and prepare to install it
@@ -126,7 +140,8 @@ class GeometryScene(qt.QGraphicsScene):
         pixmap    = self.app_model.get_display_pixmap()
         crop_rect = self.app_model.get_crop_rect()
         self.clear()
-        self.resetTransform()
+        if self.graphics_view is not None:
+            self.graphics_view.resetTransform()
         #----------------------------------------
         if pixmap is not None:
             self.pixmap_item = qt.QGraphicsPixmapItem(pixmap)
@@ -135,7 +150,12 @@ class GeometryScene(qt.QGraphicsScene):
             self.pixmap_item = None
         #----------------------------------------
         if crop_rect is not None:
-            self.crop_rect_item = self.addRect(crop_rect, self.crop_rect_pen, qtgui.QBrush())
+            self.crop_rect_item = \
+                self.addRect( \
+                    crop_rect, \
+                    self.crop_rect_pen, \
+                    qtgui.QBrush() \
+                )
         else:
             self.crop_rect_item = None
         #----------------------------------------
@@ -152,9 +172,15 @@ class GeometryScene(qt.QGraphicsScene):
             pass
 
     def mousePressEvent(self, event):
+        print(f"GeometryScene.mousePressEvent({event})") #DEBUG
         self.event_handler.mousePressEvent(event)
 
+    def mouseReleaseEvent(self, event):
+        print(f"GeometryScene.mouseReleaseEvent({event})") #DEBUG
+        self.event_handler.mouseReleaseEvent(event)
+
     def mouseMoveEvent(self, event):
+        print(f"GeometryScene.mouseMoveEvent({event})") #DEBUG
         self.event_handler.mouseMoveEvent(event)
 
 
@@ -301,7 +327,8 @@ class FilesTab(qt.QWidget):
 
 class GeometryTab(qt.QWidget):
     """Display a list of images, and provide an image preview window to
-    view each iamge.
+    view each iamge. The set_graphics_view() function MUST be called
+    with a QGraphicsView before objects of this class are ever used.
     """
 
     def __init__(self, app_model, parent):
@@ -310,9 +337,12 @@ class GeometryTab(qt.QWidget):
         #---------- Setup visible widgets ----------
         self.app_model      = app_model
         self.app_view       = parent
-        self.image_preview  = ImagePreview(self)
+        self.scene          = GeometryScene(self.app_model)
+        self.image_preview  = qt.QGraphicsView(self.scene)
         self.image_preview.setObjectName('GeometryTab ImagePreview')
-
+        self.scene.set_graphics_view(self.image_preview)
+        self.layout         = qt.QHBoxLayout(self)
+        self.layout.addWidget(self.image_preview)
 
 ################################################################################
 
