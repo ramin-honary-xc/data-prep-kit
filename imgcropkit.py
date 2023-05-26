@@ -6,9 +6,8 @@ import os.path
 import re
 from pathlib import PurePath
 #import math
-#import cv2 as cv
-#import numpy as np
-#from scipy.signal import argrelextrema
+import cv2 as cv
+import numpy as np
 
 import PyQt5.QtCore as qcore
 import PyQt5.QtGui as qgui
@@ -88,50 +87,82 @@ class CropRectTool():
     def __init__(self, scene, app_model):
         self.scene = scene
         self.app_model = app_model
+        self.start_point = None
+        self.end_point = None
 
     def mousePressEvent(self, event):
-        rect = self.app_model.get_crop_rect()
-        if rect is None:
-            rect = qcore.QRectF()
-            pt = event.lastScenePos()
-            rect.setBottomRight(pt)
-            rect.setTopLeft(pt)
-        else:
-            rect.setTopLeft(event.lastScenePos())
-        # Update the app_model.crop_rect
-        self.app_model.set_crop_rect(rect)
-        self.scene.update_crop_rect_item()
+        self.start_point = event.lastScenePos()
         event.accept()
 
     def mouseMoveEvent(self, event):
-        rect = self.app_model.get_crop_rect()
-        if rect is None:
-            pass
+        self.end_point = event.lastScenePos()
+        if self.start_point and self.end_point:
+            self.set_crop_rect()
         else:
-            rect.setBottomRight(event.lastScenePos())
-            self.app_model.set_crop_rect(rect)
-            self.scene.update_crop_rect_item()
+            pass
         event.accept()
 
+    def mouseReleaseEvent(self, event):
+        self.end_point = event.lastScenePos()
+        self.set_crop_rect()
+        event.accept()
 
-class GeometryScene(qt.QGraphicsScene):
+    def set_crop_rect(self):
+        self.scene.set_crop_rect(qcore.QRectF(self.start_point, self.end_point))
+
+
+class ReferenceImageScene(qt.QGraphicsScene):
     """This is the scene controller used to manage mouse events on the
     image view and allows the user to draw annotating shapes over the
     image.
     """
 
     def __init__(self, app_model):
-        super(GeometryScene, self).__init__()
+        super(ReferenceImageScene, self).__init__()
         self.app_model = app_model
+        self.reference_filepath = None
+        self.reference_pixmap = None
+        self.reference_pixmap_item = None
         self.graphics_view = None
         self.crop_rect_pen = qgui.QColor(255, 0, 0)
         self.event_handler = CropRectTool(self, app_model)
         self.pixmap_item = None
+        self.crop_rect = None
         self.crop_rect_item = None
         self.reset_view()
 
+    def set_crop_rect(self, rect):
+        self.crop_rect = rect
+        if self.crop_rect_item is None:
+            self.crop_rect_item = qt.QGraphicsRectItem(self.crop_rect)
+            self.addItem(self.crop_rect_item)
+        else:
+            self.crop_rect_item.setRect(self.crop_rect)
+
+    def get_crop_rect(self):
+        return self.crop_rect
+
     def set_graphics_view(self, graphics_view):
         self.graphics_view = graphics_view
+
+    def set_display_reference(self, filepath):
+        if filepath is None:
+            self.reference_filepath = None
+            self.reference_pixmap = None
+            self.reference_pixmap_item = None
+        else:
+            self.clear()
+            self.reference_pixmap = qgui.QPixmap(str(filepath))
+            if isinstance(self.reference_pixmap, qgui.QPixmap):
+                self.reference_filepath = filepath
+                self.reference_pixmap_item = qt.QGraphicsPixmapItem(self.reference_pixmap)
+                self.addItem(self.reference_pixmap_item)
+                print("#(inserted reference pixmap item into scene)")
+            else:
+                raise Exception(f'failed to construct QImage from path {filepath:str}')
+
+    def get_reference_pixmap_item(self):
+        return self.reference_pixmap_item
 
     def reset_view(self):
         """Re-read the pixmap from the app_model and prepare to install it
@@ -166,21 +197,22 @@ class GeometryScene(qt.QGraphicsScene):
         self.app_model.get_crop_rect(). This function is called after
         an event handler updates the cropping rectangle.
         """
-        if self.crop_rect_item:
-            self.crop_rect_item.setRect(self.app_model.get_crop_rect())
+        new_rect = self.app_model.get_crop_rect()
+        if self.crop_rect_item and new_rect:
+            self.crop_rect_item.setRect(new_rect)
         else:
             pass
 
     def mousePressEvent(self, event):
-        print(f"GeometryScene.mousePressEvent({event})") #DEBUG
+        #print(f"ReferenceImageScene.mousePressEvent({event})") #DEBUG
         self.event_handler.mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
-        print(f"GeometryScene.mouseReleaseEvent({event})") #DEBUG
+        #print(f"ReferenceImageScene.mouseReleaseEvent({event})") #DEBUG
         self.event_handler.mouseReleaseEvent(event)
 
     def mouseMoveEvent(self, event):
-        print(f"GeometryScene.mouseMoveEvent({event})") #DEBUG
+        #print(f"ReferenceImageScene.mouseMoveEvent({event})") #DEBUG
         self.event_handler.mouseMoveEvent(event)
 
 
@@ -261,7 +293,7 @@ class FilesTab(qt.QWidget):
         return self.image_preview.get_pixmap()
 
     def activate_handler(self, item):
-        self.app_view.change_to_geometry_tab()
+        self.app_view.set_display_reference(item.get_path())
 
     def activate_selected_item(self):
         item = self.list_widget.currentItem()
@@ -276,7 +308,8 @@ class FilesTab(qt.QWidget):
     def use_current_item_as_pattern(self):
         item = self.list_widget.currentItem()
         path = item.get_path()
-        self.app_model.set_selected_image(path)
+        self.app_model.set_display_pixmap(None, path)
+        self.app_view.set_display_reference(self.app_model.get_display_pixmap_filepath())
 
     def reset_paths_list(self, paths_list):
         """Populate the list view with an item for each file path."""
@@ -325,24 +358,34 @@ class FilesTab(qt.QWidget):
 
 ################################################################################
 
-class GeometryTab(qt.QWidget):
-    """Display a list of images, and provide an image preview window to
-    view each iamge. The set_graphics_view() function MUST be called
-    with a QGraphicsView before objects of this class are ever used.
+class ReferenceImageTab(qt.QWidget):
+    """Display the image used as the reference image, and provide an image
+    preview window to view each iamge. It responds to mouse clicks to
+    allow end users to define the cropping rectangle. The cropping
+    rectangle will be centered around the key points found by the ORB
+    algorithm. All other images selected for cropping will also run
+    the ORB algorithm, and a similar croppiping rectangle will be
+    cenetered around those key points.
+
     """
 
     def __init__(self, app_model, parent):
-        super(GeometryTab, self).__init__(parent)
+        super(ReferenceImageTab, self).__init__(parent)
         self.setObjectName('FilesTab')
         #---------- Setup visible widgets ----------
         self.app_model      = app_model
         self.app_view       = parent
-        self.scene          = GeometryScene(self.app_model)
+        self.scene          = ReferenceImageScene(self.app_model)
         self.image_preview  = qt.QGraphicsView(self.scene)
-        self.image_preview.setObjectName('GeometryTab ImagePreview')
+        self.image_preview.setObjectName('ReferenceImageTab ImagePreview')
         self.scene.set_graphics_view(self.image_preview)
+        self.scene.changed.connect(self.image_preview.updateScene)
         self.layout         = qt.QHBoxLayout(self)
         self.layout.addWidget(self.image_preview)
+
+    def set_display_reference(self, filepath):
+        self.scene.set_display_reference(filepath)
+
 
 ################################################################################
 
@@ -360,10 +403,14 @@ class ImageCropKit(qt.QTabWidget):
         #self.tab_bar = qt.QTabWidget()
         self.setTabPosition(qt.QTabWidget.North)
         self.files_tab = FilesTab(app_model, self)
-        self.geometry_tab = GeometryTab(app_model, self)
+        self.reference_image_tab = ReferenceImageTab(app_model, self)
         self.addTab(self.files_tab, "Search")
-        self.addTab(self.geometry_tab, "Pattern")
+        self.addTab(self.reference_image_tab, "Reference")
         self.currentChanged.connect(self.change_tab_handler)
+
+    def set_display_reference(self, filepath):
+        self.reference_image_tab.set_display_reference(filepath)
+        self.change_to_reference_tab()
 
     def change_tab_handler(self, index):
         """Does the work of actually changing the GUI display to the "InspectTab".
@@ -374,7 +421,7 @@ class ImageCropKit(qt.QTabWidget):
     def change_to_files_tab(self):
         self.change_tab_handler(0)
 
-    def change_to_geometry_tab(self):
+    def change_to_reference_tab(self):
         self.change_tab_handler(1)
 
 ################################################################################
@@ -385,47 +432,107 @@ class MainAppModel():
     """
 
     def __init__(self):
-        self.display_pixmap = None
-        self.set_image_list([])
-        self.set_shape_list([])
-        self.set_selected_image(None)
+        self.set_display_pixmap(None, None)
         self.set_crop_rect(None)
+        self.set_image_list([])
+        self.ORB = None
+        self.keypoints = None
+        self.descriptor = None
+        self.match_group = None
+        self.bfmatcher = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=True)
 
-    def set_display_pixmap(self, display_pixmap):
-        self.display_pixmap = display_pixmap
+    def set_display_pixmap(self, display_pixmap, filepath):
+        """takes a pixmap that has been loaded into memory, and the file path
+        from which it was loaded. You may pass None as the first
+        argument, it will be loaded from the given filepath. You may
+        not pass None for the second argument unless the first
+        argument is also None.
+        """
+        if filepath is None:
+            if display_pixmap is None:
+                self.display_pixmap = None
+                self.display_pixmap_filepath = None
+            else:
+                raise ValueError("if display_pixmap is given, filepath must not be None")
+        else:
+            self.display_pixmap_filepath = filepath
+            if display_pixmap is None:
+                self.reload_display_pixmap()
+            else:
+                self.display_pixmap = display_pixmap
+                self.run_orb()
 
     def get_display_pixmap(self):
         return self.display_pixmap
 
-    def set_image_list(self, image_list):
-        self.image_list = image_list
+    def get_display_pixmap_filepath(self):
+        return self.display_pixmap_filepath
+
+    def reload_display_pixmap(self):
+        """Given a filepath, load the filepath using cv.imread() and
+        store the result in self."""
+        self.display_pixmap = cv.imread(str(self.display_pixmap_filepath), cv.IMREAD_GRAYSCALE)
+        self.run_orb()
 
     def get_image_list(self):
         return self.image_list
 
-    def set_shape_list(self, shape_list):
-        self.shape_list = shape_list
+    def set_image_list(self, list):
+        self.image_list = list
 
-    def get_shape_list(self):
-        return self.shape_list
+    def add_image_list(self, items):
+        if isinstance(items, list):
+            self.image_list = list(dict.fromkeys(self.image_list + items))
+        else:
+            self.image_list.append(items)
 
-    def set_selected_image(self, selected_image):
-         self.selected_image = selected_image
+    def run_orb(self):
+        """If the display image has been set, create a new ORB for it."""
+        pixmap = self.get_display_pixmap()
+        if pixmap is not None:
+            ORB = cv.ORB_create()
+            keypoints, descriptor = ORB.detectAndCompute(pixmap, None)
+            self.ORB = ORB
+            self.keypoints = keypoints
+            self.descriptor = descriptor
+        else:
+            pass
 
-    def get_selected_image(self, selected_image):
-         return self.selected_image
+    def run_bfmatcher(self, pixmap):
+        """If the display image has been set, create a new bfmatcher for
+        it. Pass a second pixmap that has been loaded with cv.imread()
+        and then run the cv.BFMatcher.match() function to obtain a
+        distance between the two images. Return the distance
+        value. The calling context can then decide whether the
+        distance is close enuogh to allow a cropping to occur.
+        """
+        if (self.descriptor is not None) and (self.bfmatcher is not None):
+            ORB = cv.ORB_create()
+            _keypoints, descriptor = ORB.detectAndCompute(pixmap, None)
+            self.match_group = self.bfmatcher.match(self.descriptor, descriptor)
+            if self.match_group is not None:
+                self.match_group = \
+                    cv.sorted( \
+                        self.match_group, \
+                        key = (lambda feature: feature.distance) \
+                      )
+        else:
+            pass
 
-    def add_image_list(self, path_list):
-        found_paths = search_target_images(path_list)
-        self.image_list = self.image_list + found_paths
+    def reset_crop_rect(self):
+        """If the "self.display_pixmap" is set, you can reset the crop rect to
+        the exact size of the "self.display_pixmap" by calling this function."""
+        if self.display_pixmap is not None:
+            height, width = self.display_pixmap.shape
+            self.crop_rect = (0, 0, width, height)
 
     def set_crop_rect(self, crop_rect):
-        """this field is of type qtcore.QRectF
+        """this field is of type (x_pix_offset, y_pix_offset, pix_width, pix_height) or None
         """
         self.crop_rect = crop_rect
 
     def get_crop_rect(self):
-        """this field is of type qtcore.QRectF
+        """this field is of type (x_pix_offset, y_pix_offset, pix_width, pix_height) or None
         """
         return self.crop_rect
 
