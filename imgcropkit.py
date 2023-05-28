@@ -89,9 +89,26 @@ class CropRectTool():
         self.app_model = app_model
         self.start_point = None
         self.end_point = None
+        self.rect = None
 
     def mousePressEvent(self, event):
-        self.start_point = event.lastScenePos()
+        pixmap_item = self.scene.get_reference_pixmap_item()
+        bounds = None
+        if pixmap_item:
+            bounds = pixmap_item.boundingRect()
+            point = event.lastScenePos()
+            accept = ( \
+                point.x() <= bounds.width() and \
+                point.y() <= bounds.height() and \
+                point.x() >= 0 and \
+                point.y() >= 0 \
+              )
+            if accept:
+                self.start_point = point
+            else:
+                self.start_point = None
+        else:
+            pass
         event.accept()
 
     def mouseMoveEvent(self, event):
@@ -105,10 +122,31 @@ class CropRectTool():
     def mouseReleaseEvent(self, event):
         self.end_point = event.lastScenePos()
         self.set_crop_rect()
+        self.app_model.set_crop_rect(self.rect)
+        self.start_point = None
+        self.end_point = None
         event.accept()
 
     def set_crop_rect(self):
-        self.scene.set_crop_rect(qcore.QRectF(self.start_point, self.end_point))
+        pixmap_item = self.scene.get_reference_pixmap_item()
+        bounds = None
+        if pixmap_item:
+            bounds = pixmap_item.boundingRect()
+        else:
+            pass
+        if bounds and self.start_point and self.end_point:
+            x_min = min(self.start_point.x(), self.end_point.x())
+            y_min = min(self.start_point.y(), self.end_point.y())
+            x_max = max(self.start_point.x(), self.end_point.x())
+            y_max = max(self.start_point.y(), self.end_point.y())
+            x_min = max(x_min, 0)
+            y_min = max(y_min, 0)
+            x_max = min(x_max, bounds.width())
+            y_max = min(y_max, bounds.height())
+            self.rect = (x_min, y_min, x_max-x_min, y_max-y_min)
+            self.scene.set_crop_rect(qcore.QRectF(*self.rect))
+        else:
+            pass
 
 
 class ReferenceImageScene(qt.QGraphicsScene):
@@ -124,7 +162,9 @@ class ReferenceImageScene(qt.QGraphicsScene):
         self.reference_pixmap = None
         self.reference_pixmap_item = None
         self.graphics_view = None
-        self.crop_rect_pen = qgui.QColor(255, 0, 0)
+        self.crop_rect_pen = qgui.QPen(qgui.QColor(255, 0, 0))
+        self.crop_rect_pen.setCosmetic(True)
+        self.crop_rect_pen.setWidth(3)
         self.event_handler = CropRectTool(self, app_model)
         self.pixmap_item = None
         self.crop_rect = None
@@ -134,8 +174,7 @@ class ReferenceImageScene(qt.QGraphicsScene):
     def set_crop_rect(self, rect):
         self.crop_rect = rect
         if self.crop_rect_item is None:
-            self.crop_rect_item = qt.QGraphicsRectItem(self.crop_rect)
-            self.addItem(self.crop_rect_item)
+            self.crop_rect_item = self.addRect(self.crop_rect, self.crop_rect_pen)
         else:
             self.crop_rect_item.setRect(self.crop_rect)
 
@@ -151,15 +190,9 @@ class ReferenceImageScene(qt.QGraphicsScene):
             self.reference_pixmap = None
             self.reference_pixmap_item = None
         else:
-            self.clear()
             self.reference_pixmap = qgui.QPixmap(str(filepath))
-            if isinstance(self.reference_pixmap, qgui.QPixmap):
-                self.reference_filepath = filepath
-                self.reference_pixmap_item = qt.QGraphicsPixmapItem(self.reference_pixmap)
-                self.addItem(self.reference_pixmap_item)
-                print("#(inserted reference pixmap item into scene)")
-            else:
-                raise Exception(f'failed to construct QImage from path {filepath:str}')
+            self.reference_filepath = filepath
+            self.reset_view()
 
     def get_reference_pixmap_item(self):
         return self.reference_pixmap_item
@@ -168,25 +201,25 @@ class ReferenceImageScene(qt.QGraphicsScene):
         """Re-read the pixmap from the app_model and prepare to install it
         into the scene.
         """
-        pixmap    = self.app_model.get_display_pixmap()
-        crop_rect = self.app_model.get_crop_rect()
         self.clear()
         if self.graphics_view is not None:
             self.graphics_view.resetTransform()
         #----------------------------------------
-        if pixmap is not None:
-            self.pixmap_item = qt.QGraphicsPixmapItem(pixmap)
-            self.addItem(self.pixmap_item)
+        if self.reference_pixmap is not None:
+            self.reference_pixmap_item = qt.QGraphicsPixmapItem(self.reference_pixmap)
+            self.addItem(self.reference_pixmap_item)
+            print("#(inserted reference pixmap item into scene)")
         else:
-            self.pixmap_item = None
+            self.reference_pixmap_item = None
         #----------------------------------------
-        if crop_rect is not None:
-            self.crop_rect_item = \
-                self.addRect( \
-                    crop_rect, \
-                    self.crop_rect_pen, \
-                    qtgui.QBrush() \
-                )
+        rect = self.app_model.get_crop_rect()
+        if rect:
+            crop_rect = qcore.QRectF(*rect)
+        else:
+            crop_rect = None
+        if crop_rect:
+            self.set_crop_rect(crop_rect)
+            self.crop_rect_item = self.addRect(crop_rect, self.crop_rect_pen)
         else:
             self.crop_rect_item = None
         #----------------------------------------
