@@ -76,7 +76,7 @@ class ImagePreview(qt.QGraphicsView):
         if self.display_pixmap.load(str(self.display_pixmap_path)):
             self.set_pixmap(self.display_pixmap)
         else:
-            print(f'Failed to load {str(self.display_pixmap_path.get_path())}')
+            print(f'ImagePreview #(Failed to load {str(self.display_pixmap_path.get_path())})')
 
 
 class CropRectTool():
@@ -150,9 +150,8 @@ class CropRectTool():
 
 
 class ReferenceImageScene(qt.QGraphicsScene):
-    """This is the scene controller used to manage mouse events on the
-    image view and allows the user to draw annotating shapes over the
-    image.
+    """This is the scene controller used to manage mouse events on the image
+    view and allows the user to draw a crop rectangle over the image.
     """
 
     def __init__(self, app_model):
@@ -165,6 +164,9 @@ class ReferenceImageScene(qt.QGraphicsScene):
         self.crop_rect_pen = qgui.QPen(qgui.QColor(255, 0, 0))
         self.crop_rect_pen.setCosmetic(True)
         self.crop_rect_pen.setWidth(3)
+        self.keypoint_pen = qgui.QPen(qgui.QColor(0, 255, 0))
+        self.keypoint_pen.setWidth(1)
+        self.keypoint_pen.setCosmetic(True)
         self.event_handler = CropRectTool(self, app_model)
         self.pixmap_item = None
         self.crop_rect = None
@@ -208,7 +210,7 @@ class ReferenceImageScene(qt.QGraphicsScene):
         if self.reference_pixmap is not None:
             self.reference_pixmap_item = qt.QGraphicsPixmapItem(self.reference_pixmap)
             self.addItem(self.reference_pixmap_item)
-            print("#(inserted reference pixmap item into scene)")
+            print("ReferenceImageScene #(inserted reference pixmap item into scene)")
         else:
             self.reference_pixmap_item = None
         #----------------------------------------
@@ -223,6 +225,14 @@ class ReferenceImageScene(qt.QGraphicsScene):
         else:
             self.crop_rect_item = None
         #----------------------------------------
+        keypoints = self.app_model.get_keypoints()
+        if keypoints:
+            print(f'ReferenceImageScene #(number of keypoints -> {len(keypoints)})')
+            for key in keypoints:
+                (x, y) = key.pt
+                self.addRect(qcore.QRectF(x, y, 2, 2), self.keypoint_pen)
+        else:
+            print(f'ReferenceImageScene #(keypoints not defined)')
 
     def update_crop_rect_item(self):
         """Updates the QGraphicsRectItem for the cropping rectangle in this
@@ -300,12 +310,12 @@ class FilesTab(qt.QWidget):
         #---------- Populate list view ----------
         self.reset_paths_list(self.app_model.get_image_list())
         #---------- Setup context menus ----------
-        ## Action: Use as pattern
-        self.use_as_pattern = qt.QAction("Use as pattern", self)
-        self.use_as_pattern.setShortcut(qgui.QKeySequence.Find)
-        self.use_as_pattern.triggered.connect(self.use_current_item_as_pattern)
-        self.list_widget.addAction(self.use_as_pattern)
-        self.image_preview.addAction(self.use_as_pattern)
+        # ## Action: Use as pattern
+        # self.use_as_pattern = qt.QAction("Use as pattern", self)
+        # self.use_as_pattern.setShortcut(qgui.QKeySequence.Find)
+        # self.use_as_pattern.triggered.connect(self.use_current_item_as_pattern)
+        # self.list_widget.addAction(self.use_as_pattern)
+        # self.image_preview.addAction(self.use_as_pattern)
         ## Action: Search within this image
         self.do_find_pattern = qt.QAction("Search within this image", self)
         self.do_find_pattern.setShortcut(qgui.QKeySequence.InsertParagraphSeparator)
@@ -326,7 +336,8 @@ class FilesTab(qt.QWidget):
         return self.image_preview.get_pixmap()
 
     def activate_handler(self, item):
-        self.app_view.set_display_reference(item.get_path())
+        path = item.get_path()
+        self.use_path_as_pattern(path)
 
     def activate_selected_item(self):
         item = self.list_widget.currentItem()
@@ -338,11 +349,17 @@ class FilesTab(qt.QWidget):
         else:
             print('FilesTab.item_change_handler(item=None)')
 
+    def use_path_as_pattern(self, path):
+        print(f'FilesTab.use_current_item_as_pattern()')
+        print(f'FilesTab -> app_model.set_display_pixmap(None, {path})')
+        self.app_model.set_display_pixmap(None, path)
+        path = self.app_model.get_display_pixmap_filepath()
+        self.app_view.set_display_reference(path)
+
     def use_current_item_as_pattern(self):
         item = self.list_widget.currentItem()
         path = item.get_path()
-        self.app_model.set_display_pixmap(None, path)
-        self.app_view.set_display_reference(self.app_model.get_display_pixmap_filepath())
+        self.use_path_as_pattern(path)
 
     def reset_paths_list(self, paths_list):
         """Populate the list view with an item for each file path."""
@@ -364,7 +381,7 @@ class FilesTab(qt.QWidget):
                 qt.QFileDialog.ReadOnly, \
                 ["file"] \
               )
-        print(f'selected urls = {urls}')
+        print(f'FilesTab #(selected urls = {urls})')
         urls = urls[0]
         if len(urls) > 0:
             self.add_image_list(gather_QUrl_local_files(urls))
@@ -481,6 +498,7 @@ class MainAppModel():
         not pass None for the second argument unless the first
         argument is also None.
         """
+        print(f'MainAppModel.set_display_pixmap({filepath})')
         if filepath is None:
             if display_pixmap is None:
                 self.display_pixmap = None
@@ -493,7 +511,7 @@ class MainAppModel():
                 self.reload_display_pixmap()
             else:
                 self.display_pixmap = display_pixmap
-                self.run_orb()
+            self.run_orb()
 
     def get_display_pixmap(self):
         return self.display_pixmap
@@ -521,6 +539,7 @@ class MainAppModel():
 
     def run_orb(self):
         """If the display image has been set, create a new ORB for it."""
+        print(f'MainAppModel.run_orb()')
         pixmap = self.get_display_pixmap()
         if pixmap is not None:
             ORB = cv.ORB_create()
@@ -529,7 +548,13 @@ class MainAppModel():
             self.keypoints = keypoints
             self.descriptor = descriptor
         else:
-            pass
+            print(f'MainAppModel #(failed to run_orb(), pixmap is {pixmap}')
+
+    def get_keypoints(self):
+        return self.keypoints
+
+    def get_descriptor(self):
+        return self.descriptor
 
     def run_bfmatcher(self, pixmap):
         """If the display image has been set, create a new bfmatcher for
