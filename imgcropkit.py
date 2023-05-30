@@ -41,43 +41,56 @@ def search_target_images(filepath_args):
 ################################################################################
 
 class ImagePreview(qt.QGraphicsView):
+    """This is a QGraphicsView that displays an image. Images are loaded
+    by filepath."""
 
-    def __init__(self, parent):
+    def __init__(self, parent, app_model):
         super(ImagePreview, self).__init__(parent)
+        self.app_model = app_model
         self.preview_scene = qt.QGraphicsScene(self)
         self.display_pixmap = None
-        self.pixmap_item = None
+        self.display_pixmap_item = None
+        self.crop_rect_item = None
         self.setViewportUpdateMode(4) # 4: QGraphicsView::BoundingRectViewportUpdate
         self.setResizeAnchor(1) # 1: QGraphicsView::AnchorViewCenter
         self.setScene(self.preview_scene)
         self.setContextMenuPolicy(2) # 2 = qcore::ContextMenuPolicy::ActionsContextMenu
+        self.crop_rect_pen = qgui.QPen(qgui.QColor(255, 0, 0))
+        self.crop_rect_pen.setCosmetic(True)
+        self.crop_rect_pen.setWidth(3)
 
     def resizeEvent(self, newSize):
         super(ImagePreview, self).resizeEvent(newSize)
-        if self.pixmap_item is not None:
-            self.fitInView(self.pixmap_item, 1) # 1: qcore.AspectRatioMode::KeepAspectRatio
+        if self.display_pixmap is not None:
+            self.fitInView(self.display_pixmap_item, 1) # 1: qcore.AspectRatioMode::KeepAspectRatio
 
-    def get_pixmap(self):
-        return self.display_pixmap
-
-    def set_pixmap(self, pixmap, path=None):
-        self.resetTransform()
-        self.display_pixmap = pixmap
-        self.display_pixmap_path = path
-        self.pixmap_item = qt.QGraphicsPixmapItem(self.display_pixmap)
+    def set_display_item(self, item):
+        """This function takes a FileListItem and displays it in the scene."""
+        print(f'ImagePreview.display_item({item})')
         self.preview_scene.clear()
-        #self.preview_scene.setSceneRect(qcore.QRectF())
-        self.preview_scene.addItem(self.pixmap_item)
-        self.fitInView(self.pixmap_item, 1)
-
-    def display_path(self, path):
-        self.display_pixmap_path = path
-        self.display_pixmap = qgui.QPixmap()
-        if self.display_pixmap.load(str(self.display_pixmap_path)):
-            self.set_pixmap(self.display_pixmap)
+        self.resetTransform()
+        if item is not None:
+            image_with_orb = item.get_image_with_orb()
+            if image_with_orb is not None:
+                image_with_orb.set_relative_crop_rect(self.app_model.get_reference_image())
+            else:
+                pass
+            path = str(item.get_filepath())
+            print(f'ImagePreview #(load image for preview "{path}")')
+            self.display_pixmap = qgui.QPixmap(path)
+            self.display_pixmap_item = qt.QGraphicsPixmapItem(self.display_pixmap)
+            self.preview_scene.addItem(self.display_pixmap_item)
+            rect = item.get_crop_rect()
+            if rect is not None:
+                rect = qcore.QRectF(*rect)
+                self.setSceneRect(rect)
+                self.crop_rect_item = self.preview_scene.addRect(rect, self.crop_rect_pen)
+            else:
+                print(f'ImagePreview #(scene rect not set, no crop rect defined for item)')
+                size = self.display_pixmap.size()
+                self.setSceneRect(0, 0, size.width(), size.height())
         else:
-            print(f'ImagePreview #(Failed to load {str(self.display_pixmap_path.get_path())})')
-
+            print(f'ImagePreview.set_display_item(None)')
 
 class CropRectTool():
     """This class defines event handler functions that are called when
@@ -275,13 +288,21 @@ def gather_QUrl_local_files(qurl_list):
 class FileListItem(qt.QListWidgetItem):
     """A QListWidgetItem for an element in the files list in the Files tab."""
 
-    def __init__(self, path):
-        super(FileListItem, self).__init__(str(path))
-        self.path = path
+    def __init__(self, image_with_orb):
+        super(FileListItem, self).__init__(image_with_orb.get_filepath())
+        self.image_with_orb = image_with_orb
 
-    def get_path(self):
-        return self.path
+    def get_image_with_orb(self):
+        return self.image_with_orb
 
+    def get_crop_rect(self):
+        return self.image_with_orb.get_crop_rect()
+
+    def get_keypoints(self):
+        return self.image_with_orb.get_keypoints()
+
+    def get_filepath(self):
+        return self.image_with_orb.get_filepath()
 
 class FilesTab(qt.QWidget):
     """Display a list of images, and provide an image preview window to
@@ -301,14 +322,14 @@ class FilesTab(qt.QWidget):
         self.list_widget   = qt.QListWidget(self)
         self.list_widget.setObjectName('FilesTab list_widget')
         self.list_widget.setContextMenuPolicy(2) # 2 = qcore::ContextMenuPolicy::ActionsContextMenu
-        self.image_preview  = ImagePreview(self)
+        self.image_preview  = ImagePreview(self, self.app_model)
         self.image_preview.setObjectName('FilesTab ImagePreview')
         self.splitter.addWidget(self.list_widget)
         self.splitter.addWidget(self.image_preview)
         self.layout.addWidget(self.splitter)
         self.display_pixmap_path = None
         #---------- Populate list view ----------
-        self.reset_paths_list(self.app_model.get_image_list())
+        self.reset_paths_list()
         #---------- Setup context menus ----------
         # ## Action: Use as pattern
         # self.use_as_pattern = qt.QAction("Use as pattern", self)
@@ -332,44 +353,41 @@ class FilesTab(qt.QWidget):
         self.list_widget.currentItemChanged.connect(self.item_change_handler)
         self.list_widget.itemActivated.connect(self.activate_handler)
 
-    def get_display_pixmap(self):
-        return self.image_preview.get_pixmap()
-
     def activate_handler(self, item):
-        path = item.get_path()
-        self.use_path_as_pattern(path)
+        self.use_item_as_reference(item)
 
     def activate_selected_item(self):
         item = self.list_widget.currentItem()
         self.activate_handler(item)
 
     def item_change_handler(self, item, _old):
+        print(f'FilesTab.item_change_handler({item.get_filepath()})')
         if item is not None:
-            self.image_preview.display_path(item.get_path())
+            print(f'FilesTab #(self.image_preview = {self.image_preview})')
+            self.image_preview.set_display_item(item)
         else:
             print('FilesTab.item_change_handler(item=None)')
 
-    def use_path_as_pattern(self, path):
-        print(f'FilesTab.use_current_item_as_pattern()')
-        print(f'FilesTab -> app_model.set_display_pixmap(None, {path})')
-        self.app_model.set_display_pixmap(None, path)
-        path = self.app_model.get_display_pixmap_filepath()
-        self.app_view.set_display_reference(path)
-
-    def use_current_item_as_pattern(self):
+    def use_current_item_as_reference(self):
         item = self.list_widget.currentItem()
-        path = item.get_path()
-        self.use_path_as_pattern(path)
+        self.use_item_as_pattern(item)
 
-    def reset_paths_list(self, paths_list):
+    def use_item_as_reference(self, item):
+        image_with_orb = item.get_image_with_orb()
+        self.app_model.set_reference_image(image_with_orb)
+        self.app_view.reset_reference_image()
+        self.app_view.change_to_reference_tab()
+
+    def reset_paths_list(self):
         """Populate the list view with an item for each file path."""
         self.list_widget.clear()
-        for item in paths_list:
+        item_list = self.app_model.get_image_list()
+        for item in item_list:
             self.list_widget.addItem(FileListItem(item))
 
-    def add_image_list(self, list):
-        self.app_model.add_image_list(list)
-        self.reset_paths_list(self.app_model.get_image_list())
+    def add_image_list(self, images):
+        self.app_model.add_image_list(images)
+        self.reset_paths_list()
 
     def open_image_files_handler(self):
         target_dir = os.getcwd()
@@ -460,6 +478,7 @@ class ImageCropKit(qt.QTabWidget):
 
     def set_display_reference(self, filepath):
         self.reference_image_tab.set_display_reference(filepath)
+        self.files_tab.update_crop_rect_current_item()
         self.change_to_reference_tab()
 
     def change_tab_handler(self, index):
@@ -474,7 +493,151 @@ class ImageCropKit(qt.QTabWidget):
     def change_to_reference_tab(self):
         self.change_tab_handler(1)
 
+    def reset_reference_image(self):
+        self.reference_image_tab.set_display_reference(self.app_model.get_reference_image())
+
+
 ################################################################################
+
+class ImageWithORB():
+    """This class defines an image object, provides an API to run ORB on
+    the image, and to associate the ORB keypoints with the image."""
+
+    def __init__(self, filepath):
+        self.filepath = filepath
+        self.ORB = None
+        self.keypoints = None
+        self.descriptors = None
+        self.midpoint = None
+        self.init_crop_rect = None
+        self.crop_rect = None
+
+    def __hash__(self):
+        return hash(self.filepath)
+
+    def __getitem__(self, i):
+        return self.keypoints[i]
+
+    def __len__(self):
+        return len(self.keypoints)
+
+    def __str__(self):
+        return str(self.filepath)
+
+    def __eq__(self, a):
+        return (self.filepath == a.filepath)
+
+    def __ne__(self, a):
+        return (self.filepath == a.filepath)
+
+    def get_filepath(self):
+        return self.filepath
+
+    def get_keypoints(self):
+        return self.keypoints
+
+    def get_midpoint(self):
+        return self.midpoint
+
+    def get_ORB(self):
+        return self.ORB
+
+    def get_descriptors(self):
+        return self.descriptors
+
+    def get_crop_rect(self):
+        return self.crop_rect
+
+    def get_midpoint(self):
+        return self.midpoint
+
+    def set_midpoint(self, midpoint):
+        """The midpoint must be an (x,y) tuple"""
+        self.midpoint = midpoint
+
+    def set_midpoint(self, x, y):
+        self.midpoint = (x, y)
+
+    def get_crop_rect(self):
+        """The crop rect is a 4-tuple (x, y, width, height)"""
+        return self.crop_rect
+
+    def set_crop_rect(self, rect):
+        """The crop rect must be a 4-tuple (x, y, width, height). This
+        function should be called when the end user draws a new crop
+        rectangle on the "Reference" image view. Use
+        "set_relative_crop_rect()" to compute the crop_rect relative to
+        the keypoints found by the ORB algoirhtm.
+        """
+        self.crop_rect = rect
+
+    def set_relative_crop_rect(self, ref):
+        """Compute the crop_rect for this item relative to a given reference item."""
+        if ref is not None:
+            print(f'ImageWithORB.relative_crop_rect({ref.get_crop_rect()})')
+            ref_rect = ref.get_crop_rect()
+            ref_midpoint = ref.get_midpoint()
+            if (ref_rect is not None) and (ref_midpoint is not None):
+                self.run_orb()
+                (ref_x, ref_y, ref_width, ref_height) = ref_rect
+                (mid_x, mid_y) = ref_midpoint
+                if self.midpoint is not None:
+                    (x, y) = self.midpoint
+                    self.crop_rect = \
+                      ( ref_x - mid_x + x , \
+                        ref_y - mid_y + y, \
+                        ref_width, \
+                        ref_height, \
+                      )
+                    print(f'ImageWithORB.relative_crop_rect({ref_rect}) -> {self.crop_rect}')
+                else:
+                    print(f'#(ImageWithORB.set_relative_crop_rect() #())')
+            else:
+                print(f'ImageWithORB.set_relative_crop_rect() #(crop_rect={ref_rect}, midpoint={ref_midpoint})')
+        else:
+            print(f'ImageWithORB.relative_crop_rect(None)')
+
+    def reset_crop_rect(self):
+        """If the "self.reference_image" is set, you can reset the crop rect to
+        the exact size of the "self.reference_image" by calling this function."""
+        self.crop_rect = self.init_crop_rect
+
+    def run_orb(self):
+        if self.ORB is None:
+            print(f'ImageWithOrb.run_orb() -> self.force_run_orb()')
+            self.force_run_orb()
+        else:
+            print(f'ImageWithOrb.run_orb() #(ORB metadata already exists)')
+            pass
+
+    def force_run_orb(self):
+        path = str(self.filepath)
+        pixmap = cv.imread(path, cv.IMREAD_GRAYSCALE)
+        if pixmap is not None:
+            # Set the init_crop_rect
+            height, width = pixmap.shape
+            self.init_crop_rect = (0, 0, width, height)
+            # Run the ORB algorithm
+            ORB = cv.ORB_create()
+            keypoints, descriptor = ORB.detectAndCompute(pixmap, None)
+            self.ORB = ORB
+            self.keypoints = keypoints
+            self.descriptor = descriptor
+            num_points = len(self.keypoints)
+            print(f'#(generated {num_points} keypoints)')
+            x_sum = 0
+            y_sum = 0
+            for key in self.keypoints:
+                (x, y) = key.pt
+                x_sum = x_sum + x
+                y_sum = y_sum + y
+            if num_points > 0:
+                self.set_midpoint(x_sum / num_points, y_sum / num_points)
+            else:
+                print(f'#(cannot find center of mass for zero points)')
+                self.midpoint = None
+        else:
+            print(f'#(failed to load pixmap for path {path}')
 
 class MainAppModel():
     """This class creates objects that represents the state of the whole
@@ -482,48 +645,12 @@ class MainAppModel():
     """
 
     def __init__(self):
-        self.set_display_pixmap(None, None)
-        self.set_crop_rect(None)
+        self.crop_rect_updated = False
+        self.reference_image = None
         self.set_image_list([])
-        self.ORB = None
-        self.keypoints = None
-        self.descriptor = None
-        self.match_group = None
-        self.bfmatcher = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=True)
-
-    def set_display_pixmap(self, display_pixmap, filepath):
-        """takes a pixmap that has been loaded into memory, and the file path
-        from which it was loaded. You may pass None as the first
-        argument, it will be loaded from the given filepath. You may
-        not pass None for the second argument unless the first
-        argument is also None.
-        """
-        print(f'MainAppModel.set_display_pixmap({filepath})')
-        if filepath is None:
-            if display_pixmap is None:
-                self.display_pixmap = None
-                self.display_pixmap_filepath = None
-            else:
-                raise ValueError("if display_pixmap is given, filepath must not be None")
-        else:
-            self.display_pixmap_filepath = filepath
-            if display_pixmap is None:
-                self.reload_display_pixmap()
-            else:
-                self.display_pixmap = display_pixmap
-            self.run_orb()
-
-    def get_display_pixmap(self):
-        return self.display_pixmap
-
-    def get_display_pixmap_filepath(self):
-        return self.display_pixmap_filepath
-
-    def reload_display_pixmap(self):
-        """Given a filepath, load the filepath using cv.imread() and
-        store the result in self."""
-        self.display_pixmap = cv.imread(str(self.display_pixmap_filepath), cv.IMREAD_GRAYSCALE)
-        self.run_orb()
+        
+    def get_crop_rect_updated(self):
+        return self.crop_rect_updated
 
     def get_image_list(self):
         return self.image_list
@@ -532,67 +659,86 @@ class MainAppModel():
         self.image_list = list
 
     def add_image_list(self, items):
+        """Takes a list of file paths or strings, converts them to
+        ImageWithORB values, and appends them to the image_list."""
         if isinstance(items, list):
-            self.image_list = list(dict.fromkeys(self.image_list + items))
-        else:
+            self.image_list = \
+                list(
+                    dict.fromkeys(
+                        self.image_list + \
+                        [ImageWithORB(str(item)) for item in items]
+                      )
+                  )
+        elif isinstance(items, ImageWithORB):
             self.image_list.append(items)
+        else:
+            raise ValueError(
+                f'MainAppModel.add_image_list() expects ImageWithORB or list of ImageWithORB'
+              )
+
+    def get_reference_image(self):
+        return self.reference_image
+
+    def set_reference_image(self, item):
+        """Takes a ImageWithORB item and makes it the reference image. This
+        will call reset_all_crop_rects()
+        """
+        if isinstance(item, PurePath):
+            self.reference_image = ImageWithORB(item)
+        elif isinstance(item, str):
+            self.reference_image = ImageWithORB(item)
+        elif isinstance(item, ImageWithORB):
+            self.reference_image = item
+        else:
+            raise ValueError( \
+                f'MainAppModel.set_reference_image() expects filepath or '
+                f'ImageWithORB, was instead passed argument of type {type(item)}' \
+              )
+        # Now reset the crop_rect of all items in the image_list
+        self.reference_image.run_orb()
+
+    def get_reference_image_filepath(self):
+        return self.reference_image_filepath
+
+    def reload_reference_image(self):
+        """Given a filepath, load the filepath using cv.imread() and
+        store the result in self."""
+        if self.reference_image is not None:
+            self.reference_image.run_orb()
+        else:
+            print(f'MainAppModel.reload_reference_image() failed, reference_image is None')
 
     def run_orb(self):
-        """If the display image has been set, create a new ORB for it."""
-        print(f'MainAppModel.run_orb()')
-        pixmap = self.get_display_pixmap()
-        if pixmap is not None:
-            ORB = cv.ORB_create()
-            keypoints, descriptor = ORB.detectAndCompute(pixmap, None)
-            self.ORB = ORB
-            self.keypoints = keypoints
-            self.descriptor = descriptor
-        else:
-            print(f'MainAppModel #(failed to run_orb(), pixmap is {pixmap}')
-
-    def get_keypoints(self):
-        return self.keypoints
-
-    def get_descriptor(self):
-        return self.descriptor
-
-    def run_bfmatcher(self, pixmap):
-        """If the display image has been set, create a new bfmatcher for
-        it. Pass a second pixmap that has been loaded with cv.imread()
-        and then run the cv.BFMatcher.match() function to obtain a
-        distance between the two images. Return the distance
-        value. The calling context can then decide whether the
-        distance is close enuogh to allow a cropping to occur.
-        """
-        if (self.descriptor is not None) and (self.bfmatcher is not None):
-            ORB = cv.ORB_create()
-            _keypoints, descriptor = ORB.detectAndCompute(pixmap, None)
-            self.match_group = self.bfmatcher.match(self.descriptor, descriptor)
-            if self.match_group is not None:
-                self.match_group = \
-                    cv.sorted( \
-                        self.match_group, \
-                        key = (lambda feature: feature.distance) \
-                      )
+        if self.reference_image is not None:
+            self.reference_image.run_orb()
         else:
             pass
 
-    def reset_crop_rect(self):
-        """If the "self.display_pixmap" is set, you can reset the crop rect to
-        the exact size of the "self.display_pixmap" by calling this function."""
-        if self.display_pixmap is not None:
-            height, width = self.display_pixmap.shape
-            self.crop_rect = (0, 0, width, height)
+    def get_keypoints(self):
+        if self.reference_image is not None:
+            return self.reference_image.get_keypoints()
+        else:
+            return None
+
+    def get_descriptor(self):
+        return self.reference_image.get_descriptor()
 
     def set_crop_rect(self, crop_rect):
         """this field is of type (x_pix_offset, y_pix_offset, pix_width, pix_height) or None
         """
-        self.crop_rect = crop_rect
+        if self.reference_image is not None:
+            self.reference_image.set_crop_rect(crop_rect)
+            self.crop_rect_updated = True
+        else:
+            pass
 
     def get_crop_rect(self):
         """this field is of type (x_pix_offset, y_pix_offset, pix_width, pix_height) or None
         """
-        return self.crop_rect
+        if self.reference_image is not None:
+            return self.reference_image.get_crop_rect()
+        else:
+            return None
 
 
 ################################################################################
