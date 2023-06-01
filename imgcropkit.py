@@ -4,7 +4,7 @@ import sys
 import os
 import os.path
 import re
-from pathlib import PurePath
+from pathlib import (PurePath, Path)
 #import math
 import cv2 as cv
 import numpy as np
@@ -51,6 +51,7 @@ class ImagePreview(qt.QGraphicsView):
         self.display_pixmap = None
         self.display_pixmap_item = None
         self.crop_rect_item = None
+        self.current_item = None
         self.setViewportUpdateMode(4) # 4: QGraphicsView::BoundingRectViewportUpdate
         self.setResizeAnchor(1) # 1: QGraphicsView::AnchorViewCenter
         self.setScene(self.preview_scene)
@@ -65,32 +66,49 @@ class ImagePreview(qt.QGraphicsView):
             self.fitInView(self.display_pixmap_item, 1) # 1: qcore.AspectRatioMode::KeepAspectRatio
 
     def set_display_item(self, item):
-        """This function takes a FileListItem and displays it in the scene."""
+        """This function takes a FileListItem and displays it in the scene. If
+        the given item is already set as the current display item, it
+        will update the crop rect visualization."""
         print(f'ImagePreview.display_item({item})')
-        self.preview_scene.clear()
-        self.resetTransform()
-        if item is not None:
-            image_with_orb = item.get_image_with_orb()
-            if image_with_orb is not None:
-                image_with_orb.set_relative_crop_rect(self.app_model.get_reference_image())
-            else:
-                pass
-            path = str(item.get_filepath())
-            print(f'ImagePreview #(load image for preview "{path}")')
-            self.display_pixmap = qgui.QPixmap(path)
-            self.display_pixmap_item = qt.QGraphicsPixmapItem(self.display_pixmap)
-            self.preview_scene.addItem(self.display_pixmap_item)
-            rect = item.get_crop_rect()
-            if rect is not None:
+        if (item is not None) and (item is self.current_item):
+            self.resetTransform()
+            if self.crop_rect_item is not None:
+                rect = item.get_crop_rect()
                 rect = qcore.QRectF(*rect)
+                self.crop_rect_item.setRect(rect)
                 self.setSceneRect(rect)
-                self.crop_rect_item = self.preview_scene.addRect(rect, self.crop_rect_pen)
             else:
-                print(f'ImagePreview #(scene rect not set, no crop rect defined for item)')
-                size = self.display_pixmap.size()
-                self.setSceneRect(0, 0, size.width(), size.height())
+                rect = item.get_crop_rect()
+                rect = qcore.QRectF(*rect)
+                self.crop_rect_item = self.preview_scene.addRect(rect, self.crop_rect_pen)
+                self.setSceneRect(rect)
         else:
-            print(f'ImagePreview.set_display_item(None)')
+            self.current_item = item
+            self.preview_scene.clear()
+            self.resetTransform()
+            if item is not None:
+                image_with_orb = item.get_image_with_orb()
+                if image_with_orb is not None:
+                    image_with_orb.set_relative_crop_rect(self.app_model.get_reference_image())
+                else:
+                    pass
+                path = str(item.get_filepath())
+                print(f'ImagePreview #(load image for preview "{path}")')
+                self.display_pixmap = qgui.QPixmap(path)
+                self.display_pixmap_item = qt.QGraphicsPixmapItem(self.display_pixmap)
+                self.preview_scene.addItem(self.display_pixmap_item)
+                rect = item.get_crop_rect()
+                if rect is not None:
+                    rect = qcore.QRectF(*rect)
+                    self.setSceneRect(rect)
+                    self.crop_rect_item = self.preview_scene.addRect(rect, self.crop_rect_pen)
+                else:
+                    print(f'ImagePreview #(scene rect not set, no crop rect defined for item)')
+                    size = self.display_pixmap.size()
+                    self.setSceneRect(0, 0, size.width(), size.height())
+            else:
+                print(f'ImagePreview.set_display_item(None)')
+
 
 class CropRectTool():
     """This class defines event handler functions that are called when
@@ -247,18 +265,6 @@ class ReferenceImageScene(qt.QGraphicsScene):
         else:
             print(f'ReferenceImageScene #(keypoints not defined)')
 
-    def update_crop_rect_item(self):
-        """Updates the QGraphicsRectItem for the cropping rectangle in this
-        scene with the latest value for
-        self.app_model.get_crop_rect(). This function is called after
-        an event handler updates the cropping rectangle.
-        """
-        new_rect = self.app_model.get_crop_rect()
-        if self.crop_rect_item and new_rect:
-            self.crop_rect_item.setRect(new_rect)
-        else:
-            pass
-
     def mousePressEvent(self, event):
         #print(f"ReferenceImageScene.mousePressEvent({event})") #DEBUG
         self.event_handler.mousePressEvent(event)
@@ -289,7 +295,7 @@ class FileListItem(qt.QListWidgetItem):
     """A QListWidgetItem for an element in the files list in the Files tab."""
 
     def __init__(self, image_with_orb):
-        super(FileListItem, self).__init__(image_with_orb.get_filepath())
+        super(FileListItem, self).__init__(str(image_with_orb.get_filepath()))
         self.image_with_orb = image_with_orb
 
     def get_image_with_orb(self):
@@ -303,6 +309,9 @@ class FileListItem(qt.QListWidgetItem):
 
     def get_filepath(self):
         return self.image_with_orb.get_filepath()
+
+    def crop_and_save(self, output_dir):
+        self.image_with_orb.crop_and_save(output_dir)
 
 class FilesTab(qt.QWidget):
     """Display a list of images, and provide an image preview window to
@@ -338,32 +347,45 @@ class FilesTab(qt.QWidget):
         # self.list_widget.addAction(self.use_as_pattern)
         # self.image_preview.addAction(self.use_as_pattern)
         ## Action: Search within this image
-        self.do_find_pattern = qt.QAction("Search within this image", self)
-        self.do_find_pattern.setShortcut(qgui.QKeySequence.InsertParagraphSeparator)
-        self.do_find_pattern.triggered.connect(self.activate_selected_item)
-        self.list_widget.addAction(self.do_find_pattern)
-        self.image_preview.addAction(self.do_find_pattern)
+        self.use_as_refimg_action = qt.QAction("Search within this image", self)
+        self.use_as_refimg_action.setShortcut(qgui.QKeySequence.InsertParagraphSeparator)
+        self.use_as_refimg_action.triggered.connect(self.activate_selected_item)
+        self.list_widget.addAction(self.use_as_refimg_action)
+        self.image_preview.addAction(self.use_as_refimg_action)
         ## Action: open image files
         self.open_image_files = qt.QAction("Open image files", self)
         self.open_image_files.setShortcut(qgui.QKeySequence.Open)
         self.open_image_files.triggered.connect(self.open_image_files_handler)
         self.list_widget.addAction(self.open_image_files)
         self.image_preview.addAction(self.open_image_files)
+        ## Action: save image files
+        self.save_image_action = qt.QAction("Crop and save this image", self)
+        self.save_image_action.setShortcut(qgui.QKeySequence.Save)
+        self.save_image_action.triggered.connect(self.do_save_image)
+        self.list_widget.addAction(self.save_image_action)
+        self.image_preview.addAction(self.save_image_action)
+        ## Action: save all image files
+        self.save_all_images_action = qt.QAction("Crop and save this image", self)
+        self.save_all_images_action.setShortcut(qgui.QKeySequence.SaveAs)
+        self.save_all_images_action.triggered.connect(self.do_save_all_images)
+        self.list_widget.addAction(self.save_all_images_action)
+        self.image_preview.addAction(self.save_all_images_action)
         #---------- Connect signal handlers ----------
         self.list_widget.currentItemChanged.connect(self.item_change_handler)
         self.list_widget.itemActivated.connect(self.activate_handler)
+
+    def get_current_item(self):
+        return self.list_widget.currentItem()
 
     def activate_handler(self, item):
         self.use_item_as_reference(item)
 
     def activate_selected_item(self):
-        item = self.list_widget.currentItem()
-        self.activate_handler(item)
+        self.activate_handler(self.get_current_item())
 
     def item_change_handler(self, item, _old):
-        print(f'FilesTab.item_change_handler({item.get_filepath()})')
         if item is not None:
-            print(f'FilesTab #(self.image_preview = {self.image_preview})')
+            print(f'FilesTab.item_change_handler({item.get_filepath()})')
             self.image_preview.set_display_item(item)
         else:
             print('FilesTab.item_change_handler(item=None)')
@@ -406,6 +428,44 @@ class FilesTab(qt.QWidget):
         else:
             pass
 
+    def modal_prompt_get_directory(self, init_dir):
+        output_dir = \
+            qt.QFileDialog.getExistingDirectory( \
+                self, "Write images to directory", \
+                init_dir, \
+                qt.QFileDialog.ShowDirsOnly \
+          )
+        return PurePath(output_dir)
+
+    def do_save_image(self):
+        item = self.get_current_item()
+        if item is not None:
+            output_dir = self.modal_prompt_get_directory(None)
+            item.crop_and_save(output_dir)
+        else:
+            print(f'#(cannot save, no item selected)')
+
+    def do_save_all_images(self):
+        output_dir = self.modal_prompt_get_directory(None)
+        self.app_model.crop_and_save_all(output_dir)
+
+    def update_crop_rect_item(self):
+        """Update the crop rectangle in the scene. This will inspect the
+        app_model.crop_rect to see if it has changed and update the
+        scene if so."""
+        item = self.list_widget.currentItem()
+        self.image_preview.set_display_item(item)
+
+    def focusInEvent(self, _event):
+        """Here the focusInEvent is overridden, but the parent method is also
+        called. If the app_model has been changed (in particular, the
+        crop_rect) while the ReferenceImageTab was visible, this tab
+        also needs to update it's view.
+        """
+        print(f'FilesTab.focusInEvent()')
+        self.update_crop_rect_item()
+        super(FilesTab, self).focusInEvent(event)
+
     def dragEnterEvent(self, event):
         mime_data = event.mimeData()
         if mime_data.hasUrls() or mime_data.hasText():
@@ -423,6 +483,7 @@ class FilesTab(qt.QWidget):
             self.add_image_list(split_linebreaks(mime_data.text()))
         else:
             event.ignore()
+
 
 ################################################################################
 
@@ -504,6 +565,14 @@ class ImageWithORB():
     the image, and to associate the ORB keypoints with the image."""
 
     def __init__(self, filepath):
+        if isinstance(filepath, str):
+            filepath = PurePath(filepath)
+        elif not isinstance(filepath, PurePath):
+            raise ValueError( \
+                f'ImageWithORB.crop_and_save() method argument output_dir not a PurePath value'
+              )
+        else:
+            pass
         self.filepath = filepath
         self.ORB = None
         self.keypoints = None
@@ -618,7 +687,7 @@ class ImageWithORB():
             height, width = pixmap.shape
             self.init_crop_rect = (0, 0, width, height)
             # Run the ORB algorithm
-            ORB = cv.ORB_create()
+            ORB = cv.ORB_create(nfeatures=2000)
             keypoints, descriptor = ORB.detectAndCompute(pixmap, None)
             self.ORB = ORB
             self.keypoints = keypoints
@@ -638,6 +707,31 @@ class ImageWithORB():
                 self.midpoint = None
         else:
             print(f'#(failed to load pixmap for path {path}')
+
+    def crop_and_save(self, output_dir):
+        if self.crop_rect is not None:
+            pixmap = cv.imread(str(self.filepath))
+            if pixmap is not None:
+                path = PurePath(output_dir) / self.filepath.name
+                (x_min, y_min, width, height) = self.crop_rect
+                x_max = round(x_min + width)
+                y_max = round(y_min + height)
+                x_min = round(x_min)
+                y_min = round(y_min)
+                print(
+                    f'ImageWithORB.crop_and_save("{str(path)}") -> '
+                    f'x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max})' \
+                  )
+                cv.imwrite(str(path), pixmap[ y_min:y_max , x_min:x_max ])
+            else:
+                raise ValueError( \
+                    f'ImageWithORB("{str(self.filepath)}") failed to load file path as image' \
+                  )
+        else:
+            raise ValueError( \
+                f'ImageWithORB("{str(self.filepath)}").crop_and_save() failed,'
+                f' undefined "crop_rect" value' \
+              )
 
 class MainAppModel():
     """This class creates objects that represents the state of the whole
@@ -740,6 +834,10 @@ class MainAppModel():
         else:
             return None
 
+    def crop_and_save_all(self, output_dir):
+        Path(output_dir).mkdir(exist_ok=True)
+        for item in self.image_list:
+            item.crop_and_save(output_dir)
 
 ################################################################################
 
