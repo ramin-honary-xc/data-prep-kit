@@ -518,7 +518,58 @@ class ReferenceImageTab(qt.QWidget):
 
 ################################################################################
 
+class ConfigTab(qt.QWidget):
+    """This appears as a tab in the GUI where you can set the
+    configuration options that tweak the settings for the ORB algorithm."""
+
+    def __init__(self, app_model, parent):
+        super(ConfigTab, self).__init__(parent)
+        self.app_model = app_model
+        self.orb_config = ORBConfig()
+        self.orb_config_undo = []
+        self.orb_config_redo = []
+        ##-------------------- The text fields --------------------
+        self.fields = qt.QWidget(self)
+        self.nFeatures = qt.QLineEdit(str(self.orb_config.get_nFeatures()))
+        self.scaleFactor = qt.QLineEdit(str(self.orb_config.get_scaleFactor()))
+        self.nLevels = qt.QLineEdit(str(self.orb_config.get_nLevels()))
+        self.edgeThreshold = qt.QLineEdit(str(self.orb_config.get_edgeThreshold()))
+        #self.firstLevel = qt.QLineEdit(str(self.orb_config.get_firstLevel()))
+        self.WTA_K = qt.QLineEdit(str(self.orb_config.get_WTA_K()))
+        self.patchSize = qt.QLineEdit(str(self.orb_config.get_patchSize()))
+        self.fastThreshold = qt.QLineEdit(str(self.orb_config.get_fastThreshold()))
+        ## -------------------- the form layout --------------------
+        self.form_layout = qt.QFormLayout(self.fields)
+        self.form_layout.setFieldGrowthPolicy(qt.QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        self.form_layout.setLabelAlignment(qcore.Qt.AlignmentFlag.AlignRight)
+        self.form_layout.setFormAlignment(qcore.Qt.AlignmentFlag.AlignLeft)
+        self.form_layout.addRow('Number of Features (>20, <20000)', self.nFeatures)
+        self.form_layout.addRow('Scale Factor (>1.0, <2.0)', self.scaleFactor)
+        self.form_layout.addRow('Edge Threshold (>2, <1024)', self.edgeThreshold)
+        self.form_layout.addRow('Patch Size (>2, <1024)', self.patchSize)
+        self.form_layout.addRow('WTA Factor (>2, <4)', self.WTA_K)
+        self.form_layout.addRow('FAST Threshold (>2, <100)', self.fastThreshold)
+        ## -------------------- Control Buttons --------------------
+        self.buttons = qt.QWidget(self)
+        self.button_layout = qt.QHBoxLayout(self.buttons)
+        self.defaults_button = qt.QPushButton('Defaults')
+        self.redo_button = qt.QPushButton('Redo')
+        self.undo_button = qt.QPushButton('Undo')
+        self.apply_button = qt.QPushButton('Apply')
+        self.button_layout.addWidget(self.defaults_button)
+        self.button_layout.addWidget(self.redo_button)
+        self.button_layout.addWidget(self.undo_button)
+        self.button_layout.addWidget(self.apply_button)
+        ## -------------------- Layout --------------------
+        self.whole_layout = qt.QVBoxLayout(self)
+        self.whole_layout.addWidget(self.fields)
+        self.whole_layout.addWidget(self.buttons)
+        self.whole_layout.addStretch()
+
+################################################################################
+
 class ImageCropKit(qt.QTabWidget):
+
     """The Qt Widget containing the GUI for the pattern matching program.
     """
 
@@ -533,8 +584,10 @@ class ImageCropKit(qt.QTabWidget):
         self.setTabPosition(qt.QTabWidget.North)
         self.files_tab = FilesTab(app_model, self)
         self.reference_image_tab = ReferenceImageTab(app_model, self)
+        self.config_tab = ConfigTab(app_model, self)
         self.addTab(self.files_tab, "Search")
         self.addTab(self.reference_image_tab, "Reference")
+        self.addTab(self.config_tab, "Settings")
         self.currentChanged.connect(self.change_tab_handler)
 
     def set_display_reference(self, filepath):
@@ -733,7 +786,109 @@ class ImageWithORB():
                 f' undefined "crop_rect" value' \
               )
 
+class ORBConfig():
+    """This data type contains values used to parameterize the ORB feature
+    selection algorithm. It overrides the equality operator so that we
+    can detect when the config has changed, and therefore when we need
+    to re-run the ORB algorithm.
+    """
+    def __init__(self):
+        self.nFeatures = 1000
+        self.scaleFactor = 1.2
+        self.nLevels = 8
+        self.edgeThreshold = 31
+        self.firstLevel = 0
+        self.WTA_K = 2
+        self.scoreType = 0 # HARRIS_SCORE (use 1 for FAST_SCORE)
+        self.patchSize = 31
+        self.fastThreshold = 20
+
+    def __eq__(self, a):
+        return (
+            (self.nFeatures == a.nFeatures) and \
+            (self.scaleFactor == a.scaleFactor) and \
+            (self.nLevels == a.nLevels) and \
+            (self.edgeThreshold == a.edgeThreshold) and \
+            (self.firstLevel == a.firstLevel) and \
+            (self.WTA_K == a.WTA_K) and \
+            (self.scoreType == cv.ORB.HARRIS_SCORE) and \
+            (self.patchSize == a.patchSize) and \
+            (self.fastThreshold == a.fastThreshold) \
+          )
+
+    def to_dict(self):
+        return \
+          { 'nFeatures': self.nFeatures,
+            'scaleFactor': self.scaleFactor,
+            'nLevels': self.nLevels,
+            'edgeThreshold': self.edgeThreshold,
+            'firstLevel': self.firstLevel,
+            'WTA_K': self.WTA_K,
+            'scoreType': self.scoreType,
+            'patchSize': self.patchSize,
+            'fastThreshold': self.fastThreshold,
+          }
+
+    def __str__(self):
+        return str(self.to_dict())
+
+    def get_nFeatures(self):
+        return self.nFeatures
+
+    def set_nFeatures(self, nFeatures):
+        self.nFeatures = nFeatures
+
+    def get_scaleFactor(self):
+        return self.scaleFactor
+
+    def set_scaleFactor(self, scaleFactor):
+        self.scaleFactor = scaleFactor
+
+    def get_nLevels(self):
+        return self.nLevels
+
+    def set_nLevels(self, nLevels):
+        self.nLevels = nLevels
+
+    def get_edgeThreshold(self):
+        return self.edgeThreshold
+
+    def set_edgeThreshold(self, edgeThreshold):
+        self.edgeThreshold = edgeThreshold
+
+    def get_firstLevel(self):
+        return self.firstLevel
+
+    def set_firstLevel(self, firstLevel):
+        self.firstLevel = firstLevel
+
+    def get_WTA_K(self):
+        return self.WTA_K
+
+    def set_WTA_K(self, WTA_K):
+        self.WTA_K = WTA_K
+
+    def get_scoreType(self):
+        return self.scoreType
+
+    def set_scoreType(self, scoreType):
+        self.scoreType = scoreType
+
+    def get_patchSize(self):
+        return self.patchSize
+
+    def set_patchSize(self, patchSize):
+        self.patchSize = patchSize
+
+    def get_fastThreshold(self):
+        return self.fastThreshold
+
+    def set_fastThreshold(self, fastThreshold):
+        self.fastThreshold = fastThreshold
+
+
 class MainAppModel():
+
     """This class creates objects that represents the state of the whole
     application.
     """
