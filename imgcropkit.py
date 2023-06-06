@@ -38,6 +38,18 @@ def search_target_images(filepath_args):
             result.append(PurePath(filepath))
     return result
 
+def check_param(label, param, gte, lte):
+    """This function is used mostly when setting arguments taken from the
+    GUI. It raises a ValueError if the parameter is out of the bounds
+    given by 'gte' and 'lte', the GUI even handler needs to catch this
+    and report the error to the user."""
+    if gte <= param and param <= lte:
+        pass
+    else:
+        raise ValueError(
+            f'Parameter "{label}" must be greater/equal to {gte} and less/equal to {lte}'
+          )
+
 ################################################################################
 
 class ImagePreview(qt.QGraphicsView):
@@ -528,16 +540,24 @@ class ConfigTab(qt.QWidget):
         self.orb_config = ORBConfig()
         self.orb_config_undo = []
         self.orb_config_redo = []
+        self.notify = qt.QErrorMessage(self)
         ##-------------------- The text fields --------------------
         self.fields = qt.QWidget(self)
         self.nFeatures = qt.QLineEdit(str(self.orb_config.get_nFeatures()))
+        self.nFeatures.editingFinished.connect(self.check_nFeatures)
         self.scaleFactor = qt.QLineEdit(str(self.orb_config.get_scaleFactor()))
+        self.scaleFactor.editingFinished.connect(self.check_scaleFactor)
         self.nLevels = qt.QLineEdit(str(self.orb_config.get_nLevels()))
+        self.nLevels.editingFinished.connect(self.check_nLevels)
         self.edgeThreshold = qt.QLineEdit(str(self.orb_config.get_edgeThreshold()))
+        self.edgeThreshold.editingFinished.connect(self.check_edgeThreshold)
         #self.firstLevel = qt.QLineEdit(str(self.orb_config.get_firstLevel()))
         self.WTA_K = qt.QLineEdit(str(self.orb_config.get_WTA_K()))
+        self.WTA_K.editingFinished.connect(self.check_WTA_K)
         self.patchSize = qt.QLineEdit(str(self.orb_config.get_patchSize()))
+        self.patchSize.editingFinished.connect(self.check_patchSize)
         self.fastThreshold = qt.QLineEdit(str(self.orb_config.get_fastThreshold()))
+        self.fastThreshold.editingFinished.connect(self.check_fastThreshold)
         ## -------------------- the form layout --------------------
         self.form_layout = qt.QFormLayout(self.fields)
         self.form_layout.setFieldGrowthPolicy(qt.QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
@@ -553,18 +573,90 @@ class ConfigTab(qt.QWidget):
         self.buttons = qt.QWidget(self)
         self.button_layout = qt.QHBoxLayout(self.buttons)
         self.defaults_button = qt.QPushButton('Defaults')
+        self.defaults_button.clicked.connect(self.reset_defaults_action)
         self.redo_button = qt.QPushButton('Redo')
+        self.redo_button.clicked.connect(self.redo_action)
         self.undo_button = qt.QPushButton('Undo')
+        self.undo_button.clicked.connect(self.undo_action)
         self.apply_button = qt.QPushButton('Apply')
+        self.apply_button.clicked.connect(self.apply_changes_action)
         self.button_layout.addWidget(self.defaults_button)
         self.button_layout.addWidget(self.redo_button)
         self.button_layout.addWidget(self.undo_button)
         self.button_layout.addWidget(self.apply_button)
+        self.after_update()
         ## -------------------- Layout --------------------
         self.whole_layout = qt.QVBoxLayout(self)
         self.whole_layout.addWidget(self.fields)
         self.whole_layout.addWidget(self.buttons)
         self.whole_layout.addStretch()
+
+    def update_field(self, field, fromStr, setter):
+        """This function takes a qt.QLineEdit 'field', a function to conver
+        it's text to a value, and a 'setter' function that sets the value
+        taken from the field. It is expected that the 'setter' can raise a
+        ValueError exception if the value given cannot be set. This
+        function catches the exception and notifies the end user.
+        """
+        txt = field.text()
+        try:
+            setter(fromStr(txt))
+        except ValueError as e:
+            field.setText(txt)
+            self.notify.showMessage(e.args[0])
+
+    def check_nFeatures(self):
+        self.update_field(self.nFeatures, int, self.orb_config.set_nFeatures)
+
+    def check_scaleFactor(self):
+        self.update_field(self.scaleFactor, float, self.orb_config.set_scaleFactor)
+
+    def check_nLevels(self):
+        self.update_field(self.nLevels, int, self.orb_config.set_nLevels)
+
+    def check_edgeThreshold(self):
+        self.update_field(self.edgeThreshold, int, self.orb_config.set_edgeThreshold)
+
+    def check_WTA_K(self):
+        self.update_field(self.WTA_K, int, self.orb_config.set_WTA_K)
+
+    def check_patchSize(self):
+        self.update_field(self.patchSize, int, self.orb_config.set_patchSize)
+
+    def check_fastThreshold(self):
+        self.update_field(self.fastThreshold, int, self.orb_config.set_fastThreshold)
+
+    def after_update(self):
+        self.redo_button.setEnabled(len(self.orb_config_redo) != 0)
+        self.undo_button.setEnabled(len(self.orb_config_undo) != 0)
+
+    def apply_changes_action(self):
+        self.check_nFeatures()
+        self.check_scaleFactor()
+        self.check_nLevels()
+        self.check_edgeThreshold()
+        self.check_WTA_K()
+        self.check_patchSize()
+        self.check_fastThreshold()
+        if len(self.orb_config_undo) > 0:
+            if self.orb_config_undo[-1] != self.orb_config:
+                self.orb_config_undo.append(self.orb_config)
+            else:
+                pass
+        else:
+            pass
+        self.app_model.update_orb_config(self.orb_config)
+        self.after_update()
+
+    def reset_defaults_action(self):
+        print(f'#(TODO: implement ConfigTab.reset_defaults_action()')
+
+    def undo_action(self):
+        print(f'#(TODO: implement ConfigTab.undo_action()')
+
+    def redo_action(self):
+        print(f'#(TODO: implement ConfigTab.redo_action()')
+
 
 ################################################################################
 
@@ -836,36 +928,46 @@ class ORBConfig():
         return self.nFeatures
 
     def set_nFeatures(self, nFeatures):
+        check_param('number of features', nFeatures, 20, 20000)
         self.nFeatures = nFeatures
 
     def get_scaleFactor(self):
         return self.scaleFactor
 
     def set_scaleFactor(self, scaleFactor):
+        check_param('scale factor', scaleFactor, 1.0, 2.0)
         self.scaleFactor = scaleFactor
 
     def get_nLevels(self):
         return self.nLevels
 
     def set_nLevels(self, nLevels):
+        check_param('number of levels', nLevels, 2, 32)
         self.nLevels = nLevels
+        if self.firstLevel > nLevels:
+            self.firstLevel = nLevels
+        else:
+            pass
 
     def get_edgeThreshold(self):
         return self.edgeThreshold
 
     def set_edgeThreshold(self, edgeThreshold):
+        check_param('edge threshold', edgeThreshold, 2, 1024)
         self.edgeThreshold = edgeThreshold
 
     def get_firstLevel(self):
         return self.firstLevel
 
     def set_firstLevel(self, firstLevel):
+        check_param('first level', firstLevel, 0, self.edgeThreshold)
         self.firstLevel = firstLevel
 
     def get_WTA_K(self):
         return self.WTA_K
 
     def set_WTA_K(self, WTA_K):
+        check_param('"WTA" factor', WTA_K, 2, 4)
         self.WTA_K = WTA_K
 
     def get_scoreType(self):
@@ -878,12 +980,14 @@ class ORBConfig():
         return self.patchSize
 
     def set_patchSize(self, patchSize):
+        check_param("patch size", patchSize, 2, 1024)
         self.patchSize = patchSize
 
     def get_fastThreshold(self):
         return self.fastThreshold
 
     def set_fastThreshold(self, fastThreshold):
+        check_param('"FAST" threshold', fastThreshold, 2, 100)
         self.fastThreshold = fastThreshold
 
 
@@ -993,6 +1097,10 @@ class MainAppModel():
         Path(output_dir).mkdir(exist_ok=True)
         for item in self.image_list:
             item.crop_and_save(output_dir)
+
+    def update_orb_config(self, orb_config):
+        print(f'#(TODO: implement MainAppMode.update_orb_config)')
+        print(str(orb_config))
 
 ################################################################################
 
