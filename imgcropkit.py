@@ -638,24 +638,39 @@ class ConfigTab(qt.QWidget):
         self.check_WTA_K()
         self.check_patchSize()
         self.check_fastThreshold()
-        if len(self.orb_config_undo) > 0:
-            if self.orb_config_undo[-1] != self.orb_config:
-                self.orb_config_undo.append(self.orb_config)
-            else:
-                pass
-        else:
-            pass
+        self.push_undo()
         self.app_model.update_orb_config(self.orb_config)
         self.after_update()
 
     def reset_defaults_action(self):
-        print(f'#(TODO: implement ConfigTab.reset_defaults_action()')
+        self.push_do(self.orb_config_undo)
+        self.orb_config = ORBConfig()
+
+    def push_do(self, stack):
+        """Pass 'self.orb_config_undo' or 'self.orb_config_redo' as the 'stack' argument."""
+        if len(stack) > 0:
+            if stack[-1] != self.orb_config:
+                stack.append(self.orb_config)
+            else:
+                pass
+        else:
+            pass
+
+    def shift_do(self, forward, reverse):
+        print(f'#(len(forward) -> {len(forward)}, len(reverse) -> {len(reverse)})')
+        if len(forward) > 0:
+            self.push_do(reverse)
+            self.orb_config = forward[-1]
+            self.orb_config = forward[0:-1]
+            self.apply_changes_action()
+        else:
+            print(f'#(cannot undo/redo, reached end of stack)')
 
     def undo_action(self):
-        print(f'#(TODO: implement ConfigTab.undo_action()')
+        self.shift_do(self.orb_config_undo, orb_config_redo)
 
     def redo_action(self):
-        print(f'#(TODO: implement ConfigTab.redo_action()')
+        self.shift_do(self.orb_config_redo, orb_config_undo)
 
 
 ################################################################################
@@ -718,6 +733,7 @@ class ImageWithORB():
               )
         else:
             pass
+        self.orb_config = orb_config
         self.filepath = filepath
         self.ORB = None
         self.keypoints = None
@@ -816,15 +832,15 @@ class ImageWithORB():
         the exact size of the "self.reference_image" by calling this function."""
         self.crop_rect = self.init_crop_rect
 
-    def run_orb(self):
-        if self.ORB is None:
-            print(f'ImageWithOrb.run_orb() -> self.force_run_orb()')
-            self.force_run_orb()
+    def run_orb(self, orb_config):
+        if (self.ORB is None) or (self.orb_config != orb_config):
+            print(f'ImageWithOrb.run_orb() -> self.force_run_orb(str(orb_config))')
+            self.force_run_orb(orb_config)
         else:
-            print(f'ImageWithOrb.run_orb() #(ORB metadata already exists)')
+            print(f'ImageWithOrb.run_orb() #(ORB metadata already exists and is up-to-date)')
             pass
 
-    def force_run_orb(self):
+    def force_run_orb(self, orb_config):
         path = str(self.filepath)
         pixmap = cv.imread(path, cv.IMREAD_GRAYSCALE)
         if pixmap is not None:
@@ -832,9 +848,20 @@ class ImageWithORB():
             height, width = pixmap.shape
             self.init_crop_rect = (0, 0, width, height)
             # Run the ORB algorithm
-            ORB = cv.ORB_create(nfeatures=2000)
+            ORB = cv.ORB_create( \
+                nfeatures=self.orb_config.get_nFeatures(), \
+                scaleFactor=self.orb_config.get_scaleFactor(), \
+                nLevels=self.orb_config.get_nLevels(), \
+                edgeThreshold=self.orb_config.get_edgeThreshold(), \
+                firstLevel=self.orb_config.get_firstLevel(), \
+                WTA=self.orb_config.get_WTA()_K, \
+                scoreType=self.orb_config.get_scoreType(), \
+                patchSize=self.orb_config.get_patchSize(), \
+                fastThreshold=self.orb_config.get_fastThreshold(), \
+              )
             keypoints, descriptor = ORB.detectAndCompute(pixmap, None)
             self.ORB = ORB
+            self.orb_config = orb_config
             self.keypoints = keypoints
             self.descriptor = descriptor
             num_points = len(self.keypoints)
@@ -1001,6 +1028,7 @@ class MainAppModel():
         self.crop_rect_updated = False
         self.reference_image = None
         self.set_image_list([])
+        self.orb_config = ORBConfig()
         
     def get_crop_rect_updated(self):
         return self.crop_rect_updated
@@ -1048,7 +1076,7 @@ class MainAppModel():
                 f'ImageWithORB, was instead passed argument of type {type(item)}' \
               )
         # Now reset the crop_rect of all items in the image_list
-        self.reference_image.run_orb()
+        self.reference_image.run_orb(self.orb_config)
 
     def get_reference_image_filepath(self):
         return self.reference_image_filepath
@@ -1057,15 +1085,19 @@ class MainAppModel():
         """Given a filepath, load the filepath using cv.imread() and
         store the result in self."""
         if self.reference_image is not None:
-            self.reference_image.run_orb()
+            self.reference_image.run_orb(self.orb_config)
         else:
             print(f'MainAppModel.reload_reference_image() failed, reference_image is None')
 
     def run_orb(self):
         if self.reference_image is not None:
-            self.reference_image.run_orb()
+            self.reference_image.run_orb(self.orb_config)
         else:
             pass
+
+    def update_orb_config(self, orb_config):
+        self.orb_config = orb_config
+        self.run_orb()
 
     def get_keypoints(self):
         if self.reference_image is not None:
@@ -1097,10 +1129,6 @@ class MainAppModel():
         Path(output_dir).mkdir(exist_ok=True)
         for item in self.image_list:
             item.crop_and_save(output_dir)
-
-    def update_orb_config(self, orb_config):
-        print(f'#(TODO: implement MainAppMode.update_orb_config)')
-        print(str(orb_config))
 
 ################################################################################
 
