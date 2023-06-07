@@ -101,7 +101,10 @@ class ImagePreview(qt.QGraphicsView):
             if item is not None:
                 image_with_orb = item.get_image_with_orb()
                 if image_with_orb is not None:
-                    image_with_orb.set_relative_crop_rect(self.app_model.get_reference_image())
+                    image_with_orb.set_relative_crop_rect( \
+                        self.app_model.get_reference_image(), \
+                        self.app_model.get_orb_config(), \
+                      )
                 else:
                     pass
                 path = str(item.get_filepath())
@@ -193,16 +196,22 @@ class CropRectTool():
 
 
 class ReferenceImageScene(qt.QGraphicsScene):
-    """This is the scene controller used to manage mouse events on the image
-    view and allows the user to draw a crop rectangle over the image.
+    """This is the scene controller used to manage mouse events on the
+    image view and allows the user to draw a crop rectangle over the
+    image. This class is the view and controller for the ImageWithORB
+    model.
     """
 
     def __init__(self, app_model):
         super(ReferenceImageScene, self).__init__()
         self.app_model = app_model
-        self.reference_filepath = None
-        self.reference_pixmap = None
-        self.reference_pixmap_item = None
+        # We keep a copy of the current reference image. If any part
+        # of this view changes, the model reference image is compared
+        # to the cached image, if anything has changed, the view is
+        # redrawn.
+        self.cached_image = app_model.get_reference_image()
+        self.pixmap = None
+        self.pixmap_item = None
         self.graphics_view = None
         self.crop_rect_pen = qgui.QPen(qgui.QColor(255, 0, 0))
         self.crop_rect_pen.setCosmetic(True)
@@ -211,71 +220,108 @@ class ReferenceImageScene(qt.QGraphicsScene):
         self.keypoint_pen.setWidth(1)
         self.keypoint_pen.setCosmetic(True)
         self.event_handler = CropRectTool(self, app_model)
-        self.pixmap_item = None
-        self.crop_rect = None
-        self.crop_rect_item = None
-        self.reset_view()
+        self.set_display_reference(self.app_model.get_reference_image())
 
     def set_crop_rect(self, rect):
-        self.crop_rect = rect
-        if self.crop_rect_item is None:
-            self.crop_rect_item = self.addRect(self.crop_rect, self.crop_rect_pen)
+        """Takes a QRectF, immediately update the crop_rect in the current
+        cached_image if it exists. Also update the crop_rect view at
+        the same time.
+        """
+        if self.cached_image is not None:
+            self.cached_image.set_crop_rect(rect)
+            self._draw_crop_rect(self.cached_image)
         else:
-            self.crop_rect_item.setRect(self.crop_rect)
+            print('#(ReferenceImageScene.set_crop_rect() failed, no cached image)')
 
     def get_crop_rect(self):
-        return self.crop_rect
+        if self.cached_image:
+            return self.cached_image.get_crop_rect()
+        else:
+            return None
 
     def set_graphics_view(self, graphics_view):
+        """The graphics view is created after this ReferenceImageScene object,
+        but we still need a reference to it to respond to certain
+        events that may trigger changes on the view. This function
+        should be called only once in the constructor of the widget
+        that contains this scene, and it should be called with the
+        QGraphicsView once it has been constructed.
+        """
         self.graphics_view = graphics_view
 
-    def set_display_reference(self, filepath):
-        if filepath is None:
-            self.reference_filepath = None
-            self.reference_pixmap = None
-            self.reference_pixmap_item = None
+    def set_display_reference(self, orb_image):
+        """Takes an ImageWithORB object, if it is different from the
+        cached_image, the reset_view() is called."""
+        if orb_image is None:
+            self.clear()
+            self.cached_image is None
+            self.pixmap = None
+            self.pixmap_item = None
         else:
-            self.reference_pixmap = qgui.QPixmap(str(filepath))
-            self.reference_filepath = filepath
-            self.reset_view()
+            print(f'ReferenceImageScene.set_display_reference({str(orb_image.get_filepath())})')
+            if self.cached_image is None:
+                self.clear()
+                self._draw_pixbuf(orb_image)
+            else:
+                # Here we know either the crop_rect or keypoints set (or
+                # both) have changed, but not the QPixmap. In this case,
+                # we need to protect the QPixmap from being deleted by
+                # removing it from the QGraphicsScene before we call
+                # clear().
+                if self.cached_image.get_filepath() == orb_image.get_filepath():
+                    orb_config = orb_image.get_orb_config()
+                    if self.cached_image.get_orb_config() != orb_config:
+                        self.removeItem(self.pixmap_item)
+                        self.clear()
+                        self.addItem(self.pixmap_item)
+                    else:
+                        self._draw_crop_rect(orb_image)
+                        return
+                else:
+                    self.clear()
+                    self._draw_pixbuf(orb_image)
+            self._draw_keypoints(orb_image)
+            self._draw_crop_rect(orb_image)
+            self.cached_image = orb_image
 
     def get_reference_pixmap_item(self):
-        return self.reference_pixmap_item
+        """In order to set the bounds of the QGraphicsView, the parent needs
+        access to the QPixmapItem of this class."""
+        return self.pixmap_item
 
-    def reset_view(self):
-        """Re-read the pixmap from the app_model and prepare to install it
-        into the scene.
-        """
-        self.clear()
-        if self.graphics_view is not None:
-            self.graphics_view.resetTransform()
-        #----------------------------------------
-        if self.reference_pixmap is not None:
-            self.reference_pixmap_item = qt.QGraphicsPixmapItem(self.reference_pixmap)
-            self.addItem(self.reference_pixmap_item)
+    def _draw_pixbuf(self, orb_image):
+        """This function assumes the self.cached_image is not None."""
+        filepath = orb_image.get_filepath()
+        if filepath is not None:
+            self.pixmap = qgui.QPixmap(str(filepath))
+            self.pixmap_item = qt.QGraphicsPixmapItem(self.pixmap)
+            self.addItem(self.pixmap_item)
             print("ReferenceImageScene #(inserted reference pixmap item into scene)")
         else:
-            self.reference_pixmap_item = None
-        #----------------------------------------
-        rect = self.app_model.get_crop_rect()
-        if rect:
-            crop_rect = qcore.QRectF(*rect)
-        else:
-            crop_rect = None
-        if crop_rect:
-            self.set_crop_rect(crop_rect)
-            self.crop_rect_item = self.addRect(crop_rect, self.crop_rect_pen)
-        else:
-            self.crop_rect_item = None
-        #----------------------------------------
-        keypoints = self.app_model.get_keypoints()
-        if keypoints:
+            self.pixmap = None
+            self.pixmap_item = None
+
+    def _draw_keypoints(self, orb_image):
+        keypoints = orb_image.get_keypoints()
+        if keypoints is not None:
             print(f'ReferenceImageScene #(number of keypoints -> {len(keypoints)})')
             for key in keypoints:
                 (x, y) = key.pt
                 self.addRect(qcore.QRectF(x, y, 2, 2), self.keypoint_pen)
         else:
             print(f'ReferenceImageScene #(keypoints not defined)')
+
+    def _draw_crop_rect(self, orb_image):
+        rect = orb_image.get_crop_rect()
+        if rect is not None:
+            rect = qcore.QRectF(*rect)
+            if self.rect_view is None:
+                self.rect_view = \
+                    qt.QGraphicsRectItem(rect, self.crop_rect_pen, qt.QBrush())
+            else:
+                self.rect_view.setRect(rect)
+        else:
+            pass
 
     def mousePressEvent(self, event):
         #print(f"ReferenceImageScene.mousePressEvent({event})") #DEBUG
@@ -507,7 +553,6 @@ class ReferenceImageTab(qt.QWidget):
     algorithm. All other images selected for cropping will also run
     the ORB algorithm, and a similar croppiping rectangle will be
     cenetered around those key points.
-
     """
 
     def __init__(self, app_model, parent):
@@ -524,9 +569,15 @@ class ReferenceImageTab(qt.QWidget):
         self.layout         = qt.QHBoxLayout(self)
         self.layout.addWidget(self.image_preview)
 
-    def set_display_reference(self, filepath):
-        self.scene.set_display_reference(filepath)
+    def set_display_reference(self, orb_image):
+        self.scene.set_display_reference(orb_image)
 
+    def reset_reference_image(self):
+        orb_image = self.app_model.get_reference_image()
+        if orb_image is not None:
+            self.set_display_reference(orb_image)
+        else:
+            print(f'ReferenceImageTabe.reset_reference_image() #(no reference orb_image)')
 
 ################################################################################
 
@@ -536,6 +587,7 @@ class ConfigTab(qt.QWidget):
 
     def __init__(self, app_model, parent):
         super(ConfigTab, self).__init__(parent)
+        self.app_view = parent
         self.app_model = app_model
         self.orb_config = ORBConfig()
         self.orb_config_undo = []
@@ -564,6 +616,7 @@ class ConfigTab(qt.QWidget):
         self.form_layout.setLabelAlignment(qcore.Qt.AlignmentFlag.AlignRight)
         self.form_layout.setFormAlignment(qcore.Qt.AlignmentFlag.AlignLeft)
         self.form_layout.addRow('Number of Features (>20, <20000)', self.nFeatures)
+        self.form_layout.addRow('Number of Levels (>1, <64)', self.nLevels)
         self.form_layout.addRow('Scale Factor (>1.0, <2.0)', self.scaleFactor)
         self.form_layout.addRow('Edge Threshold (>2, <1024)', self.edgeThreshold)
         self.form_layout.addRow('Patch Size (>2, <1024)', self.patchSize)
@@ -592,17 +645,16 @@ class ConfigTab(qt.QWidget):
         self.whole_layout.addStretch()
 
     def update_field(self, field, fromStr, setter):
-        """This function takes a qt.QLineEdit 'field', a function to conver
-        it's text to a value, and a 'setter' function that sets the value
-        taken from the field. It is expected that the 'setter' can raise a
-        ValueError exception if the value given cannot be set. This
-        function catches the exception and notifies the end user.
+        """This function takes a qt.QLineEdit 'field', a function to convert
+        it's text to a value to config parameter data, and a 'setter'
+        function that sets the value taken from the field. It is
+        expected that the 'setter' can raise a ValueError exception if
+        the value given cannot be set. This function catches the
+        exception and notifies the end user.
         """
-        txt = field.text()
         try:
-            setter(fromStr(txt))
+            setter(fromStr(field.text()))
         except ValueError as e:
-            field.setText(txt)
             self.notify.showMessage(e.args[0])
 
     def check_nFeatures(self):
@@ -638,9 +690,12 @@ class ConfigTab(qt.QWidget):
         self.check_WTA_K()
         self.check_patchSize()
         self.check_fastThreshold()
-        self.push_undo()
-        self.app_model.update_orb_config(self.orb_config)
+        self.push_do(self.orb_config_undo)
+        self.app_model.set_orb_config(self.orb_config)
         self.after_update()
+        if self.app_model.get_reference_image() is not None:
+            self.app_view.reset_reference_image()
+            self.app_view.change_to_reference_tab()
 
     def reset_defaults_action(self):
         self.push_do(self.orb_config_undo)
@@ -648,11 +703,8 @@ class ConfigTab(qt.QWidget):
 
     def push_do(self, stack):
         """Pass 'self.orb_config_undo' or 'self.orb_config_redo' as the 'stack' argument."""
-        if len(stack) > 0:
-            if stack[-1] != self.orb_config:
-                stack.append(self.orb_config)
-            else:
-                pass
+        if (len(stack) <= 0) or (stack[-1] != self.orb_config):
+            stack.append(self.orb_config)
         else:
             pass
 
@@ -697,8 +749,8 @@ class ImageCropKit(qt.QTabWidget):
         self.addTab(self.config_tab, "Settings")
         self.currentChanged.connect(self.change_tab_handler)
 
-    def set_display_reference(self, filepath):
-        self.reference_image_tab.set_display_reference(filepath)
+    def set_display_reference(self, orb_image):
+        self.reference_image_tab.set_display_reference(orb_image)
         self.files_tab.update_crop_rect_current_item()
         self.change_to_reference_tab()
 
@@ -708,6 +760,7 @@ class ImageCropKit(qt.QTabWidget):
         super(ImageCropKit, self).setCurrentIndex(index)
         self.widget(index).update()
 
+
     def change_to_files_tab(self):
         self.change_tab_handler(0)
 
@@ -715,7 +768,12 @@ class ImageCropKit(qt.QTabWidget):
         self.change_tab_handler(1)
 
     def reset_reference_image(self):
-        self.reference_image_tab.set_display_reference(self.app_model.get_reference_image())
+        ref = self.app_model.get_reference_image()
+        if ref is not None:
+            self.reference_image_tab.set_display_reference(ref)
+            self.reference_image_tab.reset_reference_image()
+        else:
+            pass
 
 
 ################################################################################
@@ -733,8 +791,8 @@ class ImageWithORB():
               )
         else:
             pass
-        self.orb_config = orb_config
         self.filepath = filepath
+        self.orb_config = ORBConfig()
         self.ORB = None
         self.keypoints = None
         self.descriptors = None
@@ -755,10 +813,18 @@ class ImageWithORB():
         return str(self.filepath)
 
     def __eq__(self, a):
-        return (self.filepath == a.filepath)
+        return \
+            (self.filepath == a.filepath) and \
+            (self.orb_config == a.orb_config)
 
     def __ne__(self, a):
-        return (self.filepath == a.filepath)
+        return not self.__eq__(a)
+
+    def get_orb_config(self):
+        return self.orb_config
+
+    def set_orb_config(self, orb_config):
+        self.run_orb(orb_config)
 
     def get_filepath(self):
         return self.filepath
@@ -801,14 +867,14 @@ class ImageWithORB():
         """
         self.crop_rect = rect
 
-    def set_relative_crop_rect(self, ref):
+    def set_relative_crop_rect(self, ref, orb_config):
         """Compute the crop_rect for this item relative to a given reference item."""
         if ref is not None:
             print(f'ImageWithORB.relative_crop_rect({ref.get_crop_rect()})')
             ref_rect = ref.get_crop_rect()
             ref_midpoint = ref.get_midpoint()
             if (ref_rect is not None) and (ref_midpoint is not None):
-                self.run_orb()
+                self.run_orb(orb_config)
                 (ref_x, ref_y, ref_width, ref_height) = ref_rect
                 (mid_x, mid_y) = ref_midpoint
                 if self.midpoint is not None:
@@ -833,8 +899,10 @@ class ImageWithORB():
         self.crop_rect = self.init_crop_rect
 
     def run_orb(self, orb_config):
+        print(f"#(old config: {str(self.orb_config)})")
+        print(f"#(new config: {str(orb_config)})")
+        print(f"#(up to date? {(self.orb_config == orb_config)})")
         if (self.ORB is None) or (self.orb_config != orb_config):
-            print(f'ImageWithOrb.run_orb() -> self.force_run_orb(str(orb_config))')
             self.force_run_orb(orb_config)
         else:
             print(f'ImageWithOrb.run_orb() #(ORB metadata already exists and is up-to-date)')
@@ -848,16 +916,17 @@ class ImageWithORB():
             height, width = pixmap.shape
             self.init_crop_rect = (0, 0, width, height)
             # Run the ORB algorithm
+            print(f'ImageWithOrb.force_run_orb({str(orb_config)})')
             ORB = cv.ORB_create( \
-                nfeatures=self.orb_config.get_nFeatures(), \
-                scaleFactor=self.orb_config.get_scaleFactor(), \
-                nLevels=self.orb_config.get_nLevels(), \
-                edgeThreshold=self.orb_config.get_edgeThreshold(), \
-                firstLevel=self.orb_config.get_firstLevel(), \
-                WTA=self.orb_config.get_WTA()_K, \
-                scoreType=self.orb_config.get_scoreType(), \
-                patchSize=self.orb_config.get_patchSize(), \
-                fastThreshold=self.orb_config.get_fastThreshold(), \
+                nfeatures=orb_config.get_nFeatures(), \
+                scaleFactor=orb_config.get_scaleFactor(), \
+                nlevels=orb_config.get_nLevels(), \
+                edgeThreshold=orb_config.get_edgeThreshold(), \
+                firstLevel=orb_config.get_firstLevel(), \
+                WTA_K=orb_config.get_WTA_K(), \
+                scoreType=orb_config.get_scoreType(), \
+                patchSize=orb_config.get_patchSize(), \
+                fastThreshold=orb_config.get_fastThreshold(), \
               )
             keypoints, descriptor = ORB.detectAndCompute(pixmap, None)
             self.ORB = ORB
@@ -930,7 +999,7 @@ class ORBConfig():
             (self.edgeThreshold == a.edgeThreshold) and \
             (self.firstLevel == a.firstLevel) and \
             (self.WTA_K == a.WTA_K) and \
-            (self.scoreType == cv.ORB.HARRIS_SCORE) and \
+            (self.scoreType == a.scoreType) and \
             (self.patchSize == a.patchSize) and \
             (self.fastThreshold == a.fastThreshold) \
           )
@@ -1089,15 +1158,25 @@ class MainAppModel():
         else:
             print(f'MainAppModel.reload_reference_image() failed, reference_image is None')
 
-    def run_orb(self):
+    def run_orb(self, orb_config):
         if self.reference_image is not None:
-            self.reference_image.run_orb(self.orb_config)
+            self.reference_image.run_orb(orb_config)
         else:
             pass
 
-    def update_orb_config(self, orb_config):
+    def get_orb_config(self):
+        return self.orb_config
+
+    def set_orb_config(self, orb_config):
+        """Here we can change the orb_config, then update the orb_config for
+        the current reference_image usnig run_orb(). It is important
+        to update do reference_image.run_orb() first because it might
+        compare it's own internal orb_config to the
+        MainAppModel.orb_config to decide whether to run the ORB
+        algorithm again.
+        """
+        self.run_orb(orb_config)
         self.orb_config = orb_config
-        self.run_orb()
 
     def get_keypoints(self):
         if self.reference_image is not None:
