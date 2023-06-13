@@ -486,6 +486,10 @@ class MessageBox(qt.QWidget):
 #---------------------------------------------------------------------------------------------------
 
 def gather_QUrl_local_files(qurl_list):
+    """This function converts a list of URL values of type QUrl into a
+    list of PurePaths. It is useful for constructing 'FileListItem's
+    from the result of a file dialog selection.
+    """
     urls = []
     for url in qurl_list:
         if url.isLocalFile():
@@ -493,6 +497,9 @@ def gather_QUrl_local_files(qurl_list):
     return urls
 
 class FilesTab(qt.QWidget):
+    """Display a list of images, and provide an image preview window to
+    view each iamge.
+    """
 
     def __init__(self, parent):
         super(FilesTab, self).__init__(parent)
@@ -840,16 +847,19 @@ class InspectTab(qt.QWidget):
         else:
             print('WARNING: InspectTab.place_rectangles() called before distance_map was set')
 
+    def modal_prompt_get_directory(self, init_dir):
+        output_dir = \
+            qt.QFileDialog.getExistingDirectory( \
+                self, "Write images to directory", \
+                init_dir, \
+                qt.QFileDialog.ShowDirsOnly \
+          )
+        return PurePath(output_dir)
+
     def save_selected(self):
         if self.distance_map is not None:
             output_dir = self.main_view.get_config().output_dir
-            output_dir = \
-                qt.QFileDialog.getExistingDirectory( \
-                    self, "Write images to directory", \
-                    str(output_dir), \
-                    qt.QFileDialog.ShowDirsOnly \
-              )
-            output_dir = PurePath(output_dir)
+            output_dir = self.modal_prompt_get_directory(str(output_dir))
             threshold = self.slider.get_percent()
             target_image = self.main_view.target.get_image()
             self.distance_map.write_all_cropped_images(target_image, threshold, output_dir)
