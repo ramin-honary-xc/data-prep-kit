@@ -751,6 +751,7 @@ class PercentSlider(qt.QWidget):
     def get_percent(self):
         return self.percent
 
+    @qcore.pyqtSlot(int)
     def value_changed_handler(self, new_value):
         self.slider.setValue(new_value)
         self.textbox.clear()
@@ -758,10 +759,12 @@ class PercentSlider(qt.QWidget):
         self.percent = new_value / 1000.0
         self.callback(new_value)
 
+    @qcore.pyqtSlot()
     def reset_value(self):
         self.textbox.setText(f'{self.percent * 100.0}')
         self.slider.setValue(round(self.percent * 1000.0))
 
+    @qcore.pyqtSlot()
     def textbox_handler(self):
         # editingFinished signal handler
         txt = self.textbox.text()
