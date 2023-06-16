@@ -1,5 +1,8 @@
 #! /usr/bin/env python3
 
+import DataPrepKit.utilities as util
+import DataPrepKit.FileSet as fs
+
 import argparse
 import math
 import os
@@ -13,38 +16,6 @@ import numpy as np
 import PyQt5.QtCore as qcore
 import PyQt5.QtGui as qgui
 import PyQt5.QtWidgets as qt
-
-####################################################################################################
-# Parsing command line arguments
-
-def threshold(val):
-    val = float(val)
-    if val >= 0.0 and val <= 100.0:
-        return (float(val) / 100.0)
-    else:
-        raise ValueError("threshold must be percentage value between 0 and 100")
-
-####################################################################################################
-# Miscelaneous utilities (that ought to already exist somewhere else, but do not).
-
-def float_to_uint32(input_image):
-    height, width = input_image.shape
-    output_image = np.empty((height, width), dtype=np.uint8)
-    for y in range(height):
-        for x in range(width):
-            output_image[y,x] = round(input_image[y,x] * 255)
-    return output_image
-
-def flatten_list(input):
-    result = []
-    for x in input:
-        if isinstance(x, list):
-            result.extend(x)
-        else:
-            result.append(x)
-    input.clear()
-    input.extend(result)
-    return input
 
 ####################################################################################################
 # The pattern matcing program
@@ -179,7 +150,7 @@ class DistanceMap():
         """Write the distance map that was computed at the time this object
         was constructed to a grayscale PNG image file.
         """
-        cv.imwrite(str(file_path), float_to_uint32(self.distance_map))
+        cv.imwrite(str(file_path), util.float_to_uint32(self.distance_map))
 
     def find_matching_regions(self, threshold=0.95):
         """Given a 'distance_map' that has been computed by the
@@ -235,62 +206,6 @@ class DistanceMap():
         for reg in regions:
             reg.crop_write_image(target_image, results_dir, prefix)
 
-#---------------------------------------------------------------------------------------------------
-# Front-end API to the pattern matching program, called in batch mode.
-
-def crop_matched_patterns(
-        target_image_path, \
-        pattern_image_path, \
-        results_dir, \
-        threshold=0.78, \
-        save_distance_map="_map" \
-      ):
-    #TODO: the "save_distance_map" argument should be used as a
-    #      file name suffix, not a file name.
-
-    # Create results directory if it does not exist
-    if not os.path.isdir(results_dir):
-        os.mkdir(results_dir)
-
-    target_image  = cv.imread(str(target_image_path))
-    if target_image is None:
-        raise FileNotFoundError(target_image_path)
-    else:
-        pass
-
-    pattern_image = cv.imread(str(pattern_image_path))
-    if pattern_image is None:
-        raise FileNotFoundError(pattern_image_path)
-    else:
-        pass
-
-    distance_map  = DistanceMap(target_image_path, target_image, pattern_image)
-
-    if save_distance_map is not None:
-        # Save the convolution image:
-        distance_map.save_distance_map(save_distance_map)
-    else:
-        pass
-
-    distance_map.write_all_cropped_images(target_image, threshold, results_dir)
-
-def batch_crop_matched_patterns(
-        target_images:list, \
-        pattern_image_path:PurePath, \
-        results_dir:PurePath, \
-        threshold=0.78, \
-        save_distance_map="_map" \
-      ):
-    for image in target_images:
-        print(f"image = {image}\npattern_image_path = {pattern_image_path}\nresults_dir = {results_dir}\nthreshold = {threshold}\nsave_distance_map = {save_distance_map}")
-        crop_matched_patterns( \
-            image, \
-            pattern_image_path, \
-            results_dir, \
-            threshold, \
-            save_distance_map \
-          )
-
 ####################################################################################################
 # The Qt GUI
 
@@ -308,11 +223,13 @@ class FileListItem(qt.QListWidgetItem):
 
 class ImagePreview(qt.QGraphicsView):
 
-    def __init__(self, parent):
+    def __init__(self, app_model, parent):
         super().__init__(parent)
+        self.app_model = app_model
         self.preview_scene = qt.QGraphicsScene(self)
-        self.display_pixmap = None
+        self.pixmap_path = None
         self.pixmap_item = None
+        self.pixmap_buffer = None
         self.setViewportUpdateMode(4) # 4: QGraphicsView::BoundingRectViewportUpdate
         self.setResizeAnchor(1) # 1: QGraphicsView::AnchorViewCenter
         self.setScene(self.preview_scene)
@@ -323,30 +240,34 @@ class ImagePreview(qt.QGraphicsView):
         if self.pixmap_item is not None:
             self.fitInView(self.pixmap_item, 1) # 1: qcore.AspectRatioMode::KeepAspectRatio
 
-    def get_pixmap(self):
-        return self.display_pixmap
-
-    def set_pixmap(self, pixmap, path=None):
-        self.resetTransform()
-        self.display_pixmap = pixmap
-        self.display_pixmap_path = path
-        self.pixmap_item = qt.QGraphicsPixmapItem(self.display_pixmap)
-        self.preview_scene.clear()
-        self.preview_scene.addItem(self.pixmap_item)
-        self.fitInView(self.pixmap_item, 1)
-
-    def display_path(self, path):
-        self.display_pixmap_path = path
-        self.display_pixmap = qgui.QPixmap()
-        if self.display_pixmap.load(str(self.display_pixmap_path)):
-            self.set_pixmap(self.display_pixmap)
+    def update_display(self):
+        target = self.app_model.get_target()
+        path = target.get_path()
+        if (self.pixmap_buffer is not None) and (self.pixmap_path == path):
+            # Here the pixmap_path has not been changed, so we need to
+            # prevent it from being freed by self.preview_scene.clear(),
+            # as we do not want to reload it from the filesystem.
+            self.preview_scene.removeItem(self.pixmap_item)
         else:
-            print(f"Failed to load {self.display_pixmap_path.get_path()!s}")
+            self.pixmap_buffer = qgui.QPixmap()
+            self.pixmap_buffer.load(str(path))
+        self.pixmap_item = None
+        self.pixmap_path = path
+        self.preview_scene.clear()
+        if self.pixmap_buffer is not None:
+            self.pixmap_item = qt.QGraphicsPixmapItem(self.pixmap_buffer)
+            self.preview_scene.addItem(self.pixmap_item)
+            self.resetTransform()
+            self.fitInView(self.pixmap_item, 1)
+        else:
+            print(f'ImagePreview.update_display() #(Failed to load "{path!s}")')
+            pass
+
 
 class InspectImagePreview(ImagePreview):
 
-    def __init__(self, parent):
-        super().__init__(parent)
+    def __init__(self, app_model, parent):
+        super().__init__(app_model, parent)
         self.pen = qgui.QPen(qgui.QColor(255, 0, 0, 255))
         self.pen.setCosmetic(True)
         self.pen.setWidth(3)
@@ -354,7 +275,7 @@ class InspectImagePreview(ImagePreview):
     def place_rectangles(self, rectangle_list):
         self.preview_scene.clear()
         if self.pixmap_item is not None:
-            self.pixmap_item = qt.QGraphicsPixmapItem(self.display_pixmap)
+            self.pixmap_item = qt.QGraphicsPixmapItem(self.pixmap_buffer)
             self.preview_scene.addItem(self.pixmap_item)
         else:
             pass
@@ -390,11 +311,12 @@ class FilesTab(qt.QWidget):
     view each iamge.
     """
 
-    def __init__(self, parent):
-        super().__init__(parent)
+    def __init__(self, app_model, main_view):
+        super().__init__(main_view)
         self.setObjectName("FilesTab")
+        self.app_model = app_model
+        self.main_view = main_view
         #---------- Setup visible widgets ----------
-        self.main_view     = parent
         self.layout        = qt.QHBoxLayout(self)
         self.splitter      = qt.QSplitter(1, self)
         self.setAcceptDrops(True)
@@ -402,14 +324,14 @@ class FilesTab(qt.QWidget):
         self.list_widget   = qt.QListWidget(self)
         self.list_widget.setObjectName("FilesTab list_widget")
         self.list_widget.setContextMenuPolicy(2) # 2 = qcore::ContextMenuPolicy::ActionsContextMenu
-        self.image_preview  = ImagePreview(self)
+        self.image_preview  = ImagePreview(self.app_model, self)
         self.image_preview.setObjectName("FilesTab ImagePreview")
         self.splitter.addWidget(self.list_widget)
         self.splitter.addWidget(self.image_preview)
         self.layout.addWidget(self.splitter)
         self.display_pixmap_path = None
         #---------- Populate list view ----------
-        self.reset_paths_list(self.main_view.target_image_paths)
+        self.reset_paths_list()
         #---------- Setup context menus ----------
         ## Action: Use as pattern
         self.use_as_pattern = qt.QAction("Use as pattern", self)
@@ -433,11 +355,19 @@ class FilesTab(qt.QWidget):
         self.list_widget.currentItemChanged.connect(self.item_change_handler)
         self.list_widget.itemActivated.connect(self.activate_handler)
 
-    def get_display_pixmap(self):
-        return self.image_preview.get_pixmap()
-
     def activate_handler(self, item):
-        self.main_view.match_on_file(item.get_path())
+        path = item.get_path()
+        self.app_model.set_target_image_path(path)
+        self.app_model.match_on_file()
+        distance_map = self.app_model.get_distance_map()
+        if distance_map:
+            self.main_view.show_distance_map()
+            self.main_view.show_inspect_tab()
+        else:
+            self.main_view.show_pattern_tab()
+            self.main_view.error_message( \
+                "A pattern image must be set for matching on the selected image." \
+              )
 
     def activate_selected_item(self):
         item = self.list_widget.currentItem()
@@ -445,20 +375,27 @@ class FilesTab(qt.QWidget):
 
     def item_change_handler(self, item, _old):
         if item is not None:
-            self.image_preview.display_path(item.get_path())
+            self.app_model.set_target_image_path(item.get_path())
+            self.image_preview.update_display()
         else:
             print("FilesTab.item_change_handler(item=None)")
 
     def use_current_item_as_pattern(self):
         item = self.list_widget.currentItem()
         path = item.get_path()
-        self.main_view.set_pattern_pixmap(path, self.image_preview.get_pixmap())
+        print(f'FilesTab.use_current_item_as_pattern() #("{path}")')
+        self.app_model.set_pattern_image_path(path)
+        self.main_view.update_pattern_pixmap()
 
-    def reset_paths_list(self, paths_list):
+    def reset_paths_list(self):
         """Populate the list view with an item for each file path."""
+        paths_list = self.app_model.get_target_fileset()
         self.list_widget.clear()
-        for item in paths_list:
-            self.list_widget.addItem(FileListItem(item))
+        if paths_list:
+            for item in paths_list:
+                self.list_widget.addItem(FileListItem(item))
+        else:
+            pass
 
     def open_image_files_handler(self):
         target_dir = self.main_view.get_config().output_dir
@@ -474,6 +411,7 @@ class FilesTab(qt.QWidget):
         urls = urls[0]
         if len(urls) > 0:
             self.main_view.add_target_image_paths(gather_QUrl_local_files(urls))
+            self.files_tab.reset_paths_list(self.target_image_paths)
         else:
             pass
 
@@ -488,10 +426,12 @@ class FilesTab(qt.QWidget):
         mime_data = event.mimeData()
         if mime_data.hasUrls():
             event.accept()
-            self.main_view.add_target_image_paths(gather_QUrl_local_files(mime_data.urls()))
+            self.app_model.add_target_fileset(gather_QUrl_local_files(mime_data.urls()))
+            self.reset_paths_list()
         elif mime_data.hasText():
             event.accept()
-            self.main_view.add_target_image_paths(split_linebreaks(mime_data.text()))
+            self.app_model.add_target_fileset(split_linebreaks(mime_data.text()))
+            self.reset_paths_list()
         else:
             event.ignore()
 
@@ -505,9 +445,10 @@ class PatternPreview(qt.QGraphicsView):
     InspectImagePreview in the future.
     """
 
-    def __init__(self, parent):
+    def __init__(self, app_model, main_view):
         super().__init__()
-        self.parent = parent
+        self.app_model = app_model
+        self.main_view = main_view
         self.display_pixmap = qgui.QPixmap()
         self.preview_scene  = qt.QGraphicsScene(self)
         self.pixmap_item = None
@@ -516,54 +457,38 @@ class PatternPreview(qt.QGraphicsView):
         self.setAcceptDrops(True)
 
     def dragEnterEvent(self, event):
-        self.parent.dragEnterEvent(event)
+        self.main_view.dragEnterEvent(event)
 
     def dropEvent(self, event):
-        self.parent.dropEvent(event)
+        self.main_view.dropEvent(event)
 
-    def set_pattern_pixmap(self):
+    def update_pattern_pixmap(self):
         self.preview_scene.clear()
+        pattern = self.app_model.get_pattern()
+        path = pattern.get_path()
+        self.display_pixmap = qgui.QPixmap(str(path))
+        self.pixmap_item = self.preview_scene.addPixmap(self.display_pixmap)
         self.resetTransform()
-        self.pixmap_item = qt.QGraphicsPixmapItem(self.display_pixmap)
-        self.preview_scene.addItem(self.pixmap_item)
-
-    def show_pattern_image_path(self, pixmap_path, pixmap=None):
-        if pixmap is not None:
-            self.display_pixmap = pixmap
-        else:
-            self.display_pixmap.load(str(pixmap_path))
-        self.set_pattern_pixmap()
 
 class PatternSetupTab(qt.QWidget):
 
-    def __init__(self, config, parent):
-        super().__init__(parent)
+    def __init__(self, app_model, main_view):
+        super().__init__(main_view)
         self.setObjectName("PatternSetupTab")
         self.setAcceptDrops(True)
-        self.main_view      = parent
-        self.file_path      = self.main_view.get_config().pattern
-        self.layout         = qt.QHBoxLayout(self)
-        self.preview_view   = PatternPreview(self)
+        self.app_model    = app_model
+        self.main_view    = main_view
+        self.layout       = qt.QHBoxLayout(self)
+        self.preview_view = PatternPreview(app_model, self)
         self.layout.addWidget(self.preview_view)
-        if config.pattern is not None:
-            print(f'config.pattern = "{config.pattern}"')
-            self.show_pattern_image_path(config.pattern)
-        else:
-            print("config.pattern = None")
-            pass
         ## Action: open image files
         self.open_pattern_file = qt.QAction("Open pattern file", self)
         self.open_pattern_file.setShortcut(qgui.QKeySequence.Open)
         self.open_pattern_file.triggered.connect(self.open_pattern_file_handler)
         self.preview_view.addAction(self.open_pattern_file)
 
-    def show_pattern_image_path(self, pattern_path):
-        self.display_pixmap_path = pattern_path
-        self.preview_view.show_pattern_image_path(self.display_pixmap_path)
-
-    def set_pattern_pixmap(self, pattern_path, pixmap):
-        self.file_path = pattern_path
-        self.preview_view.show_pattern_image_path(pattern_path, pixmap)
+    def update_pattern_pixmap(self):
+        self.preview_view.update_pattern_pixmap()
 
     def open_pattern_file_handler(self):
         target_dir = self.main_view.get_config().pattern
@@ -601,14 +526,14 @@ class PatternSetupTab(qt.QWidget):
             if len(urls) == 1:
                 event.accept()
                 url = urls[0]
-                self.preview_view.show_pattern_image_path(PurePath(url.toLocalFile()))
-                self.main_view.show_pattern_image_path(PurePath(url.toLocalFile()))
+                self.app_model.set_pattern_image_path(PurePath(url.toLocalFile()))
+                self.main_view.update_pattern_pixmap()
             else:
                 event.ignore()
         elif mime_data.hasText():
             event.accept()
-            self.preview_view.show_pattern_image_path(PurePath(mime_data.text()))
-            self.main_view.show_pattern_image_path(PurePath(mime_data.text()))
+            self.app_model.set_pattern_image_path(PurePath(mime_data.text()))
+            self.main_view.update_pattern_pixmap()
         else:
             event.ignore()
 
@@ -674,9 +599,10 @@ class PercentSlider(qt.QWidget):
 
 class InspectTab(qt.QWidget):
 
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.main_view = parent
+    def __init__(self, app_model, main_view):
+        super().__init__(main_view)
+        self.app_model = app_model
+        self.main_view = main_view
         self.distance_map = None
         self.setObjectName("InspectTab")
         # The layout of this widget is a top bar with a threshold slider and a graphics view or
@@ -684,15 +610,16 @@ class InspectTab(qt.QWidget):
         # the target and pattern are both selected.
         self.layout = qt.QVBoxLayout(self)
         self.layout.setObjectName("InspectTab layout")
+        config = app_model.get_config()
         self.slider = PercentSlider( \
             "Threshold %", \
-            parent.get_config().threshold, \
+            config.threshold, \
             self.slider_handler \
           )
         self.layout.addWidget(self.slider)
         self.message_box = MessageBox("Please select SEARCH target image and PATTERN image.")
         self.layout.addWidget(self.message_box)
-        self.image_preview = InspectImagePreview(self)
+        self.image_preview = InspectImagePreview(self.app_model, self)
         self.image_preview.hide()
         self.layout.addWidget(self.image_preview)
         #---------- Setup context menus ----------
@@ -705,9 +632,6 @@ class InspectTab(qt.QWidget):
     def slider_handler(self, new_value):
         self.place_rectangles()
 
-    def switch_image_display(self, pixmap):
-        self.image_preview.set_pixmap(pixmap)
-
     def show_nothing(self):
         self.image_preview.hide()
         self.message_box.show()
@@ -716,9 +640,11 @@ class InspectTab(qt.QWidget):
         self.message_box.hide()
         self.image_preview.show()
 
-    def show_distance_map(self, target_image, distance_map):
-        self.switch_image_display(target_image)
-        self.distance_map = distance_map
+    def show_distance_map(self):
+        """Draws the target image and any matching pattern rectangles into the
+        image_preview window."""
+        self.distance_map = self.app_model.get_distance_map()
+        self.image_preview.update_display()
         self.place_rectangles()
         self.show_image_preview()
         self.do_save_selected.setEnabled(True)
@@ -757,12 +683,14 @@ class CachedCVImageLoader():
     """A tool for loading and caching image from a file into an OpenCV image buffer.
     """
 
-    def __init__(self, notify, path=None):
+    def __init__(self, path=None):
         self.path   = path
-        self.notify = notify
         self.image  = None
 
     def load_image(self, path=None):
+        print('CachedCVImageLoader.load_image(' +
+              ('None' if path is None else f'"{path}"') +
+              ')')
         if path is None:
             path = self.path
             self.force_load_image(path)
@@ -772,67 +700,56 @@ class CachedCVImageLoader():
             pass
 
     def force_load_image(self, path):
-        self.image  = cv.imread(str(path))
-        if path is not None:
-            if self.image is None:
-                self.path = None
-                self.notify.showMessage( \
-                    f"Failed to load image file {path!s}" \
-                  )
-            else:
-                self.path = path
+        self.image = cv.imread(str(path))
+        if self.image is None:
+            self.path = None
+            raise ValueError(
+                f"Failed to load image file {path!s}",
+                path,
+              )
         else:
-            pass
+            self.path = path
+            print(f'CachedCVImageLoader.force_load_image() #(success "{self.path}")')
 
     def get_path(self):
         return self.path
 
     def get_image(self):
         if self.image is None:
-            print(f"warning: CachedCVImageLoader({self.path!s}).get_image() returned None")
+            print(f'WARNING: CachedCVImageLoader("{self.path!s}").get_image() returned None')
+        else:
+            pass
         return self.image
+
+    def set_image(self, path, pixmap):
+        self.path = path
+        self.pixmap = pixmap
 
 #---------------------------------------------------------------------------------------------------
 
-class PatternMatcher(qt.QTabWidget):
+class PatternMatcherView(qt.QTabWidget):
     """The Qt Widget containing the GUI for the pattern matching program.
     """
 
-    def __init__(self, config, parent=None):
-        super().__init__(parent)
-        #----------------------------------------
-        # Setup the model
-        self.config = config
-        self.distance_map = None
-        self.target_image_paths = search_target_images(self.config.inputs)
-        self.cache   = {}
-        self.notify  = qt.QErrorMessage(self)
-        self.pattern = CachedCVImageLoader(self.notify, self.config.pattern)
-        self.pattern.load_image()
-        self.target  = CachedCVImageLoader(self.notify)
+    def __init__(self, app_model, main_view=None):
+        super().__init__(main_view)
+        self.app_model = app_model
         #----------------------------------------
         # Setup the GUI
+        self.notify = qt.QErrorMessage(self)
         self.setWindowTitle("Image Pattern Matching Kit")
         self.resize(800, 600)
         self.setTabPosition(qt.QTabWidget.North)
-        self.files_tab = FilesTab(self)
-        self.pattern_tab = PatternSetupTab(config, self)
-        self.inspect_tab = InspectTab(self)
+        self.files_tab = FilesTab(app_model, self)
+        self.pattern_tab = PatternSetupTab(app_model, self)
+        self.inspect_tab = InspectTab(app_model, self)
         self.addTab(self.files_tab, "Search")
         self.addTab(self.pattern_tab, "Pattern")
         self.addTab(self.inspect_tab, "Inspect")
         self.currentChanged.connect(self.change_tab_handler)
 
-    def get_config(self):
-        return self.config
-
-    def get_target_image_paths(self):
-        return self.target_image_paths
-
-    def add_target_image_paths(self, path_list):
-        found_paths = search_target_images(path_list)
-        self.target_image_paths = self.target_image_paths + found_paths
-        self.files_tab.reset_paths_list(self.target_image_paths)
+    def error_message(self, message):
+        self.notify.showMessage(message)
 
     def change_tab_handler(self, index):
         """Does the work of actually changing the GUI display to the "InspectTab".
@@ -840,78 +757,170 @@ class PatternMatcher(qt.QTabWidget):
         super().setCurrentIndex(index)
         self.widget(index).update()
 
-    def match_on_file(self, target_image_path):
+    def show_inspect_tab(self):
+        self.setCurrentWidget(self.inspect_tab)
+
+    def show_pattern_tab(self):
+        self.setCurrentWidget(self.pattern_tab)
+
+    def show_distance_map(self):
+        self.inspect_tab.show_distance_map()
+
+    def update_pattern_pixmap(self):
+        self.pattern_tab.update_pattern_pixmap()
+        self.show_pattern_tab()
+
+####################################################################################################
+
+class PatternMatcher():
+    """The main app model contains the buffer for the reference image, and the memoized search
+    results for every image that has been compared against the reference image for a particular
+    threshold value."""
+
+    def __init__(self, config=None):
+        self.distance_map = None
+        self.config = None
+        self.results_dir = None
+        self.set_target_fileset(None)
+        self.results_dir = None
+        self.save_distance_map = None
+        self.threshold = 0.78
+        self.target = CachedCVImageLoader()
+        self.pattern = CachedCVImageLoader()
+        if config:
+            self.set_config(config)
+        else:
+            pass
+
+    def get_config(self):
+        return self.config
+
+    def set_config(self, config):
+        self.config = config
+        self.set_target_fileset(config.inputs)
+        self.set_pattern_image_path(config.pattern)
+        self.results_dir = config.output_dir
+        self.threshold = config.threshold
+        self.save_distance_map = config.save_map
+        # Load the pattern right away, if it is not None
+        self.pattern_image_path = config.pattern
+        if self.pattern_image_path:
+            self.pattern.load_image(self.pattern_image_path)
+        else:
+            pass
+
+    def get_pattern(self):
+        return self.pattern
+
+    def get_pattern_image_path(self):
+        return self.pattern.get_path()
+
+    def set_pattern_image_path(self, path):
+        print(f'PatternMatcher.set_pattern_image_path("{path}")')
+        self.pattern_image_path = path
+        if path:
+            self.pattern.load_image(path)
+        else:
+            pass
+
+    def set_pattern_pixmap(self, pattern_path, pixmap):
+        self.pattern.set_image(pattern_path, pixmap)
+
+    def get_target(self):
+        return self.target
+
+    def get_target_image_path(self):
+        return self.target.get_path()
+
+    def set_target_image_path(self, path):
+        print(f'PatternMatcher.set_target_image_path("{path}")')
+        self.target.load_image(path)
+
+    def get_target_fileset(self):
+        return self.target_fileset
+
+    def set_target_fileset(self, path_list):
+        self.target_fileset = \
+            fs.FileSet(filter=fs.filter_image_files_by_ext)
+        if path_list:
+            self.fileset.merge_recursive(path_list)
+        else:
+            pass
+
+    def add_target_fileset(self, path_list):
+        self.target_fileset.merge_recursive(path_list)
+
+    def get_distance_map(self):
+        return self.distance_map
+
+    def match_on_file(self):
         """This function is triggered when you double-click on an item in the image
         list in the "FilesTab". It starts running the pattern matching algorithm and
         changes the display of the GUI over to the "InspectTab".
         """
-        self.target.load_image(target_image_path)
-        if (self.pattern.get_image() is not None) and (self.target.get_image() is not None):
-            if target_image_path in self.cache:
-                distance_map = self.cache[target_image_path]
-            else:
-                self.target.load_image(target_image_path)
-                distance_map = DistanceMap( \
-                    target_image_path, \
-                    self.target.get_image(), \
-                    self.pattern.get_image() \
-                  )
-            self.inspect_tab.show_distance_map(self.files_tab.get_display_pixmap(), distance_map)
-            self.setCurrentWidget(self.inspect_tab)
-            return self.distance_map
+        patimg = self.pattern.get_image()
+        targimg = self.target.get_image()
+        if patimg is None:
+            print(f'PatternMatcher.match_on_file() #(self.pattern.get_image() returned None)')
+        elif targimg is None:
+            print(f'PatternMatcher.match_on_file() #(self.target.get_image() returned None)')
         else:
-            self.setCurrentWidget(self.pattern_tab)
-            self.notify.showMessage( \
-                "A pattern image must be set for matching on the selected image." \
+            target_image_path = self.target.get_path()
+            self.distance_map = DistanceMap(target_image_path, targimg, patimg)
+
+    def crop_matched_patterns(target_image_path):
+        #TODO: the "save_distance_map" argument should be used as a
+        #      file name suffix, not a file name.
+
+        # Create results directory if it does not exist
+        if not os.path.isdir(results_dir):
+            os.mkdir(results_dir)
+
+        target_image  = self.target.get_image(target_image_path)
+        if target_image is None:
+            raise FileNotFoundError(self.target_image_path)
+        else:
+            pass
+
+        pattern_image = self.pattern.get_iamge(self.pattern_image_path)
+        if pattern_image is None:
+            raise FileNotFoundError(pattern_image_path)
+        else:
+            pass
+
+        self.distance_map = DistanceMap(target_image_path, target_image, pattern_image)
+
+        if self.save_distance_map is not None:
+            # Save the convolution image:
+            distance_map.save_distance_map(self.save_distance_map)
+        else:
+            pass
+        distance_map.write_all_cropped_images(target_image, threshold, results_dir)
+
+    def batch_crop_matched_patterns():
+        self.pattern.load_image()
+        for image in self.target_fileset:
+            print(
+                f'image = {image}\npattern_image_path = {pattern_image_path}\n'
+                f'results_dir = {results_dir}\n'
+                f'threshold = {threshold}\n'
+                f'save_distance_map = {save_distance_map}',
               )
-            return None
+            self.crop_matched_patterns(image)
 
-    def show_pattern_image_path(self, path):
-        self.pattern_tab.show_pattern_image_path(path)
-        self.pattern.load_image(path)
-        self.setCurrentWidget(self.pattern_tab)
-
-    def set_pattern_pixmap(self, path, pixmap):
-        self.pattern_tab.set_pattern_pixmap(path, pixmap)
-        self.setCurrentWidget(self.pattern_tab)
-        self.pattern.load_image(path)
+    def load_image(self, path):
+        self.pattern.set_pattern_image_path(path)
+        self.pattern.load_image()
 
 ####################################################################################################
 # The main function, and functions for searching the filesystem for program input
 
-def filename_filter(filepath):
-    ext = filepath.suffix.lower()
-    return (ext == ".png") or (ext == ".jpg") or (ext == ".jpeg")
-
-linebreak = re.compile("[\\n\\r]")
-
-def split_linebreaks(str):
-    return linebreak.split(str)
-
-def search_target_images(filepath_args):
-    result = []
-    for filepath in filepath_args:
-        if not filepath:
-            pass
-        elif os.path.isdir(filepath):
-            for root, _dirs, files in os.walk(filepath):
-                root = PurePath(root)
-                for filename in files:
-                    filepath = PurePath(filename)
-                    if filename_filter(filepath):
-                        result.append(root / filepath)
-                    else:
-                        pass
-        else:
-            result.append(PurePath(filepath))
-    return result
-
 def main():
-    arper = argparse.ArgumentParser( \
+    arper = argparse.ArgumentParser(
         description="""
           Does "pattern matching" -- finding instances of a smaller image in a larger image.
-          """, \
-        exit_on_error=False, \
+          """,
+        exit_on_error=False,
         epilog="""
           This program will search for a pattern image in each input image, regions found
           to be close to 100% similar within a certain specified threshold value will
@@ -921,28 +930,28 @@ def main():
           each image and the bounding boxes for each region that matches a pattern. If
           you do not enable GUI mode, this program operates in "batch mode", creating the
           output directory and images without user intervention.
-          """ \
+          """,
       )
 
-    arper.add_argument (\
-        "-v", "--verbose", \
-        dest="verbose", \
-        action="store_true", \
-        default=False, \
+    arper.add_argument(
+        "-v", "--verbose",
+        dest="verbose",
+        action="store_true",
+        default=False,
         help="""
           Reports number of matching regions per input image,
           reports each file that is created.
-          """ \
+          """,
       )
 
-    arper.add_argument( \
-        "--gui", \
-        dest="gui", \
-        action="store_true", \
-        default=False, \
+    arper.add_argument(
+        "--gui",
+        dest="gui",
+        action="store_true",
+        default=False,
         help="""
           Inlcude this arugment to launch the GUI utility.
-          """ \
+          """,
       )
 
     arper.add_argument( \
@@ -959,7 +968,7 @@ def main():
         dest="threshold", \
         action="store", \
         default="95", \
-        type=threshold, \
+        type=util.threshold, \
         help="""
           The minimum percentage of similarity reqiured between a pattern and a
           region of the image in order for the region to be selected and cropped.
@@ -970,7 +979,7 @@ def main():
         "-p", "--pattern", \
         dest="pattern", \
         action="store", \
-        default=PurePath("./pattern.png"), \
+        default=None, \
         type=PurePath, \
         help="""
           Specify the file path of the image to be used as the pattern.
@@ -1012,21 +1021,15 @@ def main():
       )
 
     (config, remaining_argv) = arper.parse_known_args()
+    matcher = PatternMatcher(config)
     print(config)
     if config.gui:
         app = qt.QApplication(remaining_argv)
-        appWindow = PatternMatcher(config)
+        appWindow = PatternMatcherView(matcher)
         appWindow.show()
         sys.exit(app.exec_())
     else:
-        target_image_paths = search_target_images(config.inputs)
-        batch_crop_matched_patterns( \
-            target_images=target_image_paths, \
-            pattern_image_path=config.pattern, \
-            results_dir=config.output_dir, \
-            threshold=config.threshold, \
-            save_distance_map=config.save_map \
-          )
+        matcher.batch_crop_matched_patterns()
 
 ####################################################################################################
 
