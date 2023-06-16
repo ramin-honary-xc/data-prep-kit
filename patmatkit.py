@@ -1,17 +1,15 @@
 #! /usr/bin/env python3
 
 import argparse
-import sys
-import argparse
+import math
 import os
 import os.path
 import re
+import sys
 from pathlib import PurePath
-import math
+
 import cv2 as cv
 import numpy as np
-from scipy.signal import argrelextrema
-
 import PyQt5.QtCore as qcore
 import PyQt5.QtGui as qgui
 import PyQt5.QtWidgets as qt
@@ -19,116 +17,12 @@ import PyQt5.QtWidgets as qt
 ####################################################################################################
 # Parsing command line arguments
 
-arper = argparse.ArgumentParser( \
-    description="""
-      Does "pattern matching" -- finding instances of a smaller image in a larger image.
-      """, \
-    exit_on_error=False, \
-    epilog="""
-      This program will search for a pattern image in each input image, regions found
-      to be close to 100% similar within a certain specified threshold value will
-      be cropped and saved as a separate image file in a specified output directory.
-
-      The --gui option enables GUI mode (disabled by default), where you can view
-      each image and the bounding boxes for each region that matches a pattern. If
-      you do not enable GUI mode, this program operates in "batch mode", creating the
-      output directory and images without user intervention.
-      """ \
-  )
-
-arper.add_argument (\
-    '-v', '--verbose', \
-    dest='verbose', \
-    action='store_true', \
-    default=False, \
-    help="""
-      Reports number of matching regions per input image,
-      reports each file that is created.
-      """ \
-  )
-
-arper.add_argument( \
-    '--gui', \
-    dest='gui', \
-    action='store_true', \
-    default=False, \
-    help="""
-      Inlcude this arugment to launch the GUI utility.
-      """ \
-  )
-
-arper.add_argument( \
-    '--no-gui', \
-    dest='gui', \
-    action='store_false', \
-    help="""
-      Program runs in "batch mode," without presenting a GUI or requesting user feedback.
-      """ \
-  )
-
 def threshold(val):
     val = float(val)
     if val >= 0.0 and val <= 100.0:
         return (float(val) / 100.0)
     else:
         raise ValueError("threshold must be percentage value between 0 and 100")
-
-arper.add_argument( \
-    '-t', '--threshold', \
-    dest='threshold', \
-    action='store', \
-    default='95', \
-    type=threshold, \
-    help="""
-      The minimum percentage of similarity reqiured between a pattern and a
-      region of the image in order for the region to be selected and cropped.
-      """
-  )
-
-arper.add_argument( \
-    '-p', '--pattern', \
-    dest='pattern', \
-    action='store', \
-    default=PurePath('./pattern.png'), \
-    type=PurePath, \
-    help="""
-      Specify the file path of the image to be used as the pattern.
-      """ \
-  )
-
-arper.add_argument( \
-    '-o', '--output-dir', \
-    dest='output_dir', \
-    action='store', \
-    default=PurePath('./matched-images'), \
-    type=PurePath, \
-    help="""
-      Specify the output directory into which multiple image files can be created.
-      """
-  )
-
-arper.add_argument( \
-    '--save-map', \
-    dest='save_map', \
-    action='store', \
-    default=None, \
-    help="""
-      If a filename suffix string is supplied as this argument, the resulting image of
-      the pattern matching convolution is saved to a file of the same name as the input
-      file with the prefix apended to the filename (but before the file extension).
-      """ \
-  )
-
-arper.add_argument( \
-    'inputs', \
-    nargs='*', \
-    action='store', \
-    type=PurePath, \
-    help="""    
-      A set of images, or directories containing images, in which the pattern image is searched.
-      Directories are searched for images, but not recursively. See the --recursive option.
-      """ \
-  )
 
 ####################################################################################################
 # Miscelaneous utilities (that ought to already exist somewhere else, but do not).
@@ -144,7 +38,7 @@ def float_to_uint32(input_image):
 def flatten_list(input):
     result = []
     for x in input:
-        if type(x) == type([]):
+        if isinstance(x, list):
             result.extend(x)
         else:
             result.append(x)
@@ -169,7 +63,7 @@ class RegionSize():
           ]
 
     def as_file_name(self):
-        return PurePath(f'{self.x_min:0>5}x{self.y_min:0>5}.png')
+        return PurePath(f"{self.x_min:0>5}x{self.y_min:0>5}.png")
 
     def crop_write_image(self, image, results_dir, file_prefix=None):
         """Takes an image to crop, crops it with 'crop_image()', takes a
@@ -179,11 +73,11 @@ class RegionSize():
         """
         write_path = self.as_file_name()
         if file_prefix:
-            write_path = PurePath(f'{str(file_prefix)}_{str(write_path)}')
+            write_path = PurePath(f"{file_prefix!s}_{write_path!s}")
         else:
             pass
         write_path = results_dir / write_path
-        print(f'crop_write_image -> {write_path}')
+        print(f"crop_write_image -> {write_path}")
         cv.imwrite(str(write_path), self.crop_image(image))
 
     def get_point_and_size(self):
@@ -212,28 +106,28 @@ class DistanceMap():
         pat_shape = pattern_image.shape
         self.pattern_height = pat_shape[0]
         self.pattern_width  = pat_shape[1]
-        print( \
-            f'pattern_width = {self.pattern_width},' + \
-            f' pattern_height = {self.pattern_height},'
+        print(
+            f"pattern_width = {self.pattern_width},"
+            f" pattern_height = {self.pattern_height},",
           )
 
         targ_shape = target_image.shape
         self.target_height = targ_shape[0]
         self.target_width  = targ_shape[1]
         print( \
-            f'target_width = {self.target_width},' + \
-            f' target_height = {self.target_height},'
+            f"target_width = {self.target_width},"
+            f" target_height = {self.target_height},",
           )
 
         if float(self.pattern_width)  > self.target_width  / 2 * 3 and \
            float(self.pattern_height) > self.target_height / 2 * 3 :
             raise ValueError(\
                 "pattern image is too large relative to target image", \
-                {'pattern_width': self.pattern_width, \
-                 'pattern_height': self.pattern_height, \
-                 'target_width': self.target_width, \
-                 'target_height': self.target_height
-                }
+                {"pattern_width": self.pattern_width, \
+                 "pattern_height": self.pattern_height, \
+                 "target_width": self.target_width, \
+                 "target_height": self.target_height,
+                },
               )
         else:
             pass
@@ -248,7 +142,7 @@ class DistanceMap():
         self.window_width  = math.ceil(self.pattern_width  / 2) \
             if self.pattern_width  >= 4 else self.pattern_width
 
-        print(f'window_height = {self.window_height}, window_width = {self.window_width}')
+        print(f"window_height = {self.window_height}, window_width = {self.window_width}")
 
         ### Available methods for pattern matching in OpenCV
         #
@@ -269,9 +163,9 @@ class DistanceMap():
         # distance_map.
         self.distance_map = np.ones( \
             ( pre_dist_map_height - (pre_dist_map_height % -self.window_height), \
-              pre_dist_map_width  - (pre_dist_map_width  % -self.window_width ), \
+              pre_dist_map_width  - (pre_dist_map_width  % -self.window_width ) \
             ), \
-            dtype=np.float32
+            dtype=np.float32,
           )
         print(f"dist_map_height = {pre_dist_map_height}, dist_map_width = {pre_dist_map_width}")
 
@@ -294,7 +188,7 @@ class DistanceMap():
         less or equal to the complement of the threshold value.
         """
         if threshold < 0.5:
-            raise ValueError("threshold {str(threshold)} too low, minimum is 0.5", {'threshold': threshold})
+            raise ValueError("threshold {str(threshold)} too low, minimum is 0.5", {"threshold": threshold})
         elif threshold in self.memoized_regions:
             return self.memoized_regions[threshold]
         else:
@@ -305,7 +199,6 @@ class DistanceMap():
         dist_map_height, dist_map_width = self.distance_map.shape
         window_vcount = round(dist_map_height / self.window_height)
         window_hcount = round(dist_map_width  / self.window_width)
-        #print(f"window_hcount = {window_vcount}, window_vcount = {window_hcount}")
 
         tiles = self.distance_map.reshape( \
             window_vcount, self.window_height, \
@@ -316,16 +209,13 @@ class DistanceMap():
         for y in range(window_vcount):
             for x in range(window_hcount):
                 tile = tiles[y, :, x, :]
-                #visible_tile = float_to_uint32(tile)
-                #cv.imwrite(f"./{x}x{y}.png", visible_tile)
                 (min_y, min_x) = np.unravel_index( \
                     np.argmin(tile), \
-                    (self.window_height, self.window_width)
+                    (self.window_height, self.window_width),
                   )
                 global_y = y * self.window_height + min_y
                 global_x = x * self.window_width  + min_x
                 if tile[min_y, min_x] <= (1.0 - threshold):
-                    #print(f"argmin(tiles[{y},{x}]) -> ({global_x}, {global_y})")
                     results.append( \
                         RegionSize( \
                             global_x, global_y, \
@@ -339,7 +229,7 @@ class DistanceMap():
         return results
 
     def write_all_cropped_images(self, target_image, threshold, results_dir):
-        print(f'write_all_cropped_images: threshold = {str(threshold)}')
+        print(f"write_all_cropped_images: threshold = {threshold!s}")
         regions = self.find_matching_regions(threshold=threshold)
         prefix = self.target_image_path.stem
         for reg in regions:
@@ -349,9 +239,9 @@ class DistanceMap():
 # Front-end API to the pattern matching program, called in batch mode.
 
 def crop_matched_patterns(
-        target_image_path=PurePath('./test-target.png'), \
-        pattern_image_path=PurePath('./test-pattern.png'), \
-        results_dir=PurePath('./test-results'), \
+        target_image_path, \
+        pattern_image_path, \
+        results_dir, \
         threshold=0.78, \
         save_distance_map="_map" \
       ):
@@ -385,14 +275,14 @@ def crop_matched_patterns(
     distance_map.write_all_cropped_images(target_image, threshold, results_dir)
 
 def batch_crop_matched_patterns(
-        target_images=[PurePath('./test-target.png')], \
-        pattern_image_path=PurePath('./test-pattern.png'), \
-        results_dir=PurePath('./test-results'), \
+        target_images:list, \
+        pattern_image_path:PurePath, \
+        results_dir:PurePath, \
         threshold=0.78, \
         save_distance_map="_map" \
       ):
     for image in target_images:
-        print(f'image = {image}\npattern_image_path = {pattern_image_path}\nresults_dir = {results_dir}\nthreshold = {threshold}\nsave_distance_map = {save_distance_map}')
+        print(f"image = {image}\npattern_image_path = {pattern_image_path}\nresults_dir = {results_dir}\nthreshold = {threshold}\nsave_distance_map = {save_distance_map}")
         crop_matched_patterns( \
             image, \
             pattern_image_path, \
@@ -408,7 +298,7 @@ class FileListItem(qt.QListWidgetItem):
     """A QListWidgetItem for an element in the files list in the Files tab."""
 
     def __init__(self, path):
-        super(FileListItem, self).__init__(str(path))
+        super().__init__(str(path))
         self.path = path
 
     def get_path(self):
@@ -419,7 +309,7 @@ class FileListItem(qt.QListWidgetItem):
 class ImagePreview(qt.QGraphicsView):
 
     def __init__(self, parent):
-        super(ImagePreview, self).__init__(parent)
+        super().__init__(parent)
         self.preview_scene = qt.QGraphicsScene(self)
         self.display_pixmap = None
         self.pixmap_item = None
@@ -429,7 +319,7 @@ class ImagePreview(qt.QGraphicsView):
         self.setContextMenuPolicy(2) # 2 = qcore::ContextMenuPolicy::ActionsContextMenu
 
     def resizeEvent(self, newSize):
-        super(ImagePreview, self).resizeEvent(newSize)
+        super().resizeEvent(newSize)
         if self.pixmap_item is not None:
             self.fitInView(self.pixmap_item, 1) # 1: qcore.AspectRatioMode::KeepAspectRatio
 
@@ -442,7 +332,6 @@ class ImagePreview(qt.QGraphicsView):
         self.display_pixmap_path = path
         self.pixmap_item = qt.QGraphicsPixmapItem(self.display_pixmap)
         self.preview_scene.clear()
-        #self.preview_scene.setSceneRect(qcore.QRectF())
         self.preview_scene.addItem(self.pixmap_item)
         self.fitInView(self.pixmap_item, 1)
 
@@ -452,12 +341,12 @@ class ImagePreview(qt.QGraphicsView):
         if self.display_pixmap.load(str(self.display_pixmap_path)):
             self.set_pixmap(self.display_pixmap)
         else:
-            print(f'Failed to load {str(self.display_pixmap_path.get_path())}')
+            print(f"Failed to load {self.display_pixmap_path.get_path()!s}")
 
 class InspectImagePreview(ImagePreview):
 
     def __init__(self, parent):
-        super(InspectImagePreview, self).__init__(parent)
+        super().__init__(parent)
         self.pen = qgui.QPen(qgui.QColor(255, 0, 0, 255))
         self.pen.setCosmetic(True)
         self.pen.setWidth(3)
@@ -478,7 +367,7 @@ class InspectImagePreview(ImagePreview):
 class MessageBox(qt.QWidget):
 
     def __init__(self, message):
-        super(MessageBox, self).__init__()
+        super().__init__()
         self.layout = qt.QHBoxLayout(self)
         self.message = qt.QLabel(message)
         self.layout.addWidget(self.message)
@@ -502,19 +391,19 @@ class FilesTab(qt.QWidget):
     """
 
     def __init__(self, parent):
-        super(FilesTab, self).__init__(parent)
-        self.setObjectName('FilesTab')
+        super().__init__(parent)
+        self.setObjectName("FilesTab")
         #---------- Setup visible widgets ----------
         self.main_view     = parent
         self.layout        = qt.QHBoxLayout(self)
         self.splitter      = qt.QSplitter(1, self)
         self.setAcceptDrops(True)
-        self.splitter.setObjectName('FilesTab splitter')
+        self.splitter.setObjectName("FilesTab splitter")
         self.list_widget   = qt.QListWidget(self)
-        self.list_widget.setObjectName('FilesTab list_widget')
+        self.list_widget.setObjectName("FilesTab list_widget")
         self.list_widget.setContextMenuPolicy(2) # 2 = qcore::ContextMenuPolicy::ActionsContextMenu
         self.image_preview  = ImagePreview(self)
-        self.image_preview.setObjectName('FilesTab ImagePreview')
+        self.image_preview.setObjectName("FilesTab ImagePreview")
         self.splitter.addWidget(self.list_widget)
         self.splitter.addWidget(self.image_preview)
         self.layout.addWidget(self.splitter)
@@ -558,7 +447,7 @@ class FilesTab(qt.QWidget):
         if item is not None:
             self.image_preview.display_path(item.get_path())
         else:
-            print('FilesTab.item_change_handler(item=None)')
+            print("FilesTab.item_change_handler(item=None)")
 
     def use_current_item_as_pattern(self):
         item = self.list_widget.currentItem()
@@ -577,11 +466,11 @@ class FilesTab(qt.QWidget):
             qt.QFileDialog.getOpenFileUrls( \
                 self, "Open images in which to search for patterns", \
                 qcore.QUrl(str(target_dir)), \
-                'Images (*.png *.jpg *.jpeg)', '', \
+                "Images (*.png *.jpg *.jpeg)", "", \
                 qt.QFileDialog.ReadOnly, \
                 ["file"] \
               )
-        print(f'selected urls = {urls}')
+        print(f"selected urls = {urls}")
         urls = urls[0]
         if len(urls) > 0:
             self.main_view.add_target_image_paths(gather_QUrl_local_files(urls))
@@ -617,7 +506,7 @@ class PatternPreview(qt.QGraphicsView):
     """
 
     def __init__(self, parent):
-        super(PatternPreview, self).__init__()
+        super().__init__()
         self.parent = parent
         self.display_pixmap = qgui.QPixmap()
         self.preview_scene  = qt.QGraphicsScene(self)
@@ -642,14 +531,14 @@ class PatternPreview(qt.QGraphicsView):
         if pixmap is not None:
             self.display_pixmap = pixmap
         else:
-            loaded = self.display_pixmap.load(str(pixmap_path))
+            self.display_pixmap.load(str(pixmap_path))
         self.set_pattern_pixmap()
 
 class PatternSetupTab(qt.QWidget):
 
-    def __init__(self, config, parent=None):
-        super(PatternSetupTab, self).__init__(parent)
-        self.setObjectName('PatternSetupTab')
+    def __init__(self, config, parent):
+        super().__init__(parent)
+        self.setObjectName("PatternSetupTab")
         self.setAcceptDrops(True)
         self.main_view      = parent
         self.file_path      = self.main_view.get_config().pattern
@@ -660,7 +549,7 @@ class PatternSetupTab(qt.QWidget):
             print(f'config.pattern = "{config.pattern}"')
             self.show_pattern_image_path(config.pattern)
         else:
-            print(f'config.pattern = None')
+            print("config.pattern = None")
             pass
         ## Action: open image files
         self.open_pattern_file = qt.QAction("Open pattern file", self)
@@ -682,7 +571,7 @@ class PatternSetupTab(qt.QWidget):
             qt.QFileDialog.getOpenFileUrl( \
                 self, "Open images in which to search for patterns", \
                 qcore.QUrl(str(target_dir)), \
-                'Images (*.png *.jpg *.jpeg)', '', \
+                "Images (*.png *.jpg *.jpeg)", "", \
                 qt.QFileDialog.ReadOnly, \
                 ["file"] \
               )
@@ -690,7 +579,7 @@ class PatternSetupTab(qt.QWidget):
         if (url is not None) and url.isLocalFile():
             self.main_view.show_pattern_image_path(PurePath(url.toLocalFile()))
         else:
-            print(f'URL {url} is not a local file')
+            print(f"URL {url} is not a local file")
 
     def dragEnterEvent(self, event):
         mime_data = event.mimeData()
@@ -708,11 +597,10 @@ class PatternSetupTab(qt.QWidget):
     def dropEvent(self, event):
         mime_data = event.mimeData()
         if mime_data.hasUrls():
-            url = mime_data.urls()
-            url = url[0]
+            urls = mime_data.urls()
             if len(urls) == 1:
                 event.accept()
-                url = mime_data.urls()[0]
+                url = urls[0]
                 self.preview_view.show_pattern_image_path(PurePath(url.toLocalFile()))
                 self.main_view.show_pattern_image_path(PurePath(url.toLocalFile()))
             else:
@@ -729,7 +617,7 @@ class PatternSetupTab(qt.QWidget):
 class PercentSlider(qt.QWidget):
 
     def __init__(self, label, init_value, callback):
-        super(PercentSlider, self).__init__()
+        super().__init__()
         self.percent = init_value
         self.callback = callback
         self.label = qt.QLabel(label)
@@ -739,18 +627,18 @@ class PercentSlider(qt.QWidget):
         self.slider.setPageStep(50)
         self.slider.setSingleStep(10)
         self.slider.setValue(round(self.percent * 1000.0))
-        self.slider.setObjectName('InspectTab slider')
+        self.slider.setObjectName("InspectTab slider")
         self.slider.valueChanged.connect(self.value_changed_handler)
         self.setSizePolicy(self.slider.sizePolicy())
         self.textbox = qt.QLineEdit(str(round(self.percent * 1000.0) / 10.0), self)
         self.textbox.setMaxLength(5)
-        self.textbox.setObjectName('InspectTab textbox')
-        font_metrics = qt.QLabel('100.0 %').fontMetrics()
-        self.textbox.setFixedWidth(font_metrics.width('100.0 %'))
+        self.textbox.setObjectName("InspectTab textbox")
+        font_metrics = qt.QLabel("100.0 %").fontMetrics()
+        self.textbox.setFixedWidth(font_metrics.width("100.0 %"))
         self.textbox.editingFinished.connect(self.textbox_handler)
         #---------- The top bar is always visible ----------
         self.layout = qt.QHBoxLayout(self)
-        self.layout.setObjectName('InspectTab layout')
+        self.layout.setObjectName("InspectTab layout")
         self.layout.addWidget(self.label)
         self.layout.addWidget(self.textbox)
         self.layout.addWidget(self.slider)
@@ -758,20 +646,17 @@ class PercentSlider(qt.QWidget):
     def get_percent(self):
         return self.percent
 
-    @qcore.pyqtSlot(int)
     def value_changed_handler(self, new_value):
         self.slider.setValue(new_value)
         self.textbox.clear()
-        self.textbox.setText(f'{new_value/10.0}')
+        self.textbox.setText(f"{new_value/10.0}")
         self.percent = new_value / 1000.0
         self.callback(new_value)
 
-    @qcore.pyqtSlot()
     def reset_value(self):
-        self.textbox.setText(f'{self.percent * 100.0}')
+        self.textbox.setText(f"{self.percent * 100.0}")
         self.slider.setValue(round(self.percent * 1000.0))
 
-    @qcore.pyqtSlot()
     def textbox_handler(self):
         # editingFinished signal handler
         txt = self.textbox.text()
@@ -781,7 +666,7 @@ class PercentSlider(qt.QWidget):
                 self.percent = new_value / 100.0
             else:
                 pass
-        except ValueError as e:
+        except ValueError:
             pass
         self.reset_value()
 
@@ -790,22 +675,22 @@ class PercentSlider(qt.QWidget):
 class InspectTab(qt.QWidget):
 
     def __init__(self, parent):
-        super(InspectTab, self).__init__(parent)
+        super().__init__(parent)
         self.main_view = parent
         self.distance_map = None
-        self.setObjectName('InspectTab')
+        self.setObjectName("InspectTab")
         # The layout of this widget is a top bar with a threshold slider and a graphics view or
         # message view. The graphics view or message view can be changed depending on whether
         # the target and pattern are both selected.
         self.layout = qt.QVBoxLayout(self)
-        self.layout.setObjectName('InspectTab layout')
+        self.layout.setObjectName("InspectTab layout")
         self.slider = PercentSlider( \
             "Threshold %", \
             parent.get_config().threshold, \
             self.slider_handler \
           )
         self.layout.addWidget(self.slider)
-        self.message_box = MessageBox('Please select SEARCH target image and PATTERN image.')
+        self.message_box = MessageBox("Please select SEARCH target image and PATTERN image.")
         self.layout.addWidget(self.message_box)
         self.image_preview = InspectImagePreview(self)
         self.image_preview.hide()
@@ -845,7 +730,7 @@ class InspectTab(qt.QWidget):
                 self.distance_map.find_matching_regions(threshold) \
               )
         else:
-            print('WARNING: InspectTab.place_rectangles() called before distance_map was set')
+            print("WARNING: InspectTab.place_rectangles() called before distance_map was set")
 
     def modal_prompt_get_directory(self, init_dir):
         output_dir = \
@@ -892,10 +777,9 @@ class CachedCVImageLoader():
             if self.image is None:
                 self.path = None
                 self.notify.showMessage( \
-                    f'Failed to load image file {str(path)}' \
+                    f"Failed to load image file {path!s}" \
                   )
             else:
-                #print(f'CachedCVImageLoader({str(self.path)}).force_load_image(str({path})) -> OK')
                 self.path = path
         else:
             pass
@@ -905,7 +789,7 @@ class CachedCVImageLoader():
 
     def get_image(self):
         if self.image is None:
-            print(f'warning: CachedCVImageLoader({str(self.path)}).get_image() returned None')
+            print(f"warning: CachedCVImageLoader({self.path!s}).get_image() returned None")
         return self.image
 
 #---------------------------------------------------------------------------------------------------
@@ -915,7 +799,7 @@ class PatternMatcher(qt.QTabWidget):
     """
 
     def __init__(self, config, parent=None):
-        super(PatternMatcher, self).__init__(parent)
+        super().__init__(parent)
         #----------------------------------------
         # Setup the model
         self.config = config
@@ -928,9 +812,8 @@ class PatternMatcher(qt.QTabWidget):
         self.target  = CachedCVImageLoader(self.notify)
         #----------------------------------------
         # Setup the GUI
-        self.setWindowTitle('Image Pattern Matching Kit')
+        self.setWindowTitle("Image Pattern Matching Kit")
         self.resize(800, 600)
-        #self.tab_bar = qt.QTabWidget()
         self.setTabPosition(qt.QTabWidget.North)
         self.files_tab = FilesTab(self)
         self.pattern_tab = PatternSetupTab(config, self)
@@ -954,18 +837,18 @@ class PatternMatcher(qt.QTabWidget):
     def change_tab_handler(self, index):
         """Does the work of actually changing the GUI display to the "InspectTab".
         """
-        super(PatternMatcher, self).setCurrentIndex(index)
+        super().setCurrentIndex(index)
         self.widget(index).update()
 
     def match_on_file(self, target_image_path):
-        """This function is triggered when you double-click on an item in the image 
+        """This function is triggered when you double-click on an item in the image
         list in the "FilesTab". It starts running the pattern matching algorithm and
         changes the display of the GUI over to the "InspectTab".
         """
         self.target.load_image(target_image_path)
         if (self.pattern.get_image() is not None) and (self.target.get_image() is not None):
             if target_image_path in self.cache:
-                distance_map = self.cache[target_path]
+                distance_map = self.cache[target_image_path]
             else:
                 self.target.load_image(target_image_path)
                 distance_map = DistanceMap( \
@@ -979,7 +862,7 @@ class PatternMatcher(qt.QTabWidget):
         else:
             self.setCurrentWidget(self.pattern_tab)
             self.notify.showMessage( \
-                'A pattern image must be set for matching on the selected image.' \
+                "A pattern image must be set for matching on the selected image." \
               )
             return None
 
@@ -998,9 +881,9 @@ class PatternMatcher(qt.QTabWidget):
 
 def filename_filter(filepath):
     ext = filepath.suffix.lower()
-    return (ext == '.png') or (ext == '.jpg') or (ext == '.jpeg')
+    return (ext == ".png") or (ext == ".jpg") or (ext == ".jpeg")
 
-linebreak = re.compile('[\\n\\r]')
+linebreak = re.compile("[\\n\\r]")
 
 def split_linebreaks(str):
     return linebreak.split(str)
@@ -1008,7 +891,7 @@ def split_linebreaks(str):
 def search_target_images(filepath_args):
     result = []
     for filepath in filepath_args:
-        if filepath == '':
+        if not filepath:
             pass
         elif os.path.isdir(filepath):
             for root, _dirs, files in os.walk(filepath):
@@ -1024,9 +907,112 @@ def search_target_images(filepath_args):
     return result
 
 def main():
+    arper = argparse.ArgumentParser( \
+        description="""
+          Does "pattern matching" -- finding instances of a smaller image in a larger image.
+          """, \
+        exit_on_error=False, \
+        epilog="""
+          This program will search for a pattern image in each input image, regions found
+          to be close to 100% similar within a certain specified threshold value will
+          be cropped and saved as a separate image file in a specified output directory.
+
+          The --gui option enables GUI mode (disabled by default), where you can view
+          each image and the bounding boxes for each region that matches a pattern. If
+          you do not enable GUI mode, this program operates in "batch mode", creating the
+          output directory and images without user intervention.
+          """ \
+      )
+
+    arper.add_argument (\
+        "-v", "--verbose", \
+        dest="verbose", \
+        action="store_true", \
+        default=False, \
+        help="""
+          Reports number of matching regions per input image,
+          reports each file that is created.
+          """ \
+      )
+
+    arper.add_argument( \
+        "--gui", \
+        dest="gui", \
+        action="store_true", \
+        default=False, \
+        help="""
+          Inlcude this arugment to launch the GUI utility.
+          """ \
+      )
+
+    arper.add_argument( \
+        "--no-gui", \
+        dest="gui", \
+        action="store_false", \
+        help="""
+          Program runs in "batch mode," without presenting a GUI or requesting user feedback.
+          """ \
+      )
+
+    arper.add_argument( \
+        "-t", "--threshold", \
+        dest="threshold", \
+        action="store", \
+        default="95", \
+        type=threshold, \
+        help="""
+          The minimum percentage of similarity reqiured between a pattern and a
+          region of the image in order for the region to be selected and cropped.
+          """,
+      )
+
+    arper.add_argument( \
+        "-p", "--pattern", \
+        dest="pattern", \
+        action="store", \
+        default=PurePath("./pattern.png"), \
+        type=PurePath, \
+        help="""
+          Specify the file path of the image to be used as the pattern.
+          """ \
+      )
+
+    arper.add_argument( \
+        "-o", "--output-dir", \
+        dest="output_dir", \
+        action="store", \
+        default=PurePath("./matched-images"), \
+        type=PurePath, \
+        help="""
+          Specify the output directory into which multiple image files can be created.
+          """,
+      )
+
+    arper.add_argument( \
+        "--save-map", \
+        dest="save_map", \
+        action="store", \
+        default=None, \
+        help="""
+          If a filename suffix string is supplied as this argument, the resulting image of
+          the pattern matching convolution is saved to a file of the same name as the input
+          file with the prefix apended to the filename (but before the file extension).
+          """ \
+      )
+
+    arper.add_argument( \
+        "inputs", \
+        nargs="*", \
+        action="store", \
+        type=PurePath, \
+        help="""
+          A set of images, or directories containing images, in which the pattern image is searched.
+          Directories are searched for images, but not recursively. See the --recursive option.
+          """ \
+      )
+
     (config, remaining_argv) = arper.parse_known_args()
     print(config)
-    #flatten_list(config.inputs)
     if config.gui:
         app = qt.QApplication(remaining_argv)
         appWindow = PatternMatcher(config)
@@ -1044,5 +1030,5 @@ def main():
 
 ####################################################################################################
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
