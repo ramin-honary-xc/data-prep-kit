@@ -216,7 +216,7 @@ class FilesTab(qt.QWidget):
             self.reset_paths_list()
         elif mime_data.hasText():
             event.accept()
-            self.app_model.add_target_fileset(split_linebreaks(mime_data.text()))
+            self.app_model.add_target_fileset(util.split_linebreaks(mime_data.text()))
             self.reset_paths_list()
         else:
             event.ignore()
