@@ -338,6 +338,9 @@ class PatternMatcher():
         print(f'PatternMatcher.add_target_fileset("{path_list}")')
         self.target_fileset.merge_recursive(path_list)
 
+    def remove_image_path(self, path):
+        self.target_fileset.delete(path)
+
     def get_distance_map(self):
         return self.distance_map
 

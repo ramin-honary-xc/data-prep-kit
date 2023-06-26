@@ -38,6 +38,13 @@ class ImagePreview(qt.QGraphicsView):
         if self.pixmap_item is not None:
             self.fitInView(self.pixmap_item, 1) # 1: qcore.AspectRatioMode::KeepAspectRatio
 
+    def clear_display(self):
+        self.pixmap_item = None
+        self.pixmap_buffer = None
+        self.pixmap_path = None
+        self.preview_scene.clear()
+        self.resetTransform()
+
     def update_display(self):
         target = self.app_model.get_target()
         path = target.get_path()
@@ -136,6 +143,12 @@ class FilesTab(qt.QWidget):
         self.open_image_files.triggered.connect(self.open_image_files_handler)
         self.list_widget.addAction(self.open_image_files)
         self.image_preview.addAction(self.open_image_files)
+        ## Action: remove from list
+        self.remove_from_list = qt.QAction("Remove from list", self)
+        self.remove_from_list.setShortcut(qgui.QKeySequence.Delete)
+        self.remove_from_list.triggered.connect(self.remove_from_list_handler)
+        self.list_widget.addAction(self.remove_from_list)
+        self.image_preview.addAction(self.open_image_files)
         #---------- Connect signal handlers ----------
         self.list_widget.currentItemChanged.connect(self.item_change_handler)
         self.list_widget.itemActivated.connect(self.activate_handler)
@@ -171,6 +184,14 @@ class FilesTab(qt.QWidget):
         print(f'FilesTab.use_current_item_as_pattern() #("{path}")')
         self.app_model.set_pattern_image_path(path)
         self.main_view.update_pattern_pixmap()
+
+    def remove_from_list_handler(self):
+        item = self.list_widget.currentItem()
+        path = item.get_path()
+        print(f'FilesTab.remove_from_list_handler("{path}")')
+        self.app_model.remove_image_path(path)
+        self.list_widget.takeItem(self.list_widget.currentRow())
+        self.image_preview.clear_display()
 
     def reset_paths_list(self):
         """Populate the list view with an item for each file path."""

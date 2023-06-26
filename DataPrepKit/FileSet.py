@@ -108,6 +108,9 @@ class FileSet():
             # ^ raises error if item is not an acceptable type
         self.__add(filepath, None)
 
+    def delete(self, filepath):
+        self.fileset.discard(filepath)
+
     def merge_recursive(self, filepath_args):
         """Scan through a directory for files matching the FileSet
         predicate. The argument to this method must be a Path or
