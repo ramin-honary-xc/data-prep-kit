@@ -275,6 +275,7 @@ class PatternMatcher():
         self.threshold = 0.78
         self.target = CachedCVImageLoader()
         self.pattern = CachedCVImageLoader()
+        self.pattern_rect = None # A selection within a pattern image
         if config:
             self.set_config(config)
         else:
@@ -312,6 +313,15 @@ class PatternMatcher():
 
     def set_pattern_pixmap(self, pattern_path, pixmap):
         self.pattern.set_image(pattern_path, pixmap)
+
+    def get_pattern_rect(self):
+        return self.pattern_rect
+
+    def set_pattern_rect(self, rect):
+        if isinstance(rect, tuple) and (len(rect) == 4):
+            self.pattern_rect = rect
+        else:
+            raise ValueError(f'PatternMatcher.set_pattern_rect() must take a 4-tuple', rect)
 
     def get_target(self):
         return self.target

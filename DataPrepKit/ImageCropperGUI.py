@@ -1,5 +1,6 @@
 import DataPrepKit.utilities as util
 import DataPrepKit.ImageCropper as imcrop
+from DataPrepKit.CropRectTool import CropRectTool
 
 from copy import deepcopy
 import os
@@ -75,77 +76,6 @@ class ImagePreview(qt.QGraphicsView):
             pass
 
 
-class CropRectTool():
-    """This class defines event handler functions that are called when
-    the tool for selecting the cropping rectangle is selected.
-    """
-
-    def __init__(self, scene, app_model):
-        self.scene = scene
-        self.app_model = app_model
-        self.start_point = None
-        self.end_point = None
-        self.rect = None
-
-    def mousePressEvent(self, event):
-        pixmap_item = self.scene.get_reference_pixmap_item()
-        bounds = None
-        if pixmap_item:
-            bounds = pixmap_item.boundingRect()
-            point = event.lastScenePos()
-            accept = ( \
-                point.x() <= bounds.width() and \
-                point.y() <= bounds.height() and \
-                point.x() >= 0 and \
-                point.y() >= 0 \
-              )
-            if accept:
-                self.start_point = point
-            else:
-                self.start_point = None
-        else:
-            pass
-        event.accept()
-
-    def mouseMoveEvent(self, event):
-        self.end_point = event.lastScenePos()
-        if self.start_point and self.end_point:
-            self.update_rect()
-        else:
-            pass
-        event.accept()
-
-    def mouseReleaseEvent(self, event):
-        self.end_point = event.lastScenePos()
-        self.update_rect()
-        self.app_model.set_crop_rect(self.rect)
-        self.scene.draw_crop_rect(self.rect)
-        self.start_point = None
-        self.end_point = None
-        event.accept()
-
-    def update_rect(self):
-        pixmap_item = self.scene.get_reference_pixmap_item()
-        bounds = None
-        if pixmap_item:
-            bounds = pixmap_item.boundingRect()
-        else:
-            pass
-        if bounds and self.start_point and self.end_point:
-            x_min = min(self.start_point.x(), self.end_point.x())
-            y_min = min(self.start_point.y(), self.end_point.y())
-            x_max = max(self.start_point.x(), self.end_point.x())
-            y_max = max(self.start_point.y(), self.end_point.y())
-            x_min = max(x_min, 0)
-            y_min = max(y_min, 0)
-            x_max = min(x_max, bounds.width())
-            y_max = min(y_max, bounds.height())
-            self.rect = (x_min, y_min, x_max-x_min, y_max-y_min)
-            self.scene.draw_crop_rect(self.rect)
-        else:
-            pass
-
-
 class ReferenceImageScene(qt.QGraphicsScene):
     """This is the scene controller used to manage mouse events on the
     image view and allows the user to draw a crop rectangle over the
@@ -156,36 +86,21 @@ class ReferenceImageScene(qt.QGraphicsScene):
     def __init__(self, app_model):
         super(ReferenceImageScene, self).__init__()
         self.app_model = app_model
-        self.reference_image = None
-            # ^ Keep a copy of the current reference image ONLY to
-            # check if the value returned by
-            # "self.app_model.get_reference_image()" has changed, and
-            # if not, we preserve the cached "self.pixmap"
-            # data. Otherwise, the "self.reference_image" is not, and
-            # should not be used, the ImageWithORB data used to draw
-            # this view should always come from what is returned by
-            # the "self.app_model.get_reference_image()" function.
         self.pixmap = None
         self.pixmap_item = None
         self.graphics_view = None
-        self.rect_view = None
-        self.crop_rect = None
-        self.crop_rect_pen = qgui.QPen(qgui.QColor(255, 0, 0))
-        self.crop_rect_pen.setCosmetic(True)
-        self.crop_rect_pen.setWidth(3)
         self.keypoint_pen = qgui.QPen(qgui.QColor(0, 255, 0))
         self.keypoint_pen.setWidth(1)
         self.keypoint_pen.setCosmetic(True)
         self.keypoint_items = []
-        self.event_handler = CropRectTool(self, app_model)
+        self.crop_rect_tool = CropRectTool(self, self.app_model.set_crop_rect)
+        self.mouse_event_handler = self.crop_rect_tool
         self.redraw()
 
     def clear(self):
         super(ReferenceImageScene, self).clear()
-        self.crop_rect = None
+        self.crop_rect_tool.set_crop_rect(None)
         self.pixmap_item = None
-        self.rect_view = None
-        self.reference_image = None
         self.keypoint_items = []
 
     def set_graphics_view(self, graphics_view):
@@ -204,41 +119,30 @@ class ReferenceImageScene(qt.QGraphicsScene):
         return self.pixmap_item
 
     def redraw(self):
-        """Takes an ImageWithORB object, if it is different from the
-        cached_image, the reset_view() is called."""
         self.draw_pixbuf()
         self.draw_keypoints()
         self.draw_reference_crop_rect()
 
     def draw_pixbuf(self):
-        """This function assumes the self.cached_image is not None."""
         orb_image = self.app_model.get_reference_image()
         if orb_image is not None:
             print(f'ReferenceImageScene.draw_pixbuf("{str(orb_image.get_filepath())}")')
             filepath = orb_image.get_filepath()
             if filepath is not None:
-                # Check the filepath of the app model reference image
-                # against our cached reference image.
-                if (self.reference_image is None) or \
-                   (filepath != self.reference_image.get_filepath()):
-                    # If our cached reference is different from the
-                    # current app model reference image, load it from the
-                    # file and draw it.
-                    if self.pixmap_item is not None:
-                        self.removeItem(self.pixmap_item)
-                    else:
-                        pass
-                    self.pixmap = qgui.QPixmap(str(filepath))
-                    self.pixmap_item = qt.QGraphicsPixmapItem(self.pixmap)
-                    self.addItem(self.pixmap_item)
+                # If our cached reference is different from the
+                # current app model reference image, load it from the
+                # file and draw it.
+                if self.pixmap_item is not None:
+                    self.removeItem(self.pixmap_item)
                 else:
-                    # If have the same image in memory already, do not
-                    # reload it from the file.
-                    if self.pixmap_item is not None:
-                        self.removeItem(self.pixmap_item)
-                    else:
-                        self.pixmap_item = qgui.QPixmap(str(filepath))
-                    self.addItem(self.pixmap_item)
+                    pass
+                self.pixmap = qgui.QPixmap(str(filepath))
+                self.pixmap_item = qt.QGraphicsPixmapItem(self.pixmap)
+                # Now place the item back into the scene and reset the
+                # sceneRect property.
+                self.addItem(self.pixmap_item)
+                print(f'ReferenceImageScene.setSceneRect({self.pixmap_item.boundingRect()})')
+                self.setSceneRect(self.pixmap_item.boundingRect())
             else:
                 # If the app model reference image is "None" remove it
                 # from the current view (if it even exists in the current
@@ -274,43 +178,27 @@ class ReferenceImageScene(qt.QGraphicsScene):
         else:
             print(f'ReferenceImageScene.draw_keypoints() #(no reference image)')
 
-    def set_crop_rect(self, rect):
-        self.app_model.set_crop_rect(rect)
-        self.draw_crop_rect()
-
-    def draw_crop_rect(self, rect):
-        """This function redraws the crop_rect in the view. It usually is
-        called in response to mouse-drag events, but is also called by
-        draw_reference_crop_rect() when redrawing the view after some
-        other part of the view is updated."""
-        rect = qcore.QRectF(*rect)
-        if self.rect_view is not None:
-            self.removeItem(self.rect_view)
-        else:
-            pass
-        self.rect_view = self.addRect(rect, self.crop_rect_pen, qgui.QBrush())
-
     def draw_reference_crop_rect(self):
         """This function draws the crop_rect in the view based on the crop_rect value
         set in the reference image of the app_model."""
         #print(f'ReferenceImageScene.draw_crop_rect({str(rec)})')
         rect = self.app_model.get_crop_rect()
         if rect is not None:
-            self.draw_crop_rect(rect)
+            self.crop_rect_tool.redraw(rect)
         else:
             pass
 
     def mousePressEvent(self, event):
         #print(f"ReferenceImageScene.mousePressEvent({event})") #DEBUG
-        self.event_handler.mousePressEvent(event)
+        self.mouse_event_handler.mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
         #print(f"ReferenceImageScene.mouseReleaseEvent({event})") #DEBUG
-        self.event_handler.mouseReleaseEvent(event)
+        self.mouse_event_handler.mouseReleaseEvent(event)
 
     def mouseMoveEvent(self, event):
         #print(f"ReferenceImageScene.mouseMoveEvent({event})") #DEBUG
-        self.event_handler.mouseMoveEvent(event)
+        self.mouse_event_handler.mouseMoveEvent(event)
 
 
 ################################################################################
@@ -377,12 +265,6 @@ class FilesTab(qt.QWidget):
         #---------- Populate list view ----------
         self.reset_paths_list()
         #---------- Setup context menus ----------
-        # ## Action: Use as pattern
-        # self.use_as_pattern = qt.QAction("Use as pattern", self)
-        # self.use_as_pattern.setShortcut(qgui.QKeySequence.Find)
-        # self.use_as_pattern.triggered.connect(self.use_current_item_as_pattern)
-        # self.list_widget.addAction(self.use_as_pattern)
-        # self.image_preview.addAction(self.use_as_pattern)
         ## Action: Search within this image
         self.use_as_refimg_action = qt.QAction("Search within this image", self)
         self.use_as_refimg_action.setShortcut(qgui.QKeySequence.InsertParagraphSeparator)
@@ -402,7 +284,7 @@ class FilesTab(qt.QWidget):
         self.list_widget.addAction(self.save_image_action)
         self.image_preview.addAction(self.save_image_action)
         ## Action: save all image files
-        self.save_all_images_action = qt.QAction("Crop and save this image", self)
+        self.save_all_images_action = qt.QAction("Crop and save all images", self)
         self.save_all_images_action.setShortcut(qgui.QKeySequence.SaveAs)
         self.save_all_images_action.triggered.connect(self.do_save_all_images)
         self.list_widget.addAction(self.save_all_images_action)
