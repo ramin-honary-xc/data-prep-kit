@@ -1,6 +1,7 @@
 import DataPrepKit.utilities as util
 import DataPrepKit.ImageCropper as imcrop
 from DataPrepKit.CropRectTool import CropRectTool
+from DataPrepKit.ImageFileLayer import ImageFileLayer
 
 from copy import deepcopy
 import os
@@ -86,8 +87,7 @@ class ReferenceImageScene(qt.QGraphicsScene):
     def __init__(self, app_model):
         super(ReferenceImageScene, self).__init__()
         self.app_model = app_model
-        self.pixmap = None
-        self.pixmap_item = None
+        self.image_file_layer = ImageFileLayer(self)
         self.graphics_view = None
         self.keypoint_pen = qgui.QPen(qgui.QColor(0, 255, 0))
         self.keypoint_pen.setWidth(1)
@@ -98,10 +98,10 @@ class ReferenceImageScene(qt.QGraphicsScene):
         self.redraw()
 
     def clear(self):
-        super(ReferenceImageScene, self).clear()
         self.crop_rect_tool.set_crop_rect(None)
-        self.pixmap_item = None
+        self.image_file_layer.clear()
         self.keypoint_items = []
+        super(ReferenceImageScene, self).clear()
 
     def set_graphics_view(self, graphics_view):
         """The graphics view is created after this ReferenceImageScene object,
@@ -113,11 +113,6 @@ class ReferenceImageScene(qt.QGraphicsScene):
         """
         self.graphics_view = graphics_view
 
-    def get_reference_pixmap_item(self):
-        """In order to set the bounds of the QGraphicsView, the parent needs
-        access to the QPixmapItem of this class."""
-        return self.pixmap_item
-
     def redraw(self):
         self.draw_pixbuf()
         self.draw_keypoints()
@@ -127,32 +122,7 @@ class ReferenceImageScene(qt.QGraphicsScene):
         orb_image = self.app_model.get_reference_image()
         if orb_image is not None:
             print(f'ReferenceImageScene.draw_pixbuf("{str(orb_image.get_filepath())}")')
-            filepath = orb_image.get_filepath()
-            if filepath is not None:
-                # If our cached reference is different from the
-                # current app model reference image, load it from the
-                # file and draw it.
-                if self.pixmap_item is not None:
-                    self.removeItem(self.pixmap_item)
-                else:
-                    pass
-                self.pixmap = qgui.QPixmap(str(filepath))
-                self.pixmap_item = qt.QGraphicsPixmapItem(self.pixmap)
-                # Now place the item back into the scene and reset the
-                # sceneRect property.
-                self.addItem(self.pixmap_item)
-                print(f'ReferenceImageScene.setSceneRect({self.pixmap_item.boundingRect()})')
-                self.setSceneRect(self.pixmap_item.boundingRect())
-            else:
-                # If the app model reference image is "None" remove it
-                # from the current view (if it even exists in the current
-                # view).
-                if self.pixmap_item is not None:
-                    self.removeItem(self.pixmap_item)
-                else:
-                    pass
-                self.pixmap = None
-                self.pixmap_item = None
+            self.image_file_layer.set_filepath(orb_image.get_filepath())
         else:
             print(f'ReferenceImageScene.draw_pixbuf() #(no reference image)')
 
