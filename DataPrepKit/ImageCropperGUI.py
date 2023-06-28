@@ -1,8 +1,9 @@
-import DataPrepKit.utilities as util
-import DataPrepKit.ImageCropper as imcrop
-from DataPrepKit.CropRectTool import CropRectTool
-from DataPrepKit.ImageFileLayer import ImageFileLayer
+import DataPrepKit.utilities     as util
+import DataPrepKit.ImageCropper  as imcrop
+from DataPrepKit.CropRectTool    import CropRectTool
+from DataPrepKit.ImageFileLayer  import ImageFileLayer
 from DataPrepKit.PointCloudLayer import PointCloudLayer
+from DataPrepKit.ImageDisplay    import ImageDisplay
 
 from copy import deepcopy
 import os
@@ -78,7 +79,7 @@ class ImagePreview(qt.QGraphicsView):
             pass
 
 
-class ReferenceImageScene(qt.QGraphicsScene):
+class ReferenceImageView(ImageDisplay):
     """This is the scene controller used to manage mouse events on the
     image view and allows the user to draw a crop rectangle over the
     image. This class is the view and controller for the ImageWithORB
@@ -86,30 +87,26 @@ class ReferenceImageScene(qt.QGraphicsScene):
     """
 
     def __init__(self, app_model):
-        super(ReferenceImageScene, self).__init__()
+        super(ReferenceImageView, self).__init__()
+        scene = super(ReferenceImageView, self).get_scene()
         self.app_model = app_model
-        self.image_file_layer = ImageFileLayer(self)
-        self.graphics_view = None
-        self.crop_rect_tool = CropRectTool(self, self.app_model.set_crop_rect)
-        self.point_cloud_layer = PointCloudLayer(self)
-        self.mouse_event_handler = self.crop_rect_tool
+        self.image_file_layer = ImageFileLayer(scene)
+        self.point_cloud_layer = PointCloudLayer(scene)
+        self.crop_rect_tool = CropRectTool(scene, self.app_model.set_crop_rect)
+        ImageDisplay.set_mouse_mode(self, self.crop_rect_tool)
         self.redraw()
+
+    def set_scene(self, scene):
+        super(ReferenceImageView, self).set_scene(scene)
+        self.image_file_layer.set_scene(scene)
+        self.crop_rect_tool.set_scene(scene)
+        self.point_cloud_layer.set_scene(scene)
 
     def clear(self):
         self.crop_rect_tool.clear()
         self.image_file_layer.clear()
         self.point_cloud_layer.clear()
-        super(ReferenceImageScene, self).clear()
-
-    def set_graphics_view(self, graphics_view):
-        """The graphics view is created after this ReferenceImageScene object,
-        but we still need a reference to it to respond to certain
-        events that may trigger changes on the view. This function
-        should be called only once in the constructor of the widget
-        that contains this scene, and it should be called with the
-        QGraphicsView once it has been constructed.
-        """
-        self.graphics_view = graphics_view
+        #super(ReferenceImageView, self).clear()
 
     def redraw(self):
         self.draw_pixbuf()
@@ -119,33 +116,33 @@ class ReferenceImageScene(qt.QGraphicsScene):
     def draw_pixbuf(self):
         orb_image = self.app_model.get_reference_image()
         if orb_image is not None:
-            print(f'ReferenceImageScene.draw_pixbuf("{str(orb_image.get_filepath())}")')
+            print(f'ReferenceImageView.draw_pixbuf("{str(orb_image.get_filepath())}")')
             self.image_file_layer.set_filepath(orb_image.get_filepath())
         else:
-            print(f'ReferenceImageScene.draw_pixbuf() #(no reference image)')
+            print(f'ReferenceImageView.draw_pixbuf() #(no reference image)')
 
     def draw_keypoints(self):
         orb_image = self.app_model.get_reference_image()
-        print(f'ReferenceImageScene.draw_keypoints("str(orb_image.get_filepath())")')
+        print(f'ReferenceImageView.draw_keypoints("str(orb_image.get_filepath())")')
         if orb_image is not None:
             # First remove the existing keypoints.
             self.point_cloud_layer.clear()
             # Then get the new list of orb_image points.
             keypoints = orb_image.get_keypoints()
             if keypoints is not None:
-                print(f'ReferenceImageScene.draw_keypoints("str(orb_image.get_filepath())") #(len(keypoints) = {len(keypoints)})')
+                print(f'ReferenceImageView.draw_keypoints("str(orb_image.get_filepath())") #(len(keypoints) = {len(keypoints)})')
                 for key in keypoints:
                     (x, y) = key.pt
                     self.point_cloud_layer.add_point(x, y)
             else:
-                print(f'ReferenceImageScene.draw_keypoints() #(orb_config has not been updated)')
+                print(f'ReferenceImageView.draw_keypoints() #(orb_config has not been updated)')
         else:
-            print(f'ReferenceImageScene.draw_keypoints() #(no reference image)')
+            print(f'ReferenceImageView.draw_keypoints() #(no reference image)')
 
     def draw_reference_crop_rect(self):
         """This function draws the crop_rect in the view based on the crop_rect value
         set in the reference image of the app_model."""
-        #print(f'ReferenceImageScene.draw_crop_rect({str(rec)})')
+        #print(f'ReferenceImageView.draw_crop_rect({str(rec)})')
         rect = self.app_model.get_crop_rect()
         if rect is not None:
             self.crop_rect_tool.set_crop_rect(rect)
@@ -153,17 +150,31 @@ class ReferenceImageScene(qt.QGraphicsScene):
         else:
             pass
 
-    def mousePressEvent(self, event):
-        #print(f"ReferenceImageScene.mousePressEvent({event})") #DEBUG
-        self.mouse_event_handler.mousePressEvent(event)
+#---------------------------------------------------------------------------------------------------
 
-    def mouseReleaseEvent(self, event):
-        #print(f"ReferenceImageScene.mouseReleaseEvent({event})") #DEBUG
-        self.mouse_event_handler.mouseReleaseEvent(event)
+class ReferenceImageTab(qt.QWidget):
+    """Display the image used as the reference image, and provide an image
+    preview window to view each iamge. It responds to mouse clicks to
+    allow end users to define the cropping rectangle. The cropping
+    rectangle will be centered around the key points found by the ORB
+    algorithm. All other images selected for cropping will also run
+    the ORB algorithm, and a similar croppiping rectangle will be
+    cenetered around those key points.
+    """
 
-    def mouseMoveEvent(self, event):
-        #print(f"ReferenceImageScene.mouseMoveEvent({event})") #DEBUG
-        self.mouse_event_handler.mouseMoveEvent(event)
+    def __init__(self, app_model, parent):
+        super(ReferenceImageTab, self).__init__(parent)
+        self.setObjectName('FilesTab')
+        #---------- Setup visible widgets ----------
+        self.app_model      = app_model
+        self.app_view       = parent
+        self.image_preview  = ReferenceImageView(self.app_model)
+        self.image_preview.setObjectName('ReferenceImageTab ImagePreview')
+        self.layout         = qt.QHBoxLayout(self)
+        self.layout.addWidget(self.image_preview)
+
+    def redraw(self):
+        self.image_preview.redraw()
 
 
 ################################################################################
@@ -277,7 +288,7 @@ class FilesTab(qt.QWidget):
 
     def item_change_handler(self, item, _old):
         if item is not None:
-            print(f'FilesTab.item_change_handler("{item.get_filepath()}")')
+            #print(f'FilesTab.item_change_handler("{item.get_filepath()}")')
             image_with_orb = item.get_image_with_orb()
             if image_with_orb is not None:
                 self.app_model.set_selected_image(image_with_orb)
@@ -371,36 +382,6 @@ class FilesTab(qt.QWidget):
         else:
             event.ignore()
 
-
-#---------------------------------------------------------------------------------------------------
-
-class ReferenceImageTab(qt.QWidget):
-    """Display the image used as the reference image, and provide an image
-    preview window to view each iamge. It responds to mouse clicks to
-    allow end users to define the cropping rectangle. The cropping
-    rectangle will be centered around the key points found by the ORB
-    algorithm. All other images selected for cropping will also run
-    the ORB algorithm, and a similar croppiping rectangle will be
-    cenetered around those key points.
-    """
-
-    def __init__(self, app_model, parent):
-        super(ReferenceImageTab, self).__init__(parent)
-        self.setObjectName('FilesTab')
-        #---------- Setup visible widgets ----------
-        self.app_model      = app_model
-        self.app_view       = parent
-        self.scene          = ReferenceImageScene(self.app_model)
-        self.image_preview  = qt.QGraphicsView(self.scene)
-        self.image_preview.setObjectName('ReferenceImageTab ImagePreview')
-        self.scene.set_graphics_view(self.image_preview)
-        self.scene.changed.connect(self.image_preview.updateScene)
-        self.layout         = qt.QHBoxLayout(self)
-        self.layout.addWidget(self.image_preview)
-
-    def redraw(self):
-        print(f'ReferenceImageTab.redraw()')
-        self.scene.redraw()
 
 #---------------------------------------------------------------------------------------------------
 

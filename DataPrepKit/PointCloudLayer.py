@@ -7,6 +7,11 @@ class PointCloudLayer():
     QGraphicsScene. This class provides a method add_point() which
     draws a single point into the QGraphicsScene. The clear() method
     allows all points to be removed.
+
+    When initializing an ImageFileLayer, it is OK to pass None for the
+    first argument only as long as you call the set_scene() method
+    after initialization and before any other method of this class is
+    evaluated.
     """
 
     def __init__(self, scene):
@@ -15,6 +20,12 @@ class PointCloudLayer():
         self.keypoint_pen.setWidth(1)
         self.keypoint_pen.setCosmetic(True)
         self.keypoint_items = []
+
+    def set_scene(self, scene):
+        self.scene = scene
+
+    def get_scene(self):
+        return self.scene
 
     def add_point(self, x, y):
         """Add a single point to the view."""

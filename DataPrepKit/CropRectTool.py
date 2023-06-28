@@ -14,6 +14,11 @@ class CropRectTool():
        2. the closure to call with an updated rectangle when a mouse
           drag event comes to an end.
 
+    When initializing an ImageFileLayer, it is OK to pass None for the
+    first argument only as long as you call the set_scene() method
+    after initialization and before any other method of this class is
+    evaluated.
+
     NOTE: that this tool depends on the QGraphicsScene's sceneRect
     property to be set correctly in order to determine the min/max
     bounds of the cropping rectangle. Be sure that thi this property
@@ -32,6 +37,12 @@ class CropRectTool():
         self.crop_rect_pen.setCosmetic(True)
         self.crop_rect_pen.setWidth(3)
 
+    def set_scene(self, scene):
+        self.scene = scene
+
+    def get_scene(self):
+        return self.scene
+
     def mousePressEvent(self, event):
         self.set_start_point(event.lastScenePos())
         event.accept()
@@ -45,11 +56,7 @@ class CropRectTool():
         event.accept()
 
     def mouseReleaseEvent(self, event):
-        self.end_point = event.lastScenePos()
-        self.update_rect()
-        self.on_change(self.crop_rect)
-        self.start_point = None
-        self.end_point = None
+        self.set_end_point(event.lastScenePos())
         event.accept()
 
     def set_start_point(self, point):
@@ -69,6 +76,13 @@ class CropRectTool():
                 return False
         else:
             return False
+
+    def set_end_point(self, point):
+        self.end_point = point
+        self.update_rect()
+        self.on_change(self.crop_rect)
+        self.start_point = None
+        self.end_point = None
 
     def update_rect(self):
         """This function redraws the crop_rect when a mouse drag event

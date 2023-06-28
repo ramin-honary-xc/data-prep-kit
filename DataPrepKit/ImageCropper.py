@@ -95,9 +95,11 @@ class ImageWithORB():
     def set_relative_crop_rect(self, ref):
         """Compute the crop_rect for this item relative to a given reference item."""
         if ref is self:
-            print(f'ImageWithORB.set_relative_crop_rect(ref) #(ref is self)')
+            #print(f'ImageWithORB.set_relative_crop_rect(ref) #(ref is self)')
+            pass
         elif ref is None:
-            print(f'ImageWithORB.set_relative_crop_rect(None)')
+            #print(f'ImageWithORB.set_relative_crop_rect(None)')
+            pass
         elif not isinstance(ref, ImageWithORB):
             raise ValueError(
                 'ImageWithORB.set_relative_crop_rect(ref): '
@@ -109,7 +111,7 @@ class ImageWithORB():
         ##self.set_orb_config(ref.get_orb_config())
         ref_rect = ref.get_crop_rect()
         ref_midpoint = ref.get_midpoint()
-        print(f'ImageWithORB.set_relative_crop_rect({ref_rect}) #(midpoint = {ref_midpoint})')
+        #print(f'ImageWithORB.set_relative_crop_rect({ref_rect}) #(midpoint = {ref_midpoint})')
         if (ref_rect is not None) and (ref_midpoint is not None):
             (ref_x, ref_y, ref_width, ref_height) = ref_rect
             (mid_x, mid_y) = ref_midpoint
@@ -129,14 +131,10 @@ class ImageWithORB():
     def reset_crop_rect(self):
         """If the "self.reference_image" is set, you can reset the crop rect to
         the exact size of the "self.reference_image" by calling this function."""
-        print(f'ImageWithORB.reset_crop_rect() #(type(self.init_crop_rect) = {type(self.init_crop_rect)})')
         self.crop_rect = self.init_crop_rect
 
     def set_orb_config(self, orb_config):
-        print(f'ImageWithORB.set_orb_config()')
-        print(f"#(old config: {str(self.orb_config)})")
-        print(f"#(new config: {str(orb_config)})")
-        print(f"#(up to date? {(self.orb_config == orb_config)})")
+        #print(f'ImageWithORB.set_orb_config({orb_config})')
         if orb_config is None:
             self.orb_config = None
         elif (self.ORB is None) or \
@@ -144,11 +142,11 @@ class ImageWithORB():
              (self.orb_config != orb_config):
                 self.force_run_orb(orb_config)
         else:
-            print(f'ImageWithORB.set_orb_config() #(ORB metadata already exists and is up-to-date)')
+            #print(f'ImageWithORB.set_orb_config() #(ORB metadata already exists and is up-to-date)')
             pass
 
     def force_run_orb(self, orb_config):
-        print(f'ImageWithORB.force_run_orb() #(set self.orb_config {str(self.orb_config)})')
+        #print(f'ImageWithORB.force_run_orb() #(set self.orb_config {str(self.orb_config)})')
         self.orb_config = deepcopy(orb_config)
         path = str(self.filepath)
         pixmap = cv.imread(path, cv.IMREAD_GRAYSCALE)
@@ -157,7 +155,7 @@ class ImageWithORB():
             height, width = pixmap.shape
             self.init_crop_rect = (0, 0, width, height)
             # Run the ORB algorithm
-            print(f'ImageWithORB.force_run_orb({str(orb_config)})')
+            #print(f'ImageWithORB.force_run_orb({str(orb_config)})')
             ORB = cv.ORB_create( \
                 nfeatures=orb_config.get_nFeatures(), \
                 scaleFactor=orb_config.get_scaleFactor(), \
@@ -174,7 +172,7 @@ class ImageWithORB():
             self.keypoints = keypoints
             self.descriptor = descriptor
             num_points = len(self.keypoints)
-            print(f'ImageWithORB.force_run_orb() #(generated {num_points} keypoints)')
+            #print(f'ImageWithORB.force_run_orb() #(generated {num_points} keypoints)')
             x_sum = 0
             y_sum = 0
             for key in self.keypoints:
@@ -199,10 +197,10 @@ class ImageWithORB():
                 y_max = round(y_min + height)
                 x_min = round(x_min)
                 y_min = round(y_min)
-                print(
-                    f'ImageWithORB.crop_and_save("{str(path)}") -> '
-                    f'x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max})' \
-                  )
+                #print(
+                #    f'ImageWithORB.crop_and_save("{str(path)}") -> '
+                #    f'x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max})' \
+                #  )
                 cv.imwrite(str(path), pixmap[ y_min:y_max , x_min:x_max ])
             else:
                 raise ValueError( \
@@ -359,13 +357,14 @@ class ImageCropper():
 
     def set_selected_image(self, selected_image):
         if isinstance(selected_image, ImageWithORB):
-            print(f'ImageCropper.set_selected_image("{str(selected_image.get_filepath())}")')
+            #print(f'ImageCropper.set_selected_image("{str(selected_image.get_filepath())}")')
             self.selected_image = selected_image
             if self.reference_image is not None:
                 self.selected_image.set_orb_config(self.orb_config)
                 self.selected_image.set_relative_crop_rect(self.reference_image)
             else:
-                print(f'ImageCropper.set_selected_image() #(no reference image, not updating crop rect)')
+                #print(f'ImageCropper.set_selected_image() #(no reference image, not updating crop rect)')
+                pass
         else:
             raise ValueError(
                 f'ImageCropper.set_selected_image() '
@@ -397,7 +396,7 @@ class ImageCropper():
         return self.orb_config
 
     def set_orb_config(self, orb_config):
-        print(f'ImageCropper.set_orb_config({orb_config})')
+        #print(f'ImageCropper.set_orb_config({orb_config})')
         if (orb_config is not None) and (not isinstance(orb_config, ORBConfig)):
             raise ValueError(
                 f'MainAppMode.set_orb_config() called with value of type {str(type(orb_config))}',
@@ -407,7 +406,7 @@ class ImageCropper():
             self.reference_image.set_orb_config(orb_config)
         else:
             pass
-        print(f'ImageCropper.set_orb_config() #(set self.orb_config = {orb_config})')
+        #print(f'ImageCropper.set_orb_config() #(set self.orb_config = {orb_config})')
         self.orb_config = deepcopy(orb_config)
 
     def get_crop_rect(self):

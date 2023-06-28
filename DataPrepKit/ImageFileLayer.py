@@ -9,6 +9,11 @@ class ImageFileLayer():
     scene. Methods are provided to change which image file is
     displayed in a layer without needing to remove the layer or
     reconstruct the entire QGraphicsScene.
+
+    When initializing an ImageFileLayer, it is OK to pass None for the
+    first argument only as long as you call the set_scene() method
+    after initialization and before any other method of this class is
+    evaluated.
     """
 
     def __init__(self, scene, filepath=None):
@@ -17,6 +22,12 @@ class ImageFileLayer():
         self.pixmap = None
         self.pixmap_item = None
         self.redraw()
+
+    def set_scene(self, scene):
+        self.scene = scene
+
+    def get_scene(self):
+        return self.scene
 
     def layer_bounds_scene_rect(self):
         """When this function is called, the QGraphcisScene.sceneRect property
