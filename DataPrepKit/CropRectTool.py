@@ -91,28 +91,36 @@ class CropRectTool():
             x_max = min(x_max, bounds.width())
             y_max = min(y_max, bounds.height())
             self.crop_rect = (x_min, y_min, x_max-x_min, y_max-y_min,)
-            self.redraw(self.crop_rect)
+            self.redraw()
         else:
             pass
 
     def get_crop_rect(self):
         return self.crop_rect
 
-    def set_crop_rect(self, rect):
-        """Set the current crop_rect value, trigger the rectangle change
-        callback, and redraw the rectangle in the view."""
-        self.crop_rect = rect
-        self.on_change(rect)
-        self.redraw(self.crop_rect)
+    def clear(self):
+        self.set_crop_rect(None)
 
-    def redraw(self, rect):
+    def set_crop_rect(self, rect):
+        """Set the current crop_rect value, and redraw the rectangle in the
+        view. The rectangle change callback is not called."""
+        self.crop_rect = rect
+        self.redraw()
+
+    def redraw(self):
         """This function redraws the crop_rect in the scene view. It usually
         is called in response to mouse-drag events, but is also called
         by draw_reference_crop_rect() when redrawing the view after
         some other part of the view is updated. """
-        rect = qcore.QRectF(*rect)
-        if self.crop_rect_view is not None:
-            self.scene.removeItem(self.crop_rect_view)
+        if self.crop_rect is not None:
+            if self.crop_rect_view is not None:
+                self.scene.removeItem(self.crop_rect_view)
+            else:
+                pass
+            rect = qcore.QRectF(*(self.crop_rect))
+            self.crop_rect_view = self.scene.addRect(rect, self.crop_rect_pen, qgui.QBrush())
         else:
-            pass
-        self.crop_rect_view = self.scene.addRect(rect, self.crop_rect_pen, qgui.QBrush())
+            if self.crop_rect_view is not None:
+                self.scene.removeItem(self.crop_rect_view)
+            else:
+                pass

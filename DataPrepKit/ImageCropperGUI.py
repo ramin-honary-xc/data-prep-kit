@@ -2,6 +2,7 @@ import DataPrepKit.utilities as util
 import DataPrepKit.ImageCropper as imcrop
 from DataPrepKit.CropRectTool import CropRectTool
 from DataPrepKit.ImageFileLayer import ImageFileLayer
+from DataPrepKit.PointCloudLayer import PointCloudLayer
 
 from copy import deepcopy
 import os
@@ -89,18 +90,15 @@ class ReferenceImageScene(qt.QGraphicsScene):
         self.app_model = app_model
         self.image_file_layer = ImageFileLayer(self)
         self.graphics_view = None
-        self.keypoint_pen = qgui.QPen(qgui.QColor(0, 255, 0))
-        self.keypoint_pen.setWidth(1)
-        self.keypoint_pen.setCosmetic(True)
-        self.keypoint_items = []
         self.crop_rect_tool = CropRectTool(self, self.app_model.set_crop_rect)
+        self.point_cloud_layer = PointCloudLayer(self)
         self.mouse_event_handler = self.crop_rect_tool
         self.redraw()
 
     def clear(self):
-        self.crop_rect_tool.set_crop_rect(None)
+        self.crop_rect_tool.clear()
         self.image_file_layer.clear()
-        self.keypoint_items = []
+        self.point_cloud_layer.clear()
         super(ReferenceImageScene, self).clear()
 
     def set_graphics_view(self, graphics_view):
@@ -131,18 +129,14 @@ class ReferenceImageScene(qt.QGraphicsScene):
         print(f'ReferenceImageScene.draw_keypoints("str(orb_image.get_filepath())")')
         if orb_image is not None:
             # First remove the existing keypoints.
-            for item in self.keypoint_items:
-                self.removeItem(item)
-            self.keypoint_items = []
+            self.point_cloud_layer.clear()
             # Then get the new list of orb_image points.
             keypoints = orb_image.get_keypoints()
             if keypoints is not None:
                 print(f'ReferenceImageScene.draw_keypoints("str(orb_image.get_filepath())") #(len(keypoints) = {len(keypoints)})')
                 for key in keypoints:
                     (x, y) = key.pt
-                    self.keypoint_items.append(
-                        self.addRect(qcore.QRectF(x, y, 2, 2), self.keypoint_pen)
-                      )
+                    self.point_cloud_layer.add_point(x, y)
             else:
                 print(f'ReferenceImageScene.draw_keypoints() #(orb_config has not been updated)')
         else:
@@ -154,7 +148,8 @@ class ReferenceImageScene(qt.QGraphicsScene):
         #print(f'ReferenceImageScene.draw_crop_rect({str(rec)})')
         rect = self.app_model.get_crop_rect()
         if rect is not None:
-            self.crop_rect_tool.redraw(rect)
+            self.crop_rect_tool.set_crop_rect(rect)
+            self.crop_rect_tool.redraw()
         else:
             pass
 
