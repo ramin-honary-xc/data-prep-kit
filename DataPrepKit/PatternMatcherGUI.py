@@ -1,5 +1,7 @@
 import DataPrepKit.PatternMatcher as patm
 from DataPrepKit.PercentSlider import PercentSlider
+from DataPrepKit.FileSetGUI import FileSetGUI
+from DataPrepKit.ContextMenuItem import context_menu_item
 
 import PyQt5.QtCore as qcore
 import PyQt5.QtGui as qgui
@@ -8,16 +10,6 @@ import PyQt5.QtWidgets as qt
 
 ####################################################################################################
 # The Qt GUI
-
-class FileListItem(qt.QListWidgetItem):
-    """A QListWidgetItem for an element in the files list in the Files tab."""
-
-    def __init__(self, path):
-        super().__init__(str(path))
-        self.path = path
-
-    def get_path(self):
-        return self.path
 
 #--------------------------------------------------------------------------------------------------
 
@@ -100,63 +92,25 @@ class MessageBox(qt.QWidget):
         self.message = qt.QLabel(message)
         self.layout.addWidget(self.message)
 
-class FilesTab(qt.QWidget):
-    """Display a list of images, and provide an image preview window to
-    view each iamge.
-    """
+class FilesTab(FileSetGUI):
 
     def __init__(self, app_model, main_view):
-        super().__init__(main_view)
-        self.setObjectName("FilesTab")
+        super(FilesTab, self).__init__(
+            main_view,
+            fileset=app_model.get_target_fileset(),
+            action_label='Search within this image',
+          )
         self.app_model = app_model
-        self.main_view = main_view
-        #---------- Setup visible widgets ----------
-        self.layout        = qt.QHBoxLayout(self)
-        self.splitter      = qt.QSplitter(1, self)
-        self.setAcceptDrops(True)
-        self.splitter.setObjectName("FilesTab splitter")
-        self.list_widget   = qt.QListWidget(self)
-        self.list_widget.setObjectName("FilesTab list_widget")
-        self.list_widget.setContextMenuPolicy(2) # 2 = qcore::ContextMenuPolicy::ActionsContextMenu
-        self.image_preview  = ImagePreview(self.app_model, self)
-        self.image_preview.setObjectName("FilesTab ImagePreview")
-        self.splitter.addWidget(self.list_widget)
-        self.splitter.addWidget(self.image_preview)
-        self.layout.addWidget(self.splitter)
-        self.display_pixmap_path = None
-        #---------- Populate list view ----------
-        self.reset_paths_list()
-        #---------- Setup context menus ----------
         ## Action: Use as pattern
-        self.use_as_pattern = qt.QAction("Use as pattern", self)
-        self.use_as_pattern.setShortcut(qgui.QKeySequence.Find)
-        self.use_as_pattern.triggered.connect(self.use_current_item_as_pattern)
+        self.use_as_pattern = context_menu_item(
+            "Use as pattern",
+            self.use_current_item_as_pattern,
+            qgui.QKeySequence.Find,
+          )
         self.list_widget.addAction(self.use_as_pattern)
         self.image_preview.addAction(self.use_as_pattern)
-        ## Action: Search within this image
-        self.do_find_pattern = qt.QAction("Search within this image", self)
-        self.do_find_pattern.setShortcut(qgui.QKeySequence.InsertParagraphSeparator)
-        self.do_find_pattern.triggered.connect(self.activate_selected_item)
-        self.list_widget.addAction(self.do_find_pattern)
-        self.image_preview.addAction(self.do_find_pattern)
-        ## Action: open image files
-        self.open_image_files = qt.QAction("Open image files", self)
-        self.open_image_files.setShortcut(qgui.QKeySequence.Open)
-        self.open_image_files.triggered.connect(self.open_image_files_handler)
-        self.list_widget.addAction(self.open_image_files)
-        self.image_preview.addAction(self.open_image_files)
-        ## Action: remove from list
-        self.remove_from_list = qt.QAction("Remove from list", self)
-        self.remove_from_list.setShortcut(qgui.QKeySequence.Delete)
-        self.remove_from_list.triggered.connect(self.remove_from_list_handler)
-        self.list_widget.addAction(self.remove_from_list)
-        self.image_preview.addAction(self.open_image_files)
-        #---------- Connect signal handlers ----------
-        self.list_widget.currentItemChanged.connect(self.item_change_handler)
-        self.list_widget.itemActivated.connect(self.activate_handler)
 
-    def activate_handler(self, item):
-        path = item.get_path()
+    def activation_handler(self, path):
         self.app_model.set_target_image_path(path)
         self.app_model.match_on_file()
         distance_map = self.app_model.get_distance_map()
@@ -169,80 +123,11 @@ class FilesTab(qt.QWidget):
                 "A pattern image must be set for matching on the selected image." \
               )
 
-    def activate_selected_item(self):
-        item = self.list_widget.currentItem()
-        self.activate_handler(item)
-
-    def item_change_handler(self, item, _old):
-        if item is not None:
-            self.app_model.set_target_image_path(item.get_path())
-            self.image_preview.update_display()
-        else:
-            print("FilesTab.item_change_handler(item=None)")
-
     def use_current_item_as_pattern(self):
-        item = self.list_widget.currentItem()
-        path = item.get_path()
+        path = self.current_item_path()
         print(f'FilesTab.use_current_item_as_pattern() #("{path}")')
         self.app_model.set_pattern_image_path(path)
         self.main_view.update_pattern_pixmap()
-
-    def remove_from_list_handler(self):
-        item = self.list_widget.currentItem()
-        path = item.get_path()
-        print(f'FilesTab.remove_from_list_handler("{path}")')
-        self.app_model.remove_image_path(path)
-        self.list_widget.takeItem(self.list_widget.currentRow())
-        self.image_preview.clear_display()
-
-    def reset_paths_list(self):
-        """Populate the list view with an item for each file path."""
-        paths_list = self.app_model.get_target_fileset()
-        self.list_widget.clear()
-        if paths_list:
-            for item in paths_list:
-                self.list_widget.addItem(FileListItem(item))
-        else:
-            pass
-
-    def open_image_files_handler(self):
-        target_dir = self.main_view.get_config().output_dir
-        urls = \
-            qt.QFileDialog.getOpenFileUrls( \
-                self, "Open images in which to search for patterns", \
-                qcore.QUrl(str(target_dir)), \
-                "Images (*.png *.jpg *.jpeg)", "", \
-                qt.QFileDialog.ReadOnly, \
-                ["file"] \
-              )
-        print(f"selected urls = {urls}")
-        urls = urls[0]
-        if len(urls) > 0:
-            self.main_view.add_target_image_paths(gather_QUrl_local_files(urls))
-            self.files_tab.reset_paths_list(self.target_image_paths)
-        else:
-            pass
-
-    def dragEnterEvent(self, event):
-        mime_data = event.mimeData()
-        if mime_data.hasUrls() or mime_data.hasText():
-            event.accept()
-        else:
-            event.ignore()
-
-    def dropEvent(self, event):
-        mime_data = event.mimeData()
-        print(f'FilesTab.dropEvent("{mime_data}")')
-        if mime_data.hasUrls():
-            event.accept()
-            self.app_model.add_target_fileset(patm.gather_QUrl_local_files(mime_data.urls()))
-            self.reset_paths_list()
-        elif mime_data.hasText():
-            event.accept()
-            self.app_model.add_target_fileset(util.split_linebreaks(mime_data.text()))
-            self.reset_paths_list()
-        else:
-            event.ignore()
 
 #---------------------------------------------------------------------------------------------------
 

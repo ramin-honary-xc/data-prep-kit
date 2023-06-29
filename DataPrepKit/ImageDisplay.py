@@ -19,8 +19,8 @@ class ImageDisplay(qt.QGraphicsView):
         methods to call the correct callbacks based on the mouse mode.
     """
 
-    def __init__(self):
-        super(ImageDisplay, self).__init__()
+    def __init__(self, parent=None):
+        super(ImageDisplay, self).__init__(parent)
         self._scene = LayeredGraphicsScene(self)
         super(ImageDisplay, self).setScene(self._scene)
         super(LayeredGraphicsScene, self._scene).changed.connect(self.updateScene)
