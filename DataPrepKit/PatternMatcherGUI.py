@@ -2,6 +2,8 @@ import DataPrepKit.PatternMatcher as patm
 from DataPrepKit.PercentSlider import PercentSlider
 from DataPrepKit.FileSetGUI import FileSetGUI
 from DataPrepKit.ContextMenuItem import context_menu_item
+from DataPrepKit.SimpleImagePreview import SimpleImagePreview
+from DataPrepKit.CropRectTool import CropRectTool
 
 import PyQt5.QtCore as qcore
 import PyQt5.QtGui as qgui
@@ -13,74 +15,37 @@ import PyQt5.QtWidgets as qt
 
 #--------------------------------------------------------------------------------------------------
 
-class ImagePreview(qt.QGraphicsView):
+class ImagePreview(SimpleImagePreview):
 
     def __init__(self, app_model, parent):
-        super().__init__(parent)
+        super(SimpleImagePreview, self).__init__(parent)
         self.app_model = app_model
-        self.preview_scene = qt.QGraphicsScene(self)
-        self.pixmap_path = None
-        self.pixmap_item = None
-        self.pixmap_buffer = None
-        self.setViewportUpdateMode(4) # 4: QGraphicsView::BoundingRectViewportUpdate
-        self.setResizeAnchor(1) # 1: QGraphicsView::AnchorViewCenter
-        self.setScene(self.preview_scene)
-        self.setContextMenuPolicy(2) # 2 = qcore::ContextMenuPolicy::ActionsContextMenu
+        self.crop_rect_tool = CropRectTool(self.get_scene(), self.update_crop_rect)
+        self.set_mouse_mode(self.crop_rect_tool)
 
-    def resizeEvent(self, newSize):
-        super().resizeEvent(newSize)
-        if self.pixmap_item is not None:
-            self.fitInView(self.pixmap_item, 1) # 1: qcore.AspectRatioMode::KeepAspectRatio
+    def update_crop_rect(self, rect):
+        print(f'ImagePreview.update_crop_rect{rect}')
 
-    def clear_display(self):
-        self.pixmap_item = None
-        self.pixmap_buffer = None
-        self.pixmap_path = None
-        self.preview_scene.clear()
-        self.resetTransform()
-
-    def update_display(self):
-        target = self.app_model.get_target()
-        path = target.get_path()
-        if (self.pixmap_buffer is not None) and (self.pixmap_path == path):
-            # Here the pixmap_path has not been changed, so we need to
-            # prevent it from being freed by self.preview_scene.clear(),
-            # as we do not want to reload it from the filesystem.
-            self.preview_scene.removeItem(self.pixmap_item)
-        else:
-            self.pixmap_buffer = qgui.QPixmap()
-            self.pixmap_buffer.load(str(path))
-        self.pixmap_item = None
-        self.pixmap_path = path
-        self.preview_scene.clear()
-        if self.pixmap_buffer is not None:
-            self.pixmap_item = qt.QGraphicsPixmapItem(self.pixmap_buffer)
-            self.preview_scene.addItem(self.pixmap_item)
-            self.resetTransform()
-            self.fitInView(self.pixmap_item, 1)
-        else:
-            print(f'ImagePreview.update_display() #(Failed to load "{path!s}")')
-            pass
-
-
-class InspectImagePreview(ImagePreview):
+class InspectImagePreview(SimpleImagePreview):
 
     def __init__(self, app_model, parent):
-        super().__init__(app_model, parent)
+        super(InspectImagePreview, self).__init__(parent)
+        self.app_model = app_model
         self.pen = qgui.QPen(qgui.QColor(255, 0, 0, 255))
         self.pen.setCosmetic(True)
         self.pen.setWidth(3)
 
     def place_rectangles(self, rectangle_list):
-        self.preview_scene.clear()
+        preview_scene = self.get_image_preview()
+        preview_scene.clear()
         if self.pixmap_item is not None:
             self.pixmap_item = qt.QGraphicsPixmapItem(self.pixmap_buffer)
-            self.preview_scene.addItem(self.pixmap_item)
+            preview_scene.addItem(self.pixmap_item)
         else:
             pass
         for rectangle in rectangle_list:
             bounds = rectangle.get_point_and_size()
-            self.preview_scene.addRect(*bounds, self.pen)
+            preview_scene.addRect(*bounds, self.pen)
 
 #---------------------------------------------------------------------------------------------------
 
@@ -131,7 +96,7 @@ class FilesTab(FileSetGUI):
 
 #---------------------------------------------------------------------------------------------------
 
-class PatternPreview(qt.QGraphicsView):
+class PatternPreview(SimpleImagePreview):
     """A QGraphicsView for displaying the pattern image. It does not
     inherit from InspectImagePreview because it has different behavior
     for displaying the image, and for drag and drop. This class may be
@@ -143,12 +108,21 @@ class PatternPreview(qt.QGraphicsView):
         super().__init__()
         self.app_model = app_model
         self.main_view = main_view
-        self.display_pixmap = qgui.QPixmap()
-        self.preview_scene  = qt.QGraphicsScene(self)
-        self.pixmap_item = None
-        self.setScene(self.preview_scene)
         self.setContextMenuPolicy(2) # 2 = qcore::ContextMenuPolicy::ActionsContextMenu
+        self.crop_rect_tool = CropRectTool(self.get_scene())
+        self.set_mouse_mode(self.crop_rect_tool, self.change_crop_rect)
         self.setAcceptDrops(True)
+
+    def clear(self):
+        self.crop_rect_tool.clear()
+        super(PatternPreview, self).clear()
+
+    def redraw(self):
+        super(PatternPreview, self).redraw()
+        self.crop_rect_tool.redraw()
+
+    def change_crop_rect(self, rect):
+        self.app_model.set_crop_rect(rect)
 
     def dragEnterEvent(self, event):
         self.main_view.dragEnterEvent(event)
@@ -159,10 +133,7 @@ class PatternPreview(qt.QGraphicsView):
     def update_pattern_pixmap(self):
         self.preview_scene.clear()
         pattern = self.app_model.get_pattern()
-        path = pattern.get_path()
-        self.display_pixmap = qgui.QPixmap(str(path))
-        self.pixmap_item = self.preview_scene.addPixmap(self.display_pixmap)
-        self.resetTransform()
+        self.set_filepath(pattern.get_path())
 
 #---------------------------------------------------------------------------------------------------
 
@@ -178,9 +149,11 @@ class PatternSetupTab(qt.QWidget):
         self.preview_view = PatternPreview(app_model, self)
         self.layout.addWidget(self.preview_view)
         ## Action: open image files
-        self.open_pattern_file = qt.QAction("Open pattern file", self)
-        self.open_pattern_file.setShortcut(qgui.QKeySequence.Open)
-        self.open_pattern_file.triggered.connect(self.open_pattern_file_handler)
+        self.open_pattern_file = context_menu_item(
+            "Open pattern file",
+            self.open_pattern_file_handler,
+            qgui.QKeySequence.Open,
+          )
         self.preview_view.addAction(self.open_pattern_file)
 
     def update_pattern_pixmap(self):
