@@ -9,22 +9,8 @@ import PyQt5.QtCore as qcore
 import PyQt5.QtGui as qgui
 import PyQt5.QtWidgets as qt
 
-
 ####################################################################################################
 # The Qt GUI
-
-#--------------------------------------------------------------------------------------------------
-
-class ImagePreview(SimpleImagePreview):
-
-    def __init__(self, app_model, parent):
-        super(SimpleImagePreview, self).__init__(parent)
-        self.app_model = app_model
-        self.crop_rect_tool = CropRectTool(self.get_scene(), self.update_crop_rect)
-        self.set_mouse_mode(self.crop_rect_tool)
-
-    def update_crop_rect(self, rect):
-        print(f'ImagePreview.update_crop_rect{rect}')
 
 class InspectImagePreview(SimpleImagePreview):
 
@@ -109,8 +95,8 @@ class PatternPreview(SimpleImagePreview):
         self.app_model = app_model
         self.main_view = main_view
         self.setContextMenuPolicy(2) # 2 = qcore::ContextMenuPolicy::ActionsContextMenu
-        self.crop_rect_tool = CropRectTool(self.get_scene())
-        self.set_mouse_mode(self.crop_rect_tool, self.change_crop_rect)
+        self.crop_rect_tool = CropRectTool(self.get_scene(), self.change_crop_rect)
+        self.set_mouse_mode(self.crop_rect_tool)
         self.setAcceptDrops(True)
 
     def clear(self):
@@ -122,7 +108,7 @@ class PatternPreview(SimpleImagePreview):
         self.crop_rect_tool.redraw()
 
     def change_crop_rect(self, rect):
-        self.app_model.set_crop_rect(rect)
+        self.app_model.set_pattern_rect(rect)
 
     def dragEnterEvent(self, event):
         self.main_view.dragEnterEvent(event)
@@ -131,7 +117,6 @@ class PatternPreview(SimpleImagePreview):
         self.main_view.dropEvent(event)
 
     def update_pattern_pixmap(self):
-        self.preview_scene.clear()
         pattern = self.app_model.get_pattern()
         self.set_filepath(pattern.get_path())
 
@@ -160,7 +145,7 @@ class PatternSetupTab(qt.QWidget):
         self.preview_view.update_pattern_pixmap()
 
     def open_pattern_file_handler(self):
-        target_dir = self.main_view.get_config().pattern
+        target_dir = self.app_model.get_config().pattern
         url = \
             qt.QFileDialog.getOpenFileUrl( \
                 self, "Open images in which to search for patterns", \
@@ -225,10 +210,10 @@ class InspectTab(qt.QWidget):
         self.layout = qt.QVBoxLayout(self)
         self.layout.setObjectName("InspectTab layout")
         config = app_model.get_config()
-        self.slider = PercentSlider( \
-            "Threshold %", \
-            config.threshold, \
-            self.slider_handler \
+        self.slider = PercentSlider(
+            "Threshold %",
+            config.threshold,
+            self.slider_handler,
           )
         self.layout.addWidget(self.slider)
         self.message_box = MessageBox("Please select SEARCH target image and PATTERN image.")
@@ -237,10 +222,11 @@ class InspectTab(qt.QWidget):
         self.image_preview.hide()
         self.layout.addWidget(self.image_preview)
         #---------- Setup context menus ----------
-        self.do_save_selected = qt.QAction("Save all selected regions", self)
-        self.do_save_selected.setShortcut(qgui.QKeySequence.Save)
-        self.do_save_selected.setEnabled(False)
-        self.do_save_selected.triggered.connect(self.save_selected)
+        self.do_save_selected = context_menu_item(
+            "Save all selected regions",
+            self.save_selected,
+            qgui.QKeySequence.Save,
+          )
         self.image_preview.addAction(self.do_save_selected)
 
     def slider_handler(self, new_value):

@@ -25,19 +25,66 @@ def gather_QUrl_local_files(qurl_list):
 #---------------------------------------------------------------------------------------------------
 
 class RegionSize():
+    """This class provides utilties for cropping images to the size of a
+    rectangle. It is constructed from a rectangle with an offset and
+    width and height. The image reference is not stored, you use the
+    methods within to perform actions on an image using the rectangle.
+    """
+
     def __init__(self, x, y, width, height):
-        self.x_min = x
-        self.y_min = y
-        self.x_max = x + width
-        self.y_max = y + height
+        if width == 0 or height == 0:
+            raise ValueError(
+                "RegionSize too small",
+                { "crop_width": width,
+                  "crop_height": height,
+                 },
+              )
+        else:
+            self.x_min = round(min(x, x + width))
+            self.y_min = round(min(y, y + height))
+            self.x_max = round(max(x, x + width))
+            self.y_max = round(max(y, y + height))
+
+    def check_image_size(self, image):
+        """Return True if this RegionSize fits within the bounds of the given image."""
+        shape = image.shape
+        image_height = shape[0]
+        image_width = shape[1]
+        if (self.x_min > image_width) or
+           (self.y_min > image_height) or
+           (self.x_max > image_width) or
+           (self.y_max > image_height):
+               return False
+        else:
+            return True
 
     def crop_image(self, image):
-        return image[ \
-            self.y_min : self.y_max, \
-            self.x_min : self.x_max \
-          ]
+        """Return a copy of the given image cropped to this object's
+        rectangle. """
+        if self.check_image_size(image):
+            print(f'RegionSize.crop_image() #(type(image)={type(image)}, x_min={self.x_min}, y_min={self.y_min}, x_max={self.x_max}, y_max={self.y_max})')
+            return image[ \
+                self.y_min : self.y_max, \
+                self.x_min : self.x_max \
+              ]
+        else:
+           raise ValueError(
+               "pattern crop not fully contained within pattern image",
+               {"image_width": image_width,
+                "image_height": image_height,
+                "crop_X": x,
+                "crop_width": self.x_max - self.x_min,
+                "crop_Y": y,
+                "crop_height": self.y_max - self.y_min,
+                },
+             )
 
     def as_file_name(self):
+        """Return a string repreentation of this rectangle object that can be
+        appended to a file name. This method is used to describe
+        images that have been cropped from a larger image and written
+        into a file.
+        """
         return PurePath(f"{self.x_min:0>5}x{self.y_min:0>5}.png")
 
     def crop_write_image(self, image, results_dir, file_prefix=None):
@@ -65,14 +112,16 @@ class CachedCVImageLoader():
     """A tool for loading and caching image from a file into an OpenCV image buffer.
     """
 
-    def __init__(self, path=None):
+    def __init__(self, path=None, crop_rect=None):
+        self.crop_rect = crop_rect
         self.path   = path
         self.image  = None
 
-    def load_image(self, path=None):
+    def load_image(self, path=None, crop_rect=None):
         print('CachedCVImageLoader.load_image(' +
               ('None' if path is None else f'"{path}"') +
               ')')
+        self.crop_rect = crop_rect
         if path is None:
             path = self.path
             self.force_load_image(path)
@@ -97,15 +146,39 @@ class CachedCVImageLoader():
         return self.path
 
     def get_image(self):
+        """This function returns the actual image buffer, and crops the image
+        buffer if the set_crop_rect() method has been called to set a
+        cropping region."""
         if self.image is None:
             print(f'WARNING: CachedCVImageLoader("{self.path!s}").get_image() returned None')
+            return None
+        elif self.crop_rect is not None:
+            region = RegionSize(*(self.crop_rect))
+            print(f'CachedVCImageLoader.get_image() #(cropping to region {region})')
+            return region.crop_image(self.image)
         else:
-            pass
+            return self.image
+
+    def get_raw_image(self):
+        """This method is like get_image() but never applies cropping."""
         return self.image
 
     def set_image(self, path, pixmap):
         self.path = path
         self.pixmap = pixmap
+
+    def get_crop_rect(self):
+        """You can crop the image before performing processing on it, you can
+        do this for true of both pattern and target images. The value
+        returned might be None, in which case the entire image is
+        used."""
+        return self.crop_rect
+
+    def set_crop_rect(self, crop_rect):
+        """You may set the crop_rect to None, in this case the whole image
+        will be used, rather than just the region specified by the
+        rectangle."""
+        self.crop_rect = crop_rect
 
 #---------------------------------------------------------------------------------------------------
 
@@ -118,14 +191,19 @@ class DistanceMap():
     image. All images are retained in memory and can be used to
     extract regions of the target image that most resemble the pattern
     image.
+
+    The distance map is not computed if the pattern given is too large
+    relative to the target. The threshold of a pattern's size is
+    hard-coded to be 2/3rds the size of the target's size.
     """
 
-    def __init__(self, target_image_path, target_image, pattern_image):
+    def __init__(self, target, pattern):
         """Takes two 2D-images, NumPy arrays loaded from files by
         OpenCV. Constructing this object computes the convolution and
         square-difference distance map.
         """
-        self.target_image_path = target_image_path
+        self.target_image_path = target.get_path()
+        pattern_image = pattern.get_image()
         pat_shape = pattern_image.shape
         self.pattern_height = pat_shape[0]
         self.pattern_width  = pat_shape[1]
@@ -134,6 +212,7 @@ class DistanceMap():
             f" pattern_height = {self.pattern_height},",
           )
 
+        target_image = target.get_image()
         targ_shape = target_image.shape
         self.target_height = targ_shape[0]
         self.target_width  = targ_shape[1]
@@ -141,14 +220,25 @@ class DistanceMap():
             f"target_width = {self.target_width},"
             f" target_height = {self.target_height},",
           )
+        crop = target.get_crop_rect()
+        if crop is not None:
+            region = RegionSize(*crop)
+            target_image = region.crop_image(target_image)
+        else:
+            pass
 
-        if float(self.pattern_width)  > self.target_width  / 2 * 3 and \
+        # Here we check that the pattern image size is not too large
+        # relative to the target image size. The pattern image size
+        # threshold is hard-coded here (for now) as 2/3rds the size of
+        # the target image size.
+
+        if float(self.pattern_width)  > self.target_width  / 2 * 3 or \
            float(self.pattern_height) > self.target_height / 2 * 3 :
-            raise ValueError(\
-                "pattern image is too large relative to target image", \
-                {"pattern_width": self.pattern_width, \
-                 "pattern_height": self.pattern_height, \
-                 "target_width": self.target_width, \
+            raise ValueError(
+                "pattern image is too large relative to target image",
+                {"pattern_width": self.pattern_width,
+                 "pattern_height": self.pattern_height,
+                 "target_width": self.target_width,
                  "target_height": self.target_height,
                 },
               )
@@ -211,7 +301,10 @@ class DistanceMap():
         less or equal to the complement of the threshold value.
         """
         if threshold < 0.5:
-            raise ValueError("threshold {str(threshold)} too low, minimum is 0.5", {"threshold": threshold})
+            raise ValueError(
+                "threshold {str(threshold)} too low, minimum is 0.5",
+                {"threshold": threshold},
+              )
         elif threshold in self.memoized_regions:
             return self.memoized_regions[threshold]
         else:
@@ -223,27 +316,27 @@ class DistanceMap():
         window_vcount = round(dist_map_height / self.window_height)
         window_hcount = round(dist_map_width  / self.window_width)
 
-        tiles = self.distance_map.reshape( \
-            window_vcount, self.window_height, \
-            window_hcount, self.window_width \
+        tiles = self.distance_map.reshape(
+            window_vcount, self.window_height,
+            window_hcount, self.window_width
           )
 
         results = []
         for y in range(window_vcount):
             for x in range(window_hcount):
                 tile = tiles[y, :, x, :]
-                (min_y, min_x) = np.unravel_index( \
-                    np.argmin(tile), \
+                (min_y, min_x) = np.unravel_index(
+                    np.argmin(tile),
                     (self.window_height, self.window_width),
                   )
                 global_y = y * self.window_height + min_y
                 global_x = x * self.window_width  + min_x
                 if tile[min_y, min_x] <= (1.0 - threshold):
-                    results.append( \
-                        RegionSize( \
-                            global_x, global_y, \
-                            self.pattern_width, self.pattern_height \
-                          ) \
+                    results.append(
+                        RegionSize(
+                            global_x, global_y,
+                            self.pattern_width, self.pattern_height,
+                          )
                       )
                 else:
                     pass
@@ -275,7 +368,6 @@ class PatternMatcher():
         self.threshold = 0.78
         self.target = CachedCVImageLoader()
         self.pattern = CachedCVImageLoader()
-        self.pattern_rect = None # A selection within a pattern image
         if config:
             self.set_config(config)
         else:
@@ -319,7 +411,8 @@ class PatternMatcher():
 
     def set_pattern_rect(self, rect):
         if isinstance(rect, tuple) and (len(rect) == 4):
-            self.pattern_rect = rect
+            if self.pattern is not None:
+                self.pattern.set_crop_rect(rect)
         else:
             raise ValueError(f'PatternMatcher.set_pattern_rect() must take a 4-tuple', rect)
 
@@ -367,7 +460,7 @@ class PatternMatcher():
             print(f'PatternMatcher.match_on_file() #(self.target.get_image() returned None)')
         else:
             target_image_path = self.target.get_path()
-            self.distance_map = DistanceMap(target_image_path, targimg, patimg)
+            self.distance_map = DistanceMap(self.pattern, self.target)
 
     def crop_matched_patterns(target_image_path):
         #TODO: the "save_distance_map" argument should be used as a
@@ -389,7 +482,7 @@ class PatternMatcher():
         else:
             pass
 
-        self.distance_map = DistanceMap(target_image_path, target_image, pattern_image)
+        self.distance_map = DistanceMap(self.target, self.pattern)
 
         if self.save_distance_map is not None:
             # Save the convolution image:
