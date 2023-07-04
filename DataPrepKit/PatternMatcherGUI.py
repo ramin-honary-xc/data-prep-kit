@@ -17,21 +17,34 @@ class InspectImagePreview(SimpleImagePreview):
     def __init__(self, app_model, parent):
         super(InspectImagePreview, self).__init__(parent)
         self.app_model = app_model
+        self.rect_items = []
         self.pen = qgui.QPen(qgui.QColor(255, 0, 0, 255))
         self.pen.setCosmetic(True)
         self.pen.setWidth(3)
 
-    def place_rectangles(self, rectangle_list):
-        preview_scene = self.get_image_preview()
-        preview_scene.clear()
-        if self.pixmap_item is not None:
-            self.pixmap_item = qt.QGraphicsPixmapItem(self.pixmap_buffer)
-            preview_scene.addItem(self.pixmap_item)
-        else:
-            pass
+    def clear(self):
+        self.clear_rectangles()
+        super(InspectImagePreview, self).clear()
+
+    def redraw(self):
+        super(InspectImagePreview, self).redraw()
+        self.clear_rectangles()
+        self.place_rectangles()
+
+    def clear_rectangles(self):
+        scene = self.get_scene()
+        print(f'InspectImagePreview.clear_rectangles() #(clear {len(self.rect_items)} items)')
+        for rect in self.rect_items:
+            scene.removeItem(rect)
+        self.rect_items = []
+
+    def place_rectangles(self):
+        scene = self.get_scene()
+        rectangle_list = self.app_model.get_matched_regions()
+        print(f'InspectImagePreview.place_rectangles() #(add {len(rectangle_list)} items)')
         for rectangle in rectangle_list:
             bounds = rectangle.get_point_and_size()
-            preview_scene.addRect(*bounds, self.pen)
+            scene.addRect(*bounds, self.pen)
 
 #---------------------------------------------------------------------------------------------------
 
@@ -70,8 +83,8 @@ class FilesTab(FileSetGUI):
             self.main_view.show_inspect_tab()
         else:
             self.main_view.show_pattern_tab()
-            self.main_view.error_message( \
-                "A pattern image must be set for matching on the selected image." \
+            self.main_view.error_message(
+                "A pattern image must be set for matching on the selected image.",
               )
 
     def use_current_item_as_pattern(self):
@@ -230,7 +243,12 @@ class InspectTab(qt.QWidget):
         self.image_preview.addAction(self.do_save_selected)
 
     def slider_handler(self, new_value):
-        self.place_rectangles()
+        threshold = self.slider.get_percent()
+        if threshold is not None:
+            self.app_model.change_threshold(threshold)
+            self.image_preview.redraw()
+        else:
+            pass
 
     def show_nothing(self):
         self.image_preview.hide()
@@ -244,19 +262,15 @@ class InspectTab(qt.QWidget):
         """Draws the target image and any matching pattern rectangles into the
         image_preview window."""
         self.distance_map = self.app_model.get_distance_map()
-        self.image_preview.update_display()
-        self.place_rectangles()
+        target = self.distance_map.get_target()
+        if target is not None:
+            path = target.get_path()
+        else:
+            path = None
+        self.image_preview.set_filepath(path)
+        self.image_preview.redraw()
         self.show_image_preview()
         self.do_save_selected.setEnabled(True)
-
-    def place_rectangles(self):
-        if self.distance_map is not None:
-            threshold = self.slider.get_percent()
-            self.image_preview.place_rectangles(
-                self.distance_map.find_matching_regions(threshold) \
-              )
-        else:
-            print("WARNING: InspectTab.place_rectangles() called before distance_map was set")
 
     def modal_prompt_get_directory(self, init_dir):
         output_dir = \

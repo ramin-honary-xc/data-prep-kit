@@ -50,9 +50,9 @@ class RegionSize():
         shape = image.shape
         image_height = shape[0]
         image_width = shape[1]
-        if (self.x_min > image_width) or
-           (self.y_min > image_height) or
-           (self.x_max > image_width) or
+        if (self.x_min > image_width) or \
+           (self.y_min > image_height) or \
+           (self.x_max > image_width) or \
            (self.y_max > image_height):
                return False
         else:
@@ -202,6 +202,8 @@ class DistanceMap():
         OpenCV. Constructing this object computes the convolution and
         square-difference distance map.
         """
+        self.target = target
+        self.pattern = pattern
         self.target_image_path = target.get_path()
         pattern_image = pattern.get_image()
         pat_shape = pattern_image.shape
@@ -220,6 +222,10 @@ class DistanceMap():
             f"target_width = {self.target_width},"
             f" target_height = {self.target_height},",
           )
+
+        # The target image might have also a cropping rectangle set to
+        # limit the bounds of the pattern matching. Apply this
+        # cropping to the image buffer now.
         crop = target.get_crop_rect()
         if crop is not None:
             region = RegionSize(*crop)
@@ -287,6 +293,12 @@ class DistanceMap():
 
         # The 'find_matching_regions()' method will memoize it's results.
         self.memoized_regions = {}
+
+    def get_target(self):
+        return self.target
+
+    def get_pattern(self):
+        return self.pattern
 
     def save_distance_map(self, file_path):
         """Write the distance map that was computed at the time this object
@@ -367,6 +379,7 @@ class PatternMatcher():
         self.save_distance_map = None
         self.threshold = 0.78
         self.target = CachedCVImageLoader()
+        self.target_matched_regions = []
         self.pattern = CachedCVImageLoader()
         if config:
             self.set_config(config)
@@ -460,12 +473,28 @@ class PatternMatcher():
             print(f'PatternMatcher.match_on_file() #(self.target.get_image() returned None)')
         else:
             target_image_path = self.target.get_path()
-            self.distance_map = DistanceMap(self.pattern, self.target)
+            self.distance_map = DistanceMap(self.target, self.pattern)
+            self.target_matched_regions = \
+                self.distance_map.find_matching_regions(self.threshold)
+
+    def change_threshold(self, threshold):
+        if self.distance_map is not None:
+             if self.threshold != threshold:
+                 self.target_matched_regions = \
+                     self.distance_map.find_matching_regions(threshold)
+                 self.threshold = threshold
+             else:
+                 print(f'PatternMatcher.change_threshold({threshold}) #(thrshold is already set to this value)')
+        else:
+            print(f'PatternMatcher.change_threshold() #(called before DistanceMap was constructed)')
+
+    def get_matched_regions(self):
+        """This function returns the list of patterm matching regions that
+        were most recently computed by running the
+        self.distance_map.find_matching_region() function."""
+        return self.target_matched_regions
 
     def crop_matched_patterns(target_image_path):
-        #TODO: the "save_distance_map" argument should be used as a
-        #      file name suffix, not a file name.
-
         # Create results directory if it does not exist
         if not os.path.isdir(results_dir):
             os.mkdir(results_dir)
