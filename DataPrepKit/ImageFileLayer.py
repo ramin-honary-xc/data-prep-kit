@@ -29,6 +29,16 @@ class ImageFileLayer():
     def get_scene(self):
         return self.scene
 
+    def get_pixmap_item(self):
+        return self.pixmap_item
+
+    def get_image_bounds(self):
+        """Return a bounding QRectF for the image."""
+        if self.pixmap_item is None:
+            return None
+        else:
+            return self.pixmap_item.boundingRect()
+
     def layer_bounds_scene_rect(self):
         """When this function is called, the QGraphcisScene.sceneRect property
         is set to the QPixmapItem.boundingRect property of this
@@ -36,6 +46,7 @@ class ImageFileLayer():
         does nothing."""
         if self.pixmap_item is not None:
             self.scene.setSceneRect(self.pixmap_item.boundingRect())
+            print(f'ReferenceImageScene.setSceneRect({self.pixmap_item.boundingRect()})')
         else:
             print(f'ImageFileLayer.layer_bounds_scene_rect() #(no image file has been loaded)')
 
@@ -68,7 +79,5 @@ class ImageFileLayer():
             # Now place the item back into the scene and reset the
             # sceneRect property.
             self.scene.addItem(self.pixmap_item)
-            print(f'ReferenceImageScene.setSceneRect({self.pixmap_item.boundingRect()})')
-            self.scene.setSceneRect(self.pixmap_item.boundingRect())
         else:
             self.clear()
