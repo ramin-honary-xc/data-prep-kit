@@ -24,6 +24,7 @@ class ImageDisplay(qt.QGraphicsView):
         self._scene = LayeredGraphicsScene(self)
         super(ImageDisplay, self).setScene(self._scene)
         super(LayeredGraphicsScene, self._scene).changed.connect(self.updateScene)
+        self.setContextMenuPolicy(2) # 2 = qcore::ContextMenuPolicy::ActionsContextMenu
 
     def get_mouse_mode(self):
         return self._scene.get_mouse_mode()

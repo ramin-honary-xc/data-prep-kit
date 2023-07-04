@@ -152,10 +152,15 @@ class FileSetGUI(qt.QWidget):
         an item of the file list view.
         """
         path = self.current_item_path()
-        if item is not None:
-            self.activation_handler(path)
+        if path is None:
+            path = self.image_preview.get_filepath()
         else:
             pass
+        if path is None:
+            # TODO: display an error message dialog box instead of a log message
+            print(f'FileSetGUI.activate_selected_item() #(no file item selected)')
+        else:
+            self.activation_handler(path)
 
     def current_item_path(self):
         item = self.list_widget.currentItem()

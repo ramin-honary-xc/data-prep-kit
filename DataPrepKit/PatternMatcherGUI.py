@@ -5,6 +5,8 @@ from DataPrepKit.ContextMenuItem import context_menu_item
 from DataPrepKit.SimpleImagePreview import SimpleImagePreview
 from DataPrepKit.CropRectTool import CropRectTool
 
+from pathlib import PurePath
+
 import PyQt5.QtCore as qcore
 import PyQt5.QtGui as qgui
 import PyQt5.QtWidgets as qt
@@ -107,7 +109,6 @@ class PatternPreview(SimpleImagePreview):
         super().__init__()
         self.app_model = app_model
         self.main_view = main_view
-        self.setContextMenuPolicy(2) # 2 = qcore::ContextMenuPolicy::ActionsContextMenu
         self.crop_rect_tool = CropRectTool(self.get_scene(), self.change_crop_rect)
         self.set_mouse_mode(self.crop_rect_tool)
         self.setAcceptDrops(True)
@@ -283,10 +284,10 @@ class InspectTab(qt.QWidget):
 
     def save_selected(self):
         if self.distance_map is not None:
-            output_dir = self.main_view.get_config().output_dir
+            output_dir = self.app_model.get_config().output_dir
             output_dir = self.modal_prompt_get_directory(str(output_dir))
             threshold = self.slider.get_percent()
-            target_image = self.main_view.target.get_image()
+            target_image = self.app_model.target.get_image()
             self.distance_map.write_all_cropped_images(target_image, threshold, output_dir)
         else:
             print('WARNING: InspectTab.save_selected() called before distance_map was set')

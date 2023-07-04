@@ -62,7 +62,6 @@ class RegionSize():
         """Return a copy of the given image cropped to this object's
         rectangle. """
         if self.check_image_size(image):
-            print(f'RegionSize.crop_image() #(type(image)={type(image)}, x_min={self.x_min}, y_min={self.y_min}, x_max={self.x_max}, y_max={self.y_max})')
             return image[ \
                 self.y_min : self.y_max, \
                 self.x_min : self.x_max \
@@ -99,7 +98,7 @@ class RegionSize():
         else:
             pass
         write_path = results_dir / write_path
-        print(f"crop_write_image -> {write_path}")
+        print(f"RegionSize.crop_write_image() #(write file: {write_path})")
         cv.imwrite(str(write_path), self.crop_image(image))
 
     def get_point_and_size(self):
