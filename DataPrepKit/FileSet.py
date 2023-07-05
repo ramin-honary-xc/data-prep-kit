@@ -122,7 +122,7 @@ class FileSet():
            self.__merge_recursive(filepath_args)
         else:
             for filepath in filepath_args:
-                print(f'FileSet.merge_recursive("{filepath}")')
+                #print(f'FileSet.merge_recursive("{filepath}")')
                 if not filepath:
                     pass
                 elif isinstance(filepath, str):

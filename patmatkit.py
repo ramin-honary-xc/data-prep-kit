@@ -120,7 +120,7 @@ def main():
 
     (config, remaining_argv) = arper.parse_known_args()
     matcher = patm.PatternMatcher(config)
-    print(config)
+    #print(config)
     if config.gui:
         app = qt.QApplication(remaining_argv)
         appWindow = gui.PatternMatcherView(matcher)

@@ -1,4 +1,5 @@
 import DataPrepKit.FileSet as fs
+from DataPrepKit.CachedCVImageLoader import CachedCVImageLoader
 
 import math
 import os
@@ -98,7 +99,7 @@ class RegionSize():
         else:
             pass
         write_path = results_dir / write_path
-        print(f"RegionSize.crop_write_image() #(write file: {write_path})")
+        print(write_path)
         cv.imwrite(str(write_path), self.crop_image(image))
 
     def get_point_and_size(self):
@@ -129,6 +130,7 @@ class DistanceMap():
         """
         self.target = target
         self.pattern = pattern
+        print(f'pattern = {self.pattern.get_path()!s}')
         self.target_image_path = target.get_path()
         pattern_image = pattern.get_image()
         pat_shape = pattern_image.shape
@@ -282,7 +284,10 @@ class DistanceMap():
         return results
 
     def write_all_cropped_images(self, target_image, threshold, results_dir):
-        print(f"write_all_cropped_images: threshold = {threshold!s}")
+        print(
+            f'threshold = {threshold!s}\n'
+            f'target_image = {self.target_image_path!s}',
+          )
         regions = self.find_matching_regions(threshold=threshold)
         prefix = self.target_image_path.stem
         for reg in regions:
@@ -361,7 +366,7 @@ class PatternMatcher():
         return self.target.get_path()
 
     def set_target_image_path(self, path):
-        print(f'PatternMatcher.set_target_image_path("{path}")')
+        #print(f'PatternMatcher.set_target_image_path("{path}")')
         self.target.load_image(path)
 
     def get_target_fileset(self):
@@ -371,12 +376,12 @@ class PatternMatcher():
         self.target_fileset = \
             fs.FileSet(filter=fs.filter_image_files_by_ext)
         if path_list:
-            self.fileset.merge_recursive(path_list)
+            self.target_fileset.merge_recursive(path_list)
         else:
             pass
 
     def add_target_fileset(self, path_list):
-        print(f'PatternMatcher.add_target_fileset("{path_list}")')
+        #print(f'PatternMatcher.add_target_fileset("{path_list}")')
         self.target_fileset.merge_recursive(path_list)
 
     def remove_image_path(self, path):
@@ -419,41 +424,32 @@ class PatternMatcher():
         self.distance_map.find_matching_region() function."""
         return self.target_matched_regions
 
-    def crop_matched_patterns(target_image_path):
+    def crop_matched_patterns(self, target_image_path):
         # Create results directory if it does not exist
-        if not os.path.isdir(results_dir):
-            os.mkdir(results_dir)
-
-        target_image  = self.target.get_image(target_image_path)
-        if target_image is None:
-            raise FileNotFoundError(self.target_image_path)
+        if not os.path.isdir(self.results_dir):
+            os.mkdir(self.results_dir)
         else:
             pass
-
-        pattern_image = self.pattern.get_iamge(self.pattern_image_path)
-        if pattern_image is None:
-            raise FileNotFoundError(pattern_image_path)
-        else:
-            pass
-
-        self.distance_map = DistanceMap(self.target, self.pattern)
-
+        target = CachedCVImageLoader()
+        target.load_image(target_image_path)
+        self.pattern.load_image(self.pattern_image_path)
+        distance_map = DistanceMap(target, self.pattern)
         if self.save_distance_map is not None:
             # Save the convolution image:
             distance_map.save_distance_map(self.save_distance_map)
         else:
             pass
-        distance_map.write_all_cropped_images(target_image, threshold, results_dir)
+        distance_map.write_all_cropped_images(target.get_image(), self.threshold, self.results_dir)
 
-    def batch_crop_matched_patterns():
+    def batch_crop_matched_patterns(self):
         self.pattern.load_image()
         for image in self.target_fileset:
-            print(
-                f'image = {image}\npattern_image_path = {pattern_image_path}\n'
-                f'results_dir = {results_dir}\n'
-                f'threshold = {threshold}\n'
-                f'save_distance_map = {save_distance_map}',
-              )
+            #print(
+            #    f'image = {image!s}\n'
+            #    f'results_dir = {self.results_dir}\n'
+            #    f'threshold = {self.threshold}\n'
+            #    f'save_distance_map = {self.save_distance_map}',
+            #  )
             self.crop_matched_patterns(image)
 
     def load_image(self, path):
