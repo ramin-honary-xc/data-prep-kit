@@ -1,3 +1,5 @@
+from DataPrepKit.RegionSize import RegionSize
+
 import cv2 as cv
 
 #---------------------------------------------------------------------------------------------------

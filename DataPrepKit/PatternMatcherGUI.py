@@ -1,8 +1,10 @@
+import DataPrepKit.utilities as util
 import DataPrepKit.PatternMatcher as patm
 from DataPrepKit.PercentSlider import PercentSlider
 from DataPrepKit.FileSetGUI import FileSetGUI, qt_modal_image_file_selection
 from DataPrepKit.ContextMenuItem import context_menu_item
 from DataPrepKit.SimpleImagePreview import SimpleImagePreview
+from DataPrepKit.ReferenceImagePreviewGUI import ReferenceImagePreview
 from DataPrepKit.CropRectTool import CropRectTool
 
 from pathlib import PurePath
@@ -92,23 +94,15 @@ class FilesTab(FileSetGUI):
     def use_current_item_as_pattern(self):
         path = self.current_item_path()
         print(f'FilesTab.use_current_item_as_pattern() #("{path}")')
-        self.app_model.set_pattern_image_path(path)
+        self.app_model.set_reference_image_path(path)
         self.main_view.update_pattern_pixmap()
 
 #---------------------------------------------------------------------------------------------------
 
-class PatternPreview(SimpleImagePreview):
-    """A QGraphicsView for displaying the pattern image. It does not
-    inherit from InspectImagePreview because it has different behavior
-    for displaying the image, and for drag and drop. This class may be
-    removed and replaced with a more featureful versino of
-    InspectImagePreview in the future.
-    """
+class PatternPreview(ReferenceImagePreview):
 
     def __init__(self, app_model, main_view):
-        super().__init__()
-        self.app_model = app_model
-        self.main_view = main_view
+        super().__init__(app_model, main_view)
         self.crop_rect_tool = CropRectTool(self.get_scene(), self.change_crop_rect)
         self.set_mouse_mode(self.crop_rect_tool)
 
@@ -122,19 +116,6 @@ class PatternPreview(SimpleImagePreview):
 
     def change_crop_rect(self, rect):
         self.app_model.set_pattern_rect(rect)
-
-    def dragEnterEvent(self, event):
-        self.main_view.dragEnterEvent(event)
-
-    def dragEnterEvent(self, event):
-        return self.main_view.dragEnterEvent(event)
-
-    def dropEvent(self, event):
-        return self.main_view.dropEvent(event)
-
-    def update_pattern_pixmap(self):
-        pattern = self.app_model.get_pattern()
-        self.set_filepath(pattern.get_path())
 
 #---------------------------------------------------------------------------------------------------
 
@@ -161,9 +142,9 @@ class PatternSetupTab(qt.QWidget):
     def update_pattern_pixmap(self):
         self.preview_view.update_pattern_pixmap()
 
-    def set_pattern_image_path(self, path):
+    def set_reference_image_path(self, path):
         print(f'FilesTab.use_current_item_as_pattern() #("{path}")')
-        self.app_model.set_pattern_image_path(path)
+        self.app_model.set_reference_image_path(path)
         self.update_pattern_pixmap()
 
     def open_pattern_file_handler(self):
@@ -174,7 +155,7 @@ class PatternSetupTab(qt.QWidget):
             message='Open images in which to search for patterns',
           )
         if len(urls) > 0:
-            self.set_pattern_image_path(urls[0])
+            self.set_reference_image_path(urls[0])
             if len(urls) > 1:
                 print(f'WARNING: multiple files selected as pattern path, using only first one "{urls[0]}"')
             else:

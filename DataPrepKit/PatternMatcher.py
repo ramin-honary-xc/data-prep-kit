@@ -240,7 +240,7 @@ class PatternMatcher():
     def set_config(self, config):
         self.config = config
         self.set_target_fileset(config.inputs)
-        self.set_pattern_image_path(config.pattern)
+        self.set_reference_image_path(config.pattern)
         self.results_dir = config.output_dir
         self.threshold = config.threshold
         self.save_distance_map = config.save_map
@@ -254,10 +254,10 @@ class PatternMatcher():
     def get_pattern(self):
         return self.pattern
 
-    def get_pattern_image_path(self):
+    def get_reference_image_path(self):
         return self.pattern.get_path()
 
-    def set_pattern_image_path(self, path):
+    def set_reference_image_path(self, path):
         self.pattern_image_path = path
         if path:
             self.pattern.load_image(path)
@@ -373,5 +373,5 @@ class PatternMatcher():
             self.crop_matched_patterns(image)
 
     def load_image(self, path):
-        self.pattern.set_pattern_image_path(path)
+        self.pattern.set_reference_image_path(path)
         self.pattern.load_image()
