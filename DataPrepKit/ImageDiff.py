@@ -41,6 +41,12 @@ class ImageDiff():
     def get_fileset(self):
         return self.file_set
 
+    def get_reference(self):
+        return self.reference
+
+    def set_reference_path(self, path):
+        self.reference.load_image(path=path)
+
     def load_reference_image(self, path):
         print(f'ImageDiff.load_reference_image("{path!s}")')
         self.reference.load_image(path=path)

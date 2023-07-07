@@ -61,8 +61,7 @@ class ReferencePreview(SimpleImagePreview):
     """
 
     def __init__(self, app_model, main_view):
-        super().__init__()
-        super(SimpleImagePreview, self).__init__(main_view)
+        super().__init__(main_view)
         self.app_model = app_model
         self.main_view = main_view
         self.enable_drop_handlers(True)
@@ -90,7 +89,7 @@ class ReferencePreview(SimpleImagePreview):
     def load_reference_image(self, path):
         """Set the reference image in the app_model and also update the view
         to display the image file at that path."""
-        print(f'ReferencePreview.load_reference_image({path!s})')
+        print(f'ReferencePreview.load_reference_image("{path!s}")')
         self.app_model.load_reference_image(path)
         self.set_filepath(path)
 
@@ -132,13 +131,14 @@ class ReferenceSetupTab(qt.QWidget):
 
     def open_reference_file_handler(self):
         #target_dir = self.app_model.get_config().reference
-        path = qt_modal_image_file_selection(self, "Open images in which to search for patterns")
-        print(f'ReferenceSetupTab.open_reference_file_handler() #(paths = {path})')
-        if len(path) == 1:
-            self.load_reference_image(path[0])
-        elif len(path) > 1:
-            self.load_reference_image(path[0])
-            print(f'WARNING: more than one file selected, only using the first file: "{path[0]}"')
+        paths = qt_modal_image_file_selection(self, "Open images in which to search for patterns")
+        print(f'ReferenceSetupTab.open_reference_file_handler() #(paths = {paths})')
+        if len(paths) > 0:
+            self.load_reference_image(paths[0])
+            if len(paths) > 1:
+                print(f'WARNING: more than one file selected, only using the first file: "{path[0]}"')
+            else:
+                pass
         else:
             print(f'ReferenceSetupTab.open_reference_file_handler() #(file selector dialog box returned empty list)')
             pass

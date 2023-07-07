@@ -28,8 +28,7 @@ class ImageDisplay(qt.QGraphicsView):
     """
 
     def __init__(self, parent=None):
-        super().__init__()
-        super(ImageDisplay, self).__init__(parent)
+        super().__init__(parent)
         self._scene = LayeredGraphicsScene(self)
         super(ImageDisplay, self).setScene(self._scene)
         super(LayeredGraphicsScene, self._scene).changed.connect(self.updateScene)

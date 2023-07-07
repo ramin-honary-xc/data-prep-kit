@@ -170,11 +170,12 @@ class PatternSetupTab(qt.QWidget):
             default_dir=target_dir,
             message='Open images in which to search for patterns',
           )
-        if len(urls) == 1:
+        if len(urls) > 0:
             self.set_pattern_image_path(urls[0])
-        elif len(urls) > 1:
-            print(f'WARNING: multiple files selected as pattern path, using only first one "{urls[0]}"')
-            self.set_pattern_image_path(urls[0])
+            if len(urls) > 1:
+                print(f'WARNING: multiple files selected as pattern path, using only first one "{urls[0]}"')
+            else:
+                pass
         else:
             print(f'PatternSetupTab.open_pattern_file_handler() #(file selection dialog returned empty list)')
 

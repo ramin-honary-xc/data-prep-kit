@@ -13,9 +13,8 @@ class SimpleImagePreview(ImageDisplay, DragDropHandler):
     """
 
     def __init__(self, parent=None):
-        super().__init__()
-        super(SimpleImagePreview, self).__init__(parent)
-        super(DragDropHandler, self).__init__()
+        DragDropHandler.__init__(self)
+        super().__init__(parent)
         self.image_file_layer = ImageFileLayer(self.get_scene())
         #self.setViewportUpdateMode(4) # 4: QGraphicsView::BoundingRectViewportUpdate
         self.setResizeAnchor(1) # 1: QGraphicsView::AnchorViewCenter
