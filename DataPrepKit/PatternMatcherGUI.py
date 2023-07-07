@@ -111,7 +111,6 @@ class PatternPreview(SimpleImagePreview):
         self.main_view = main_view
         self.crop_rect_tool = CropRectTool(self.get_scene(), self.change_crop_rect)
         self.set_mouse_mode(self.crop_rect_tool)
-        self.setAcceptDrops(True)
 
     def clear(self):
         self.crop_rect_tool.clear()
@@ -127,8 +126,11 @@ class PatternPreview(SimpleImagePreview):
     def dragEnterEvent(self, event):
         self.main_view.dragEnterEvent(event)
 
+    def dragEnterEvent(self, event):
+        return self.main_view.dragEnterEvent(event)
+
     def dropEvent(self, event):
-        self.main_view.dropEvent(event)
+        return self.main_view.dropEvent(event)
 
     def update_pattern_pixmap(self):
         pattern = self.app_model.get_pattern()
@@ -147,6 +149,7 @@ class PatternSetupTab(qt.QWidget):
         self.layout       = qt.QHBoxLayout(self)
         self.preview_view = PatternPreview(app_model, self)
         self.layout.addWidget(self.preview_view)
+        self.setAcceptDrops(True)
         ## Action: open image files
         self.open_pattern_file = context_menu_item(
             "Open pattern file",
@@ -178,37 +181,6 @@ class PatternSetupTab(qt.QWidget):
                 pass
         else:
             print(f'PatternSetupTab.open_pattern_file_handler() #(file selection dialog returned empty list)')
-
-    def dragEnterEvent(self, event):
-        mime_data = event.mimeData()
-        if mime_data.hasUrls():
-            urls = mime_data.urls()
-            if len(urls) == 1:
-                event.accept()
-            else:
-                event.ignore()
-        elif mime_data.hasText():
-            event.accept()
-        else:
-            event.ignore()
-
-    def dropEvent(self, event):
-        mime_data = event.mimeData()
-        if mime_data.hasUrls():
-            urls = mime_data.urls()
-            if len(urls) == 1:
-                event.accept()
-                url = urls[0]
-                self.app_model.set_pattern_image_path(PurePath(url.toLocalFile()))
-                self.main_view.update_pattern_pixmap()
-            else:
-                event.ignore()
-        elif mime_data.hasText():
-            event.accept()
-            self.app_model.set_pattern_image_path(PurePath(mime_data.text()))
-            self.main_view.update_pattern_pixmap()
-        else:
-            event.ignore()
 
 #---------------------------------------------------------------------------------------------------
 

@@ -290,6 +290,7 @@ class FileSetGUI(qt.QWidget):
             pass
 
     def dragEnterEvent(self, event):
+        # TODO: remove these and inherit from DragDropHandler
         mime_data = event.mimeData()
         if mime_data.hasUrls() or mime_data.hasText():
             event.accept()
@@ -297,6 +298,7 @@ class FileSetGUI(qt.QWidget):
             event.ignore()
 
     def dropEvent(self, event):
+        # TODO: remove these and inherit from DragDropHandler
         mime_data = event.mimeData()
         if mime_data.hasUrls():
             event.accept()

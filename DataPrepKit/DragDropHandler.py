@@ -1,3 +1,5 @@
+from pathlib import PurePath
+
 import PyQt5.QtCore as qcore
 import PyQt5.QtGui as qgui
 import PyQt5.QtWidgets as qt
@@ -66,21 +68,46 @@ class DragDropHandler():
         self._drop_text_handler = boolean
         self.reset_accepts_drops()
 
+    def dragEnterEvent(self, event):
+        print(f'DragDropHandler.dragEnterEvent() #(self = {self})')
+        mime_data = event.mimeData()
+        if mime_data.hasUrls():
+            urls = mime_data.urls()
+            if len(urls) > 0:
+                return event.accept()
+            else:
+                print(f'DragDropHandler.dragEnterEvent() #(len(urls) <= 0: ignore)')
+                return event.ignore()
+        elif mime_data.hasText():
+            return event.accept()
+        else:
+            print(f'DragDropHandler.dragEnterEvent() #(mime_data: hasUrls() -> False, hasText() -> False)')
+            return event.ignore()
+
+    def dragMoveEvent(self, event):
+        return event.accept()
+
     def dropEvent(self, event):
+        print(f'DragDropHandler.dropEvent() #(self = {self})')
         mime_data = event.mimeData()
         if mime_data.hasUrls() and self._drop_url_handler:
             urls = mime_data.urls()
+            urls = list(
+                map(( lambda url: \
+                      PurePath(url.toLocalFile()) if \
+                      url.isLocalFile() else \
+                      url
+                    ),
+                    urls,
+                  ),
+              )
             print(f'DragDropHandler.dropEvent() #(urls: {urls})')
-            if len(urls) == 1:
-                event.accept()
-                self.drop_url_handler(urls[0])
-            else:
-                event.ignore()
+            return self.drop_url_handler(urls)
         elif mime_data.hasText() and self._drop_text_handler:
             text = mime_data.text()
             print(f'DragDropHandler.dropEvent() #(text: {text})')
             event.accept()
-            self.drop_text_handler(text)
+            return self.drop_text_handler(text)
         else:
             print(f'DragDropHandler.dropEvent() #( event.ignore() )')
-            event.ignore()
+            return event.ignore()

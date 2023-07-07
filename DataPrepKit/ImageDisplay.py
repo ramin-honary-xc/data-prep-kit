@@ -98,7 +98,7 @@ class LayeredGraphicsScene(qt.QGraphicsScene):
     """
 
     def __init__(self, graphics_view, mouse_mode=None):
-        super(LayeredGraphicsScene, self).__init__(graphics_view)
+        super().__init__(graphics_view)
         self.mouse_mode = mouse_mode
         self.layers = []
         self.drop_handler = None
@@ -146,7 +146,15 @@ class LayeredGraphicsScene(qt.QGraphicsScene):
         else:
             event.ignore()
 
+    def dragEnterEvent(self, event):
+        print(f'LayeredGraphicsScene.dragEnterEvent()')
+        if self.drop_handler is not None:
+            event.accept()
+        else:
+            event.ignore()
+
     def dropEvent(self, event):
+        print(f'LayeredGraphicsScene.dropEvent()')
         if self.drop_handler is not None:
             self.drop_handler(event)
         else:

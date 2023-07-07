@@ -74,12 +74,6 @@ class ReferencePreview(SimpleImagePreview):
         super(ReferencePreview, self).redraw()
         self.crop_rect_tool.redraw()
 
-    def dragEnterEvent(self, event):
-        self.main_view.dragEnterEvent(event)
-
-    def dropEvent(self, event):
-        self.main_view.dropEvent(event)
-
     def update_reference_pixmap(self):
         """Re-read the file path for the reference image from the app_model
         and update the view to display the image file at that path."""
