@@ -46,9 +46,10 @@ class ImageFileLayer():
         does nothing."""
         if self.pixmap_item is not None:
             self.scene.setSceneRect(self.pixmap_item.boundingRect())
-            print(f'ReferenceImageScene.setSceneRect({self.pixmap_item.boundingRect()})')
+            #print(f'ReferenceImageScene.setSceneRect({self.pixmap_item.boundingRect()})')
         else:
-            print(f'ImageFileLayer.layer_bounds_scene_rect() #(no image file has been loaded)')
+            #print(f'ImageFileLayer.layer_bounds_scene_rect() #(no image file has been loaded)')
+            pass
 
     def get_filepath(self):
         return self.filepath

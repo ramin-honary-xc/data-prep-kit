@@ -45,7 +45,7 @@ class CropRectTool():
 
     def mousePressEvent(self, event):
         self.set_start_point(event.lastScenePos())
-        event.accept()
+        return event.accept()
 
     def mouseMoveEvent(self, event):
         self.end_point = event.lastScenePos()
@@ -53,11 +53,11 @@ class CropRectTool():
             self.update_rect()
         else:
             pass
-        event.accept()
+        return event.accept()
 
     def mouseReleaseEvent(self, event):
         self.set_end_point(event.lastScenePos())
-        event.accept()
+        return event.accept()
 
     def set_start_point(self, point):
         bounds = self.scene.sceneRect()
@@ -91,9 +91,6 @@ class CropRectTool():
         and the update callback should only be called once the mouse
         motion has stopped and the rectangle size has been decided.
         """
-        #TODO: should not depend on ReferenceImageScene. We need to
-        # obtain the min/max bounds from some parameter other
-        # than get_reference_pixmap_item()
         bounds = self.scene.sceneRect()
         if bounds and self.start_point and self.end_point:
             x_min = min(self.start_point.x(), self.end_point.x())

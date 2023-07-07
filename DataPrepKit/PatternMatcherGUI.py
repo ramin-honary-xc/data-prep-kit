@@ -37,7 +37,7 @@ class InspectImagePreview(SimpleImagePreview):
 
     def clear_rectangles(self):
         scene = self.get_scene()
-        print(f'InspectImagePreview.clear_rectangles() #(clear {len(self.rect_items)} items)')
+        #print(f'InspectImagePreview.clear_rectangles() #(clear {len(self.rect_items)} items)')
         for rect in self.rect_items:
             scene.removeItem(rect)
         self.rect_items = []
@@ -45,7 +45,7 @@ class InspectImagePreview(SimpleImagePreview):
     def place_rectangles(self):
         scene = self.get_scene()
         rectangle_list = self.app_model.get_matched_regions()
-        print(f'InspectImagePreview.place_rectangles() #(add {len(rectangle_list)} items)')
+        #print(f'InspectImagePreview.place_rectangles() #(add {len(rectangle_list)} items)')
         for rectangle in rectangle_list:
             bounds = rectangle.get_point_and_size()
             scene.addRect(*bounds, self.pen)
@@ -108,10 +108,10 @@ class PatternPreview(ReferenceImagePreview):
 
     def clear(self):
         self.crop_rect_tool.clear()
-        super(PatternPreview, self).clear()
+        super(ReferenceImagePreview, self).clear()
 
     def redraw(self):
-        super(PatternPreview, self).redraw()
+        super(ReferenceImagePreview, self).redraw()
         self.crop_rect_tool.redraw()
 
     def change_crop_rect(self, rect):
@@ -143,7 +143,7 @@ class PatternSetupTab(qt.QWidget):
         self.preview_view.update_pattern_pixmap()
 
     def set_reference_image_path(self, path):
-        print(f'FilesTab.use_current_item_as_pattern() #("{path}")')
+        #print(f'FilesTab.use_current_item_as_pattern() #("{path}")')
         self.app_model.set_reference_image_path(path)
         self.update_pattern_pixmap()
 

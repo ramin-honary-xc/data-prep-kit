@@ -38,7 +38,7 @@ class ImageDisplay(qt.QGraphicsView):
         return self._scene.get_mouse_mode()
 
     def set_mouse_mode(self, mouse_mode):
-        print(f'ImageDisplay.set_mouse_mode() #(type(self) -> {type(self)}))')
+        #print(f'ImageDisplay.set_mouse_mode({mouse_mode})')
         self._scene.set_mouse_mode(mouse_mode)
 
     def create_layer(self, layer):
@@ -55,7 +55,6 @@ class ImageDisplay(qt.QGraphicsView):
         any internal state. It is up to the child that inherits this
         class to keep track of it's own layers.
         """
-        print(f'ImageDisplay.create_layer() #(type(layer) -> {type(layer)})')
         layer.set_scene(self.get_scene())
         return layer
 
@@ -67,7 +66,6 @@ class ImageDisplay(qt.QGraphicsView):
         were updated by the 'create_layer()' function. The class that
         inherits this class must overload this function to do that.
         """
-        print(f'ImageDisplay.set_scene() #(type(scene) -> {type(scene)})')
         if not isinstance(self.scene, LayeredGraphicsScene):
             self._scene = scene
             super(ImageDisplay, self).setScene(scene)
@@ -108,6 +106,7 @@ class LayeredGraphicsScene(qt.QGraphicsScene):
 
     def set_mouse_mode(self, mouse_mode):
         # TODO: do some basic type checking here
+        #print(f'LayeredGarphicsScene.set_mouse_mode({mouse_mode})')
         self.mouse_mode = mouse_mode
 
     def set_drop_handler(self, handler):
@@ -135,26 +134,33 @@ class LayeredGraphicsScene(qt.QGraphicsScene):
     def mouseReleaseEvent(self, event):
         #print(f"ReferenceImageScene.mouseReleaseEvent({event})") #DEBUG
         if self.mouse_mode and left_mouse_button(event):
+            # Only works if left_mouse_button(event) is True
             self.mouse_mode.mouseReleaseEvent(event)
         else:
             event.ignore()
 
     def mouseMoveEvent(self, event):
         #print(f"ReferenceImageScene.mouseMoveEvent({event})") #DEBUG
-        if self.mouse_mode and left_mouse_button(event):
+        if self.mouse_mode:
+            # NOTE: left_mouse_button(event) is not checked here,
+            # because that information is not attached to mouse move
+            # events.  If it were to be checked, it would not exist,
+            # and the self.mouse_mode.mouseMoveEvent() would not be
+            # triggered.
             self.mouse_mode.mouseMoveEvent(event)
         else:
             event.ignore()
 
     def dragEnterEvent(self, event):
-        print(f'LayeredGraphicsScene.dragEnterEvent()')
+        #print(f'LayeredGraphicsScene.dragEnterEvent()')
         if self.drop_handler is not None:
+            # Only works if left_mouse_button(event) is True
             event.accept()
         else:
             event.ignore()
 
     def dropEvent(self, event):
-        print(f'LayeredGraphicsScene.dropEvent()')
+        #print(f'LayeredGraphicsScene.dropEvent()')
         if self.drop_handler is not None:
             self.drop_handler(event)
         else:

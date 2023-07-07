@@ -37,7 +37,7 @@ class DragDropHandler():
 
     def reset_accepts_drops(self):
         enable = self._drop_text_handler or self._drop_url_handler
-        print(f'DragDropHandler.reset_accepts_drops() #( {self}.setAcceptDrops({enable}) )')
+        #print(f'DragDropHandler.reset_accepts_drops() #( {self}.setAcceptDrops({enable}) )')
         self.setAcceptDrops(enable)
 
     def drop_url_handler(self, urls):
@@ -69,26 +69,32 @@ class DragDropHandler():
         self.reset_accepts_drops()
 
     def dragEnterEvent(self, event):
-        print(f'DragDropHandler.dragEnterEvent() #(self = {self})')
+        #print(f'DragDropHandler.dragEnterEvent() #(self = {self})')
         mime_data = event.mimeData()
         if mime_data.hasUrls():
             urls = mime_data.urls()
             if len(urls) > 0:
                 return event.accept()
             else:
-                print(f'DragDropHandler.dragEnterEvent() #(len(urls) <= 0: ignore)')
+                #print(f'DragDropHandler.dragEnterEvent() #(len(urls) <= 0: ignore)')
                 return event.ignore()
         elif mime_data.hasText():
             return event.accept()
         else:
-            print(f'DragDropHandler.dragEnterEvent() #(mime_data: hasUrls() -> False, hasText() -> False)')
+            #print(f'DragDropHandler.dragEnterEvent() #(mime_data: hasUrls() -> False, hasText() -> False)')
             return event.ignore()
 
     def dragMoveEvent(self, event):
+        # I do not know why, but unless this overridden method accepts
+        # all events, drag and drop does not work properly.
+        # Fortunately, this event handler is not triggered anyway if
+        # the dragEnterEvent() method above evaluates
+        # "event.ignore()", so there is no need to run all the checks
+        # on the event again. Just evaluate "event.accept()".
         return event.accept()
 
     def dropEvent(self, event):
-        print(f'DragDropHandler.dropEvent() #(self = {self})')
+        #print(f'DragDropHandler.dropEvent() #(self = {self})')
         mime_data = event.mimeData()
         if mime_data.hasUrls() and self._drop_url_handler:
             urls = mime_data.urls()
@@ -101,13 +107,13 @@ class DragDropHandler():
                     urls,
                   ),
               )
-            print(f'DragDropHandler.dropEvent() #(urls: {urls})')
+            #print(f'DragDropHandler.dropEvent() #(urls: {urls})')
             return self.drop_url_handler(urls)
         elif mime_data.hasText() and self._drop_text_handler:
             text = mime_data.text()
-            print(f'DragDropHandler.dropEvent() #(text: {text})')
+            #print(f'DragDropHandler.dropEvent() #(text: {text})')
             event.accept()
             return self.drop_text_handler(text)
         else:
-            print(f'DragDropHandler.dropEvent() #( event.ignore() )')
+            #print(f'DragDropHandler.dropEvent() #( event.ignore() )')
             return event.ignore()
