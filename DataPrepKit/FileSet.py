@@ -97,7 +97,7 @@ class FileSet():
             self.merge(oldset)
 
     def __add(self, filepath, index=None):
-        if self.filter(filepath):
+        if (self.filter is None) or self.filter(filepath):
             self.fileset.add(filepath)
         else:
             pass

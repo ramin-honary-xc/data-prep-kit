@@ -271,7 +271,9 @@ class PatternMatcher():
         return self.pattern_rect
 
     def set_pattern_rect(self, rect):
-        if isinstance(rect, tuple) and (len(rect) == 4):
+        if rect is None:
+            self.pattern.set_crop_rect(None)
+        elif isinstance(rect, tuple) and (len(rect) == 4):
             if self.pattern is not None:
                 self.pattern.set_crop_rect(rect)
         else:

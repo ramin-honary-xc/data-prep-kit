@@ -2,6 +2,14 @@ import PyQt5.QtCore as qcore
 import PyQt5.QtGui as qgui
 import PyQt5.QtWidgets as qt
 
+def left_mouse_button(event):
+    """Returns true if the given QGraphicsSceneMouseEvent is for a left
+    mouse click. Scenes have context menu actions attached to them
+    still trigger event handlers on right mouse clicks, so these
+    clicks need to be filtered.
+    """
+    return event.button() == 0x00000001
+
 class ImageDisplay(qt.QGraphicsView):
     """This class simplifies the Qt APIs for graphics by combining a
     QGraphicsView and a QGraphicsScene object into a single object. It
@@ -20,6 +28,7 @@ class ImageDisplay(qt.QGraphicsView):
     """
 
     def __init__(self, parent=None):
+        super().__init__()
         super(ImageDisplay, self).__init__(parent)
         self._scene = LayeredGraphicsScene(self)
         super(ImageDisplay, self).setScene(self._scene)
@@ -72,7 +81,6 @@ class ImageDisplay(qt.QGraphicsView):
     def redraw(self):
         self._scene.redraw()
 
-
 class LayeredGraphicsScene(qt.QGraphicsScene):
     """This class provides a simplified wrapper around a QGraphicsScene
     with a "mouse mode" object that can be set to enable different
@@ -94,6 +102,7 @@ class LayeredGraphicsScene(qt.QGraphicsScene):
         super(LayeredGraphicsScene, self).__init__(graphics_view)
         self.mouse_mode = mouse_mode
         self.layers = []
+        self.drop_handler = None
 
     def get_mouse_mode(self):
         return self.mouse_mode
@@ -101,6 +110,12 @@ class LayeredGraphicsScene(qt.QGraphicsScene):
     def set_mouse_mode(self, mouse_mode):
         # TODO: do some basic type checking here
         self.mouse_mode = mouse_mode
+
+    def set_drop_handler(self, handler):
+        """This function enables drag-drop events on the scene and sets a
+        handler for them. You can pass None to disable drag-drop events."""
+        self.drop_handler = handler
+        self.setAcceptDrops(handler is not None)
 
     def redraw(self):
         for layer in self.layers:
@@ -113,21 +128,27 @@ class LayeredGraphicsScene(qt.QGraphicsScene):
 
     def mousePressEvent(self, event):
         #print(f"ReferenceImageScene.mousePressEvent({event})") #DEBUG
-        if self.mouse_mode:
+        if self.mouse_mode and left_mouse_button(event):
             self.mouse_mode.mousePressEvent(event)
         else:
             event.ignore()
 
     def mouseReleaseEvent(self, event):
         #print(f"ReferenceImageScene.mouseReleaseEvent({event})") #DEBUG
-        if self.mouse_mode:
+        if self.mouse_mode and left_mouse_button(event):
             self.mouse_mode.mouseReleaseEvent(event)
         else:
             event.ignore()
 
     def mouseMoveEvent(self, event):
         #print(f"ReferenceImageScene.mouseMoveEvent({event})") #DEBUG
-        if self.mouse_mode:
+        if self.mouse_mode and left_mouse_button(event):
             self.mouse_mode.mouseMoveEvent(event)
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        if self.drop_handler is not None:
+            self.drop_handler(event)
         else:
             event.ignore()

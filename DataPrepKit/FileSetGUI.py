@@ -3,9 +3,69 @@ from DataPrepKit.ContextMenuItem import context_menu_item
 from DataPrepKit.FileSet import FileSet
 from DataPrepKit.SimpleImagePreview import SimpleImagePreview
 
+import pathlib
+
 import PyQt5.QtCore as qcore
 import PyQt5.QtGui as qgui
 import PyQt5.QtWidgets as qt
+
+def qt_modal_file_selection(widget, default_dir=None, message='Select files', qt_file_filter_string=''):
+    """Simplifies calling qt.QFileDialog.getOpenFileUrls() function, a
+    modal dialog box allowing end users to select files from the
+    filesystem, and returns either a list of files, or None. This
+    function also requires a smaller number of parameters:
+
+      - 'default_dir': default directory, set to current directory if None
+        is passed
+
+      - 'message': displayed to the end user at the top of the dialog window
+
+      - 'qt_file_filter_string': a string expression written using the
+        Qt library's own EDSL for specifying what kind of files the
+        end user is allowed to choose from the modal dialog.
+
+    This function returns a possibly empty list of values that are
+    either, a pathlib.PurePath() if the user selected a file from the
+    local filesystem, or otherwise a qt.QUrl().
+    """
+    if default_dir is None:
+        default_dir = pathlib.Path.cwd()
+    else:
+        pass
+    reply = qt.QFileDialog.getOpenFileUrls(
+        widget,
+        message,
+        qcore.QUrl(str(default_dir)),
+        qt_file_filter_string,
+        "",
+        qt.QFileDialog.ReadOnly,
+        ["file"],
+      )
+    if len(reply) > 0:
+        urls = reply[0]
+        urls = map(
+            ( lambda url:
+                pathlib.PurePath(url.toLocalFile()) \
+                if url.isLocalFile() \
+                else url
+             ),
+            urls,
+          )
+        return list(urls)
+    else:
+        print(f'qt_modal_file_selection("{message}") #(returned empty list)')
+        return []
+
+def qt_modal_image_file_selection(widget, default_dir=None, message="Open images files"):
+    """Convenience function, calls 'qt_modal_file_selection' with the
+    'qt_file_filter_string' argument set to the correct value to allow
+    end users to select only image files."""
+    return qt_modal_file_selection(
+        widget,
+        default_dir=default_dir,
+        message=message,
+        qt_file_filter_string='Images (*.png *.jpg *.jpeg)'
+      )
 
 class FileListItem(qt.QListWidgetItem):
     """A QListWidgetItem for an element in the files list in the Files tab."""
@@ -47,12 +107,31 @@ class FileSetGUI(qt.QWidget):
       that pops-up when the end user right-clicks on either the image
       preview or the file list.
 
+    - The 'file_selector': this function is expected you will pass a
+      function that opens a Qt modal file selection dialog box that
+      returns files a list of selected by the end user. Use functions
+      such as 'qt_modal_file_selection' or
+      'qt_modal_image_file_selection'.
+
+    - The 'file_selector_message': the string to display at the top of
+      the dialog box opened by the 'file_selector'. This value is
+      passed to the function that is set in the 'file_selector' slot.
     """
 
-    def __init__(self, main_view, fileset=None, image_preview=None, action_label='Use this file'):
+    def __init__(
+        self,
+        main_view,
+        fileset=None,
+        image_preview=None,
+        action_label='Use this file',
+        file_selector=qt_modal_file_selection,
+        file_selector_message='Select files',
+      ):
         super().__init__(main_view)
         self.setObjectName("FilesTab")
         self.main_view = main_view
+        self.file_selector = file_selector
+        self.file_selector_message = file_selector_message
         if fileset is None:
             self.fileset = FileSet()
         else:
@@ -80,7 +159,7 @@ class FileSetGUI(qt.QWidget):
         ## Action: open image files
         self.open_image_files = context_menu_item(
             "Open image files",
-            self.open_image_files_handler,
+            self.open_files_handler,
             qgui.QKeySequence.Open,
           )
         self.file_list_add_context_menu_item(self.open_image_files)
@@ -109,6 +188,15 @@ class FileSetGUI(qt.QWidget):
 
     def set_fileset(self, fileset):
         self.fileset = fileset
+
+    def set_file_selector(self, file_selector, message='Select files'):
+        """To this function, it is expected you will pass a function that
+        opens a Qt modal file selection dialog box that returns files
+        a list of selected by the end user. Use functions such as
+        'qt_modal_file_selection' or 'qt_modal_image_file_selection'.
+        """
+        self.file_selector_message = message
+        self.file_selector = file_selector
 
     def get_list_widget(self):
         return self.list_widget
@@ -182,16 +270,17 @@ class FileSetGUI(qt.QWidget):
         for item in self.fileset:
             self.list_widget.addItem(FileListItem(item))
 
-    def open_image_files_handler(self):
-        target_dir = self.main_view.get_config().output_dir
-        urls = \
-            qt.QFileDialog.getOpenFileUrls( \
-                self, "Open images in which to search for patterns", \
-                qcore.QUrl(str(target_dir)), \
-                "Images (*.png *.jpg *.jpeg)", "", \
-                qt.QFileDialog.ReadOnly, \
-                ["file"] \
-              )
+    def open_files_handler(self, default_dir):
+        """Ask the operating system to display a file selection modal dialog
+        box that asks you to select files to open. Pass the a
+        pathlib.Path() default directory as an argument to this
+        function.
+        """
+        if default_dir is None:
+            default_dir = pathlib.Path.cwd()
+        else:
+            pass
+        urls = self.file_selector(self, self.file_selector_message)
         print(f"selected urls = {urls}")
         urls = urls[0]
         if len(urls) > 0:
@@ -209,14 +298,17 @@ class FileSetGUI(qt.QWidget):
 
     def dropEvent(self, event):
         mime_data = event.mimeData()
-        print(f'FilesTab.dropEvent("{mime_data}")')
         if mime_data.hasUrls():
             event.accept()
-            self.fileset.merge_recursive(patm.gather_QUrl_local_files(mime_data.urls()))
+            urls = mime_data.urls()
+            print(f'FilesSetGUI.dropEvent() #(urls: {urls})')
+            self.fileset.merge_recursive(patm.gather_QUrl_local_files(urls))
             self.reset_paths_list()
         elif mime_data.hasText():
             event.accept()
-            self.fileset.merge_recursive(util.split_linebreaks(mime_data.text()))
+            text = mime_data.text()
+            print(f'FilesSetGUI.dropEvent() #(text: {text})')
+            self.fileset.merge_recursive(util.split_linebreaks(text))
             self.reset_paths_list()
         else:
             event.ignore()

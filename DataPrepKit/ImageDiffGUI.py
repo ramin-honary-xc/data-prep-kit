@@ -1,10 +1,11 @@
 import DataPrepKit.ImageDiff as patm
 from DataPrepKit.PercentSlider import PercentSlider
-from DataPrepKit.FileSetGUI import FileSetGUI
+from DataPrepKit.FileSetGUI import FileSetGUI, qt_modal_image_file_selection
 from DataPrepKit.ContextMenuItem import context_menu_item
 from DataPrepKit.SimpleImagePreview import SimpleImagePreview
 from DataPrepKit.CropRectTool import CropRectTool
 
+import pathlib
 from pathlib import PurePath
 
 import PyQt5.QtCore as qcore
@@ -61,11 +62,10 @@ class ReferencePreview(SimpleImagePreview):
 
     def __init__(self, app_model, main_view):
         super().__init__()
+        super(SimpleImagePreview, self).__init__(main_view)
         self.app_model = app_model
         self.main_view = main_view
-        self.crop_rect_tool = CropRectTool(self.get_scene(), self.change_crop_rect)
-        self.set_mouse_mode(self.crop_rect_tool)
-        self.setAcceptDrops(True)
+        self.enable_drop_handlers(True)
 
     def clear(self):
         self.crop_rect_tool.clear()
@@ -75,9 +75,6 @@ class ReferencePreview(SimpleImagePreview):
         super(ReferencePreview, self).redraw()
         self.crop_rect_tool.redraw()
 
-    def change_crop_rect(self, rect):
-        self.app_model.set_reference_rect(rect)
-
     def dragEnterEvent(self, event):
         self.main_view.dragEnterEvent(event)
 
@@ -85,8 +82,26 @@ class ReferencePreview(SimpleImagePreview):
         self.main_view.dropEvent(event)
 
     def update_reference_pixmap(self):
+        """Re-read the file path for the reference image from the app_model
+        and update the view to display the image file at that path."""
         reference = self.app_model.get_reference()
         self.set_filepath(reference.get_path())
+
+    def load_reference_image(self, path):
+        """Set the reference image in the app_model and also update the view
+        to display the image file at that path."""
+        print(f'ReferencePreview.load_reference_image({path!s})')
+        self.app_model.load_reference_image(path)
+        self.set_filepath(path)
+
+    def drop_url_handler(self, urls):
+        if len(urls) > 0:
+            self.load_reference_image(PurePath(urls[0]))
+        else:
+            pass
+
+    def drop_text_handler(self, text):
+        self.load_reference_image(PurePath(text))
 
 #---------------------------------------------------------------------------------------------------
 
@@ -95,7 +110,7 @@ class ReferenceSetupTab(qt.QWidget):
     def __init__(self, app_model, main_view):
         super().__init__(main_view)
         self.setObjectName("ReferenceSetupTab")
-        self.setAcceptDrops(True)
+        #self.setAcceptDrops(True)
         self.app_model    = app_model
         self.main_view    = main_view
         self.layout       = qt.QHBoxLayout(self)
@@ -112,52 +127,21 @@ class ReferenceSetupTab(qt.QWidget):
     def update_reference_pixmap(self):
         self.preview_view.update_reference_pixmap()
 
+    def load_reference_image(self, path):
+        self.preview_view.load_reference_image(path)
+
     def open_reference_file_handler(self):
-        target_dir = self.app_model.get_config().reference
-        url = \
-            qt.QFileDialog.getOpenFileUrl(
-                self, "Open images in which to search for references",
-                qcore.QUrl(str(target_dir)),
-                "Images (*.png *.jpg *.jpeg)", "",
-                qt.QFileDialog.ReadOnly,
-                ["file"],
-              )
-        url = url[0]
-        if (url is not None) and url.isLocalFile():
-            self.main_view.show_reference_image_path(PurePath(url.toLocalFile()))
+        #target_dir = self.app_model.get_config().reference
+        path = qt_modal_image_file_selection(self, "Open images in which to search for patterns")
+        print(f'ReferenceSetupTab.open_reference_file_handler() #(paths = {path})')
+        if len(path) == 1:
+            self.load_reference_image(path[0])
+        elif len(path) > 1:
+            self.load_reference_image(path[0])
+            print(f'WARNING: more than one file selected, only using the first file: "{path[0]}"')
         else:
-            print(f"URL {url} is not a local file")
-
-    def dragEnterEvent(self, event):
-        mime_data = event.mimeData()
-        if mime_data.hasUrls():
-            urls = mime_data.urls()
-            if len(urls) == 1:
-                event.accept()
-            else:
-                event.ignore()
-        elif mime_data.hasText():
-            event.accept()
-        else:
-            event.ignore()
-
-    def dropEvent(self, event):
-        mime_data = event.mimeData()
-        if mime_data.hasUrls():
-            urls = mime_data.urls()
-            if len(urls) == 1:
-                event.accept()
-                url = urls[0]
-                self.app_model.set_reference_image_path(PurePath(url.toLocalFile()))
-                self.main_view.update_reference_pixmap()
-            else:
-                event.ignore()
-        elif mime_data.hasText():
-            event.accept()
-            self.app_model.set_reference_image_path(PurePath(mime_data.text()))
-            self.main_view.update_reference_pixmap()
-        else:
-            event.ignore()
+            print(f'ReferenceSetupTab.open_reference_file_handler() #(file selector dialog box returned empty list)')
+            pass
 
 #---------------------------------------------------------------------------------------------------
 

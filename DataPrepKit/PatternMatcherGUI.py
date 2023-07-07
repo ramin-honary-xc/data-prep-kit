@@ -1,6 +1,6 @@
 import DataPrepKit.PatternMatcher as patm
 from DataPrepKit.PercentSlider import PercentSlider
-from DataPrepKit.FileSetGUI import FileSetGUI
+from DataPrepKit.FileSetGUI import FileSetGUI, qt_modal_image_file_selection
 from DataPrepKit.ContextMenuItem import context_menu_item
 from DataPrepKit.SimpleImagePreview import SimpleImagePreview
 from DataPrepKit.CropRectTool import CropRectTool
@@ -158,21 +158,25 @@ class PatternSetupTab(qt.QWidget):
     def update_pattern_pixmap(self):
         self.preview_view.update_pattern_pixmap()
 
+    def set_pattern_image_path(self, path):
+        print(f'FilesTab.use_current_item_as_pattern() #("{path}")')
+        self.app_model.set_pattern_image_path(path)
+        self.update_pattern_pixmap()
+
     def open_pattern_file_handler(self):
         target_dir = self.app_model.get_config().pattern
-        url = \
-            qt.QFileDialog.getOpenFileUrl( \
-                self, "Open images in which to search for patterns", \
-                qcore.QUrl(str(target_dir)), \
-                "Images (*.png *.jpg *.jpeg)", "", \
-                qt.QFileDialog.ReadOnly, \
-                ["file"] \
-              )
-        url = url[0]
-        if (url is not None) and url.isLocalFile():
-            self.main_view.show_pattern_image_path(PurePath(url.toLocalFile()))
+        urls = qt_modal_image_file_selection(
+            self,
+            default_dir=target_dir,
+            message='Open images in which to search for patterns',
+          )
+        if len(urls) == 1:
+            self.set_pattern_image_path(urls[0])
+        elif len(urls) > 1:
+            print(f'WARNING: multiple files selected as pattern path, using only first one "{urls[0]}"')
+            self.set_pattern_image_path(urls[0])
         else:
-            print(f"URL {url} is not a local file")
+            print(f'PatternSetupTab.open_pattern_file_handler() #(file selection dialog returned empty list)')
 
     def dragEnterEvent(self, event):
         mime_data = event.mimeData()

@@ -1,14 +1,21 @@
 from DataPrepKit.ImageDisplay import ImageDisplay
 from DataPrepKit.ImageFileLayer import ImageFileLayer
+from DataPrepKit.DragDropHandler import DragDropHandler
 
-class SimpleImagePreview(ImageDisplay):
+class SimpleImagePreview(ImageDisplay, DragDropHandler):
     """This class combines an 'ImageDisplay' with an 'ImageFileLayer', and
     provides methods for displaying images in the display by reading
-    them from a file.
+    them from a file. DragDropHandler is also provided, see the
+    documentation on that class for how to override drag and drop
+    handler methods. Note that drag and drop is disabled by default,
+    so you would need to call the "enable_drop_handlers()" method
+    inherited from DragDropHandler.
     """
 
     def __init__(self, parent=None):
+        super().__init__()
         super(SimpleImagePreview, self).__init__(parent)
+        super(DragDropHandler, self).__init__()
         self.image_file_layer = ImageFileLayer(self.get_scene())
         #self.setViewportUpdateMode(4) # 4: QGraphicsView::BoundingRectViewportUpdate
         self.setResizeAnchor(1) # 1: QGraphicsView::AnchorViewCenter
@@ -21,6 +28,7 @@ class SimpleImagePreview(ImageDisplay):
         return self.image_file_layer.get_filepath()
 
     def set_filepath(self, filepath):
+        print(f'SimpleImagePreview.set_filepath("{filepath!s}")')
         self.image_file_layer.set_filepath(filepath)
         self.center_view_on_image()
 

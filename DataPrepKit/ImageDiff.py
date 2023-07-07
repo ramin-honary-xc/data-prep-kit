@@ -42,5 +42,5 @@ class ImageDiff():
         return self.file_set
 
     def load_reference_image(self, path):
+        print(f'ImageDiff.load_reference_image("{path!s}")')
         self.reference.load_image(path=path)
-        
