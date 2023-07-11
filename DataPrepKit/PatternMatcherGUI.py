@@ -95,7 +95,7 @@ class FilesTab(FileSetGUI):
         path = self.current_item_path()
         print(f'FilesTab.use_current_item_as_pattern() #("{path}")')
         self.app_model.set_reference_image_path(path)
-        self.main_view.update_pattern_pixmap()
+        self.main_view.update_reference_pixmap()
 
 #---------------------------------------------------------------------------------------------------
 
@@ -139,13 +139,13 @@ class PatternSetupTab(qt.QWidget):
           )
         self.preview_view.addAction(self.open_pattern_file)
 
-    def update_pattern_pixmap(self):
-        self.preview_view.update_pattern_pixmap()
+    def update_reference_pixmap(self):
+        self.preview_view.update_reference_pixmap()
 
     def set_reference_image_path(self, path):
         #print(f'FilesTab.use_current_item_as_pattern() #("{path}")')
         self.app_model.set_reference_image_path(path)
-        self.update_pattern_pixmap()
+        self.update_reference_pixmap()
 
     def open_pattern_file_handler(self):
         target_dir = self.app_model.get_config().pattern
@@ -291,7 +291,7 @@ class PatternMatcherView(qt.QTabWidget):
     def show_distance_map(self):
         self.inspect_tab.show_distance_map()
 
-    def update_pattern_pixmap(self):
-        self.pattern_tab.update_pattern_pixmap()
+    def update_reference_pixmap(self):
+        self.pattern_tab.update_reference_pixmap()
         self.show_pattern_tab()
 

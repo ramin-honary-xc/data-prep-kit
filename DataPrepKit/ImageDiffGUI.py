@@ -4,6 +4,7 @@ from DataPrepKit.FileSetGUI import FileSetGUI, qt_modal_image_file_selection
 from DataPrepKit.ContextMenuItem import context_menu_item
 from DataPrepKit.ReferenceImagePreviewGUI import ReferenceImagePreview
 from DataPrepKit.CropRectTool import CropRectTool
+from DataPrepKit.GUIHelpers import numpy_array_to_QPixmap
 
 import pathlib
 from pathlib import PurePath
@@ -42,7 +43,19 @@ class FilesTab(FileSetGUI):
         self.image_preview.addAction(self.use_as_reference)
 
     def activation_handler(self, path):
+        print(f'FilesTab.activation_handler("{path!s}")')
         self.app_model.toggle_show_diff()
+        self.item_change_handler(path)
+
+    def item_change_handler(self, path):
+        self.app_model.set_compare_image_path(path)
+        image_buffer = self.app_model.get_display_image()
+        if image_buffer is None:
+            print(f'FilesTab.item_change_handler("{path!s}") #(self.app_model.get_display_image() returned None)')
+            pass
+        else:
+            image_preview = self.get_image_preview()
+            image_preview.set_image_buffer(path, numpy_array_to_QPixmap(image_buffer))
         
     def use_current_item_as_reference(self):
         path = self.current_item_path()
@@ -75,7 +88,9 @@ class ReferenceSetupTab(qt.QWidget):
         self.preview_view.update_reference_pixmap()
 
     def set_reference_image_path(self, path):
+        print(f'ReferenceSetupTab.set_reference_image_path("{path!s}")')
         self.preview_view.set_reference_image_path(path)
+        self.app_model.set_reference_image_path(path)
 
     def open_reference_file_handler(self):
         #target_dir = self.app_model.get_config().reference

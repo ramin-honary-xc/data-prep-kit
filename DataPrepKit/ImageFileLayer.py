@@ -58,6 +58,33 @@ class ImageFileLayer():
         self.filepath = filepath
         self.redraw()
 
+    def set_image_buffer(self, filepath, image_buffer):
+        """Sets the image buffer (which must be an instance of QImage) and the
+        filepath without loading the image buffer from the filepath."""
+        if image_buffer is None:
+            if self.pixmap_item is not None:
+                print(f'ImageFileLayer.set_image_buffer("{filepath!s}") #(self.scene.removeItem())')
+                self.scene.removeItem(self.pixmap_item)
+            else:
+                pass
+            return
+        elif isinstance(image_buffer, qgui.QPixmap):
+            pass
+        else:
+            raise ValueError(
+                f'image_buffer argument type is {type(image_buffer)}, '
+                f'not an instance of QPixmap',
+                image_buffer,
+              )
+        if self.pixmap_item is not None:
+            print(f'ImageFileLayer.set_image_buffer("{filepath!s}") #(self.scene.removeItem())')
+            self.scene.removeItem(self.pixmap_item)
+        else:
+            pass
+        self.pixmap = image_buffer
+        self.pixmap_item = self.scene.addPixmap(self.pixmap)
+        self.filepath = filepath
+
     def clear(self):
         if self.pixmap_item is not None:
             self.removeItem(self.pixmap_item)
@@ -81,4 +108,7 @@ class ImageFileLayer():
             # sceneRect property.
             self.scene.addItem(self.pixmap_item)
         else:
-            self.clear()
+            if self.pixmap_item is not None:
+                self.scene.removeItem(self.pixmap_item)
+            else:
+                pass

@@ -19,6 +19,14 @@ class SimpleImagePreview(ImageDisplay, DragDropHandler):
         #self.setViewportUpdateMode(4) # 4: QGraphicsView::BoundingRectViewportUpdate
         self.setResizeAnchor(1) # 1: QGraphicsView::AnchorViewCenter
 
+    def get_image_layer(self):
+        return self.image_file_layer
+
+    def set_image_buffer(self, filepath, image_buffer):
+        """Sets the image buffer (which must be an instance of QImage) and the
+        filepath without loading the image buffer from the filepath."""
+        self.image_file_layer.set_image_buffer(filepath, image_buffer)
+
     def resizeEvent(self, newSize):
         super(SimpleImagePreview, self).resizeEvent(newSize)
         self.center_view_on_image()

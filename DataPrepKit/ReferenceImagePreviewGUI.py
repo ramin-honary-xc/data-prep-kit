@@ -12,8 +12,14 @@ class ReferenceImagePreview(SimpleImagePreview):
     InspectImagePreview in the future.
 
     The 'app_model' given to the constructor of this class MUST
-    contain a method called 'set_reference_image_path()' which is
-    called by the drag-drop event handlers.
+    provide an interface to the following methods:
+
+      - 'set_reference_image_path(Path)' which is called by the
+        drag-drop event handlers.
+
+      - 'get_reference()' which is called to update the
+        SimpleImagePreview file path.
+
     """
 
     def __init__(self, app_model, main_view):
@@ -35,7 +41,7 @@ class ReferenceImagePreview(SimpleImagePreview):
             else:
                 print(f'WARNING: ignoring drag dropped non-local-file path: "{path}"')
         else:
-            print(f'PatternPreview.drop_url_handler() #(received empty list)')
+            print(f'WARNING: PatternPreview.drop_url_handler() #(received empty list)')
 
     def drop_text_handler(self, text):
         files = util.split_linebreaks(text)
@@ -46,7 +52,7 @@ class ReferenceImagePreview(SimpleImagePreview):
         else:
             print(f'WARNING: drag dropped text contains no file paths, ignoring')
 
-    def update_pattern_pixmap(self):
-        pattern = self.app_model.get_pattern()
+    def update_reference_pixmap(self):
+        pattern = self.app_model.get_reference()
         self.set_filepath(pattern.get_path())
 

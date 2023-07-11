@@ -61,7 +61,7 @@ class CachedCVImageLoader():
 
     def set_image(self, path, pixmap):
         self.path = path
-        self.pixmap = pixmap
+        self.image = pixmap
 
     def get_crop_rect(self):
         """You can crop the image before performing processing on it, you can
