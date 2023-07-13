@@ -76,7 +76,10 @@ class FilesTab(FileSetGUI):
             qgui.QKeySequence.Find,
           )
         self.list_widget.addAction(self.use_as_pattern)
-        self.image_preview.addAction(self.use_as_pattern)
+        if self.image_display is not None:
+            self.image_display.addAction(self.use_as_pattern)
+        else:
+            pass
 
     def activation_handler(self, path):
         self.app_model.set_target_image_path(path)
@@ -190,45 +193,45 @@ class InspectTab(qt.QWidget):
         self.layout.addWidget(self.slider)
         self.message_box = MessageBox("Please select SEARCH target image and PATTERN image.")
         self.layout.addWidget(self.message_box)
-        self.image_preview = InspectImagePreview(self.app_model, self)
-        self.image_preview.hide()
-        self.layout.addWidget(self.image_preview)
+        self.image_display = InspectImagePreview(self.app_model, self)
+        self.image_display.hide()
+        self.layout.addWidget(self.image_display)
         #---------- Setup context menus ----------
         self.do_save_selected = context_menu_item(
             "Save all selected regions",
             self.save_selected,
             qgui.QKeySequence.Save,
           )
-        self.image_preview.addAction(self.do_save_selected)
+        self.image_display.addAction(self.do_save_selected)
 
     def slider_handler(self, new_value):
         threshold = self.slider.get_percent()
         if threshold is not None:
             self.app_model.change_threshold(threshold)
-            self.image_preview.redraw()
+            self.image_display.redraw()
         else:
             pass
 
     def show_nothing(self):
-        self.image_preview.hide()
+        self.image_display.hide()
         self.message_box.show()
 
-    def show_image_preview(self):
+    def show_image_display(self):
         self.message_box.hide()
-        self.image_preview.show()
+        self.image_display.show()
 
     def show_distance_map(self):
         """Draws the target image and any matching pattern rectangles into the
-        image_preview window."""
+        image_display window."""
         self.distance_map = self.app_model.get_distance_map()
         target = self.distance_map.get_target()
         if target is not None:
             path = target.get_path()
         else:
             path = None
-        self.image_preview.set_filepath(path)
-        self.image_preview.redraw()
-        self.show_image_preview()
+        self.image_display.set_filepath(path)
+        self.image_display.redraw()
+        self.show_image_display()
         self.do_save_selected.setEnabled(True)
 
     def modal_prompt_get_directory(self, init_dir):
@@ -266,6 +269,7 @@ class PatternMatcherView(qt.QTabWidget):
         self.resize(800, 600)
         self.setTabPosition(qt.QTabWidget.North)
         self.files_tab = FilesTab(app_model, self)
+        self.files_tab.default_image_display_widget()
         self.pattern_tab = PatternSetupTab(app_model, self)
         self.inspect_tab = InspectTab(app_model, self)
         self.addTab(self.files_tab, "Search")

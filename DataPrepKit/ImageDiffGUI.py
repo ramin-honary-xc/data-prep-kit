@@ -1,6 +1,7 @@
 import DataPrepKit.ImageDiff as patm
 from DataPrepKit.PercentSlider import PercentSlider
 from DataPrepKit.FileSetGUI import FileSetGUI, qt_modal_image_file_selection
+from DataPrepKit.SimpleImagePreview import ImagePreview
 from DataPrepKit.ContextMenuItem import context_menu_item
 from DataPrepKit.ReferenceImagePreviewGUI import ReferenceImagePreview
 from DataPrepKit.CropRectTool import CropRectTool
@@ -40,7 +41,21 @@ class FilesTab(FileSetGUI):
             qgui.QKeySequence.Find,
           )
         self.list_widget.addAction(self.use_as_reference)
-        self.image_preview.addAction(self.use_as_reference)
+        self._infobox = qt.QLineEdit()
+        self._infobox.setReadOnly(True)
+        self._display = ImagePreview()
+        self.set_image_display_widget(self._display)
+        self._display.set_info_widget(self._infobox)
+
+    def default_image_display_widget(self):
+        return super(FilesTab, self).default_image_display_widget()
+
+    def set_image_display_widget(self, image_display):
+        super(FilesTab, self).set_image_display_widget(image_display)
+        if self.image_display is not None:
+            self.image_display.addAction(self.use_as_reference)
+        else:
+            pass
 
     def activation_handler(self, path):
         print(f'FilesTab.activation_handler("{path!s}")')
@@ -49,13 +64,23 @@ class FilesTab(FileSetGUI):
 
     def item_change_handler(self, path):
         self.app_model.set_compare_image_path(path)
-        image_buffer = self.app_model.get_display_image()
-        if image_buffer is None:
-            print(f'FilesTab.item_change_handler("{path!s}") #(self.app_model.get_display_image() returned None)')
-            pass
+        self.app_model.update_diff_image()
+        (image_buffer, similarity) = self.app_model.get_display_image()
+        image_display = self.get_image_display()
+        if image_display is not None:
+            if image_buffer is None:
+                image_display.clear()
+                self._infobox.clear()
+            else:
+                image_display.set_image_buffer(path, numpy_array_to_QPixmap(image_buffer))
         else:
-            image_preview = self.get_image_preview()
-            image_preview.set_image_buffer(path, numpy_array_to_QPixmap(image_buffer))
+            pass
+        if similarity is not None:
+            self._infobox.clear()
+            similarity = round(similarity * 100000) / 1000
+            self._infobox.setText(f'similarity = {similarity!s}%')
+        else:
+            pass
         
     def use_current_item_as_reference(self):
         path = self.current_item_path()

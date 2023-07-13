@@ -98,10 +98,12 @@ class FileSetGUI(qt.QWidget):
       insertion and deletion operations will act directly on this
       fileset. You can also use the set_fileset() method.
 
-    - Make modifications to the file display. You can pass your own
-      ImageDisplay object as the 3rd argument to the
-      constructor. Without this argument, a default ImageDisplay is
-      constructed.
+    - The 'image_display' argument allows an ImageDisplay object as to
+      be placed into the FileSetGUI view. Without this argument, no
+      image display is created, but you can setup a default image
+      display by calling the 'default_image_display_widget()' or
+      'set_image_disaply_widget()' method after creating a new
+      FileSetGUI object.
 
     - Construct QAction objects and install them into the context menu
       that pops-up when the end user right-clicks on either the image
@@ -116,13 +118,14 @@ class FileSetGUI(qt.QWidget):
     - The 'file_selector_message': the string to display at the top of
       the dialog box opened by the 'file_selector'. This value is
       passed to the function that is set in the 'file_selector' slot.
+
     """
 
     def __init__(
         self,
         main_view,
         fileset=None,
-        image_preview=None,
+        image_display=None,
         action_label='Use this file',
         file_selector=qt_modal_file_selection,
         file_selector_message='Select files',
@@ -138,19 +141,15 @@ class FileSetGUI(qt.QWidget):
             self.fileset = fileset
         #---------- Setup visible widgets ----------
         self.layout = qt.QHBoxLayout(self)
-        self.splitter = qt.QSplitter(1, self)
+        self.splitter = qt.QSplitter(qcore.Qt.Orientation.Horizontal, self)
         self.setAcceptDrops(True)
         self.splitter.setObjectName("FilesTab splitter")
         self.list_widget = qt.QListWidget(self)
         self.list_widget.setObjectName("FilesTab list_widget")
-        self.list_widget.setContextMenuPolicy(2) # 2 = qcore::ContextMenuPolicy::ActionsContextMenu
-        if image_preview is None:
-            self.image_preview = SimpleImagePreview(self)
-        else:
-            self.image_preview = image_preview
-        self.image_preview.setObjectName("FilesTab ImagePreview")
-        self.splitter.addWidget(self.list_widget)
-        self.splitter.addWidget(self.image_preview)
+        self.list_widget.setContextMenuPolicy(qcore.Qt.ContextMenuPolicy.ActionsContextMenu)
+        self.splitter.insertWidget(0, self.list_widget)
+        self.image_display = None
+        self.set_image_display_widget(image_display)
         self.layout.addWidget(self.splitter)
         self.display_pixmap_path = None
         #---------- Populate list view ----------
@@ -163,7 +162,7 @@ class FileSetGUI(qt.QWidget):
             qgui.QKeySequence.Open,
           )
         self.file_list_add_context_menu_item(self.open_image_files)
-        self.image_preview_add_context_menu_item(self.open_image_files)
+        self.image_display_add_context_menu_item(self.open_image_files)
         ## Action: remove from list
         self.remove_from_list = context_menu_item(
             "Remove from list",
@@ -178,7 +177,7 @@ class FileSetGUI(qt.QWidget):
             qgui.QKeySequence.InsertParagraphSeparator,
           )
         self.file_list_add_context_menu_item(self.do_find_pattern)
-        self.image_preview_add_context_menu_item(self.do_find_pattern)
+        self.image_display_add_context_menu_item(self.do_find_pattern)
         #---------- Connect signal handlers ----------
         self.list_widget.currentItemChanged.connect(self.__item_change_handler)
         self.list_widget.itemActivated.connect(self.__activation_handler)
@@ -201,11 +200,25 @@ class FileSetGUI(qt.QWidget):
     def get_list_widget(self):
         return self.list_widget
 
-    def get_image_preview(self):
-        return self.image_preview
+    def get_image_display(self):
+        return self.image_display
 
-    def set_image_preview(self, image_preview):
-        self.image_preview = image_preview
+    def default_image_display_widget(self):
+        self.set_image_display_widget(SimpleImagePreview(self))
+
+    def set_image_display_widget(self, image_display):
+        if self.image_display is not None:
+            #print(f'FileListItem.set_image_display_widget() -> deleteLater({self.image_display})')
+            self.image_display.clear()
+            self.image_display.deleteLater()
+        else:
+            pass
+        self.image_display = image_display
+        if self.image_display is not None:
+            self.image_display.setObjectName("FilesTab ImagePreview")
+            self.splitter.insertWidget(1, self.image_display)
+        else:
+            pass
 
     def file_list_add_context_menu_item(self, item):
         if isinstance(item, qt.QAction):
@@ -213,9 +226,12 @@ class FileSetGUI(qt.QWidget):
         else:
             raise ValueError(f'not an instance of QAction', item)
 
-    def image_preview_add_context_menu_item(self, item):
+    def image_display_add_context_menu_item(self, item):
         if isinstance(item, qt.QAction):
-            self.image_preview.addAction(item)
+            if self.image_display is not None:
+                self.image_display.addAction(item)
+            else:
+                pass
         else:
             raise ValueError(f'not an instance of QAction', item)
 
@@ -232,7 +248,10 @@ class FileSetGUI(qt.QWidget):
             pass
 
     def item_change_handler(self, item):
-        self.image_preview.set_filepath(item)
+        if self.image_display is not None:
+            self.image_display.set_filepath(item)
+        else:
+            pass
 
     def activate_selected_item(self):
         """This method performs the same action as double-clicking on a file
@@ -240,8 +259,8 @@ class FileSetGUI(qt.QWidget):
         an item of the file list view.
         """
         path = self.current_item_path()
-        if path is None:
-            path = self.image_preview.get_filepath()
+        if (path is None) and (self.image_display is not None):
+            path = self.image_display.get_filepath()
         else:
             pass
         if path is None:
@@ -263,7 +282,10 @@ class FileSetGUI(qt.QWidget):
             path = item.get_path()
             self.fileset.delete(path)
             self.list_widget.takeItem(self.list_widget.currentRow())
-            self.image_preview.clear()
+            if self.image_display is not None:
+                self.image_display.clear()
+            else:
+                pass
         else:
             pass
 
@@ -284,7 +306,7 @@ class FileSetGUI(qt.QWidget):
         else:
             pass
         urls = self.file_selector(self, self.file_selector_message)
-        print(f"selected urls = {urls}")
+        #print(f"selected urls = {urls}")
         urls = urls[0]
         if len(urls) > 0:
             self.main_view.add_target_image_paths(gather_QUrl_local_files(urls))
@@ -306,13 +328,13 @@ class FileSetGUI(qt.QWidget):
         if mime_data.hasUrls():
             event.accept()
             urls = mime_data.urls()
-            print(f'FilesSetGUI.dropEvent() #(urls: {urls})')
+            #print(f'FilesSetGUI.dropEvent() #(urls: {urls})')
             self.fileset.merge_recursive(patm.gather_QUrl_local_files(urls))
             self.reset_paths_list()
         elif mime_data.hasText():
             event.accept()
             text = mime_data.text()
-            print(f'FilesSetGUI.dropEvent() #(text: {text})')
+            #print(f'FilesSetGUI.dropEvent() #(text: {text})')
             self.fileset.merge_recursive(util.split_linebreaks(text))
             self.reset_paths_list()
         else:

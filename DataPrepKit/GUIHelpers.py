@@ -8,7 +8,7 @@ def numpy_array_to_QPixmap(array):
     data format of NumPy arrays to the image format used by
     QPixmap(). """
     d = qgui.QPixmap.defaultDepth()
-    print(f'numpy_array_to_QPixmap() #(shape: {array.shape}, depth: {d})')
+    #print(f'numpy_array_to_QPixmap() #(shape: {array.shape}, depth: {d})')
     if (len(array.shape) == 3) and (array.shape[2] == 3):
         # This is most likely an RGB color image
         (h, w, channels) = array.shape

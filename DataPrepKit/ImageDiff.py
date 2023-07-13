@@ -14,7 +14,13 @@ def diff_images(refimg, srcimg, color_map=None):
     performed, both images must be the same size. For color images,
     averages each pixel, the returned image is always grayscale,
     unless color_map is supplied in which case the grayscale is
-    converted back into a color image."""
+    converted back into a color image.
+
+    A tuple is returned, with the first element being the new
+    difference ndarray (possibly colorized), and the second being a
+    percentage showing the "similarity" between the two images. The
+    "similarity" is the 1.0 minus the average of all pixels in the
+    difference image. """
     result_img = cv.absdiff(refimg, srcimg)
     shape = result_img.shape
     if (len(shape) == 3) and ((shape[2] == 3) or (shape[2] == 4)):
@@ -25,10 +31,14 @@ def diff_images(refimg, srcimg, color_map=None):
         raise ValueError(
             f'unexpected result image shape {shape}',
           )
+    (h, w) = (shape[0], shape[1])
+    sum = np.sum(result_img)
+    similarity = 1.0 - np.sum(result_img) / (h*w*255)
     if color_map is None:
-        return result_img
+        pass
     else:
-        return util.numpy_map_colors(result_img, color_map)
+        result_img = util.numpy_map_colors(result_img, color_map)
+    return (result_img, similarity)
 
 ####################################################################################################
 
@@ -58,13 +68,14 @@ class ImageDiff():
         self.show_diff_enabled = True
         self.color_map = const.color_forest_fire
             # ^ Set to False to show the image without comparison to the reference
+        self.similarity = None
 
     def enable_show_diff(self, boolean):
         """This is the state of the check box that enables or disables
         ordinary image view or difference image view. If set to enable
         and the current diff image has not been computed yet, it is
         computed before this function returns. """
-        print(f'ImageDiff.enable_show_diff({boolean})')
+        #print(f'ImageDiff.enable_show_diff({boolean})')
         self.show_diff_enabled = boolean
         path = self.compare_image.get_path()
         if boolean and (path is not None):
@@ -86,7 +97,7 @@ class ImageDiff():
         return self.reference
 
     def set_reference_image_path(self, path):
-        print(f'ImageDiff.set_reference_image_path("{path!s}")')
+        #print(f'ImageDiff.set_reference_image_path("{path!s}")')
         self.reference.load_image(path=path)
 
     def get_compare_image(self):
@@ -99,9 +110,12 @@ class ImageDiff():
         """This method will call 'get_diff_image()' or 'get_compare_image()'
         depending on whether 'enable_show_diff(True)' has been set. """
         if self.show_diff_enabled:
-            return self.diff_image.get_raw_image()
+            return (self.diff_image.get_raw_image(), self.similarity)
         else:
-            return self.compare_image.get_raw_image()
+            return (self.compare_image.get_raw_image(), None)
+
+    def get_similarity(self):
+        return self.similarity
 
     def get_color_map(self):
         return self.color_map
@@ -132,12 +146,25 @@ class ImageDiff():
         """Compute the difference between the current referene image and the
         given path."""
         ref_image = self.reference.get_raw_image()
+        if not self.show_diff_enabled:
+            return
+        else:
+            pass
         input_image = self.compare_image.get_raw_image()
-        print(f'ImageDiff.update_diff_image() #(type(ref_image) = {type(ref_image)}, type(input_image) = {type(input_image)})')
-        if (ref_image is not None) and (input_image is not None):
-            image_buffer = diff_images(ref_image, input_image, self.color_map)
+        #print(f'ImageDiff.update_diff_image() #(type(ref_image) = {type(ref_image)}, type(input_image) = {type(input_image)})')
+        if (ref_image is None) or (input_image is None):
+            print(f'WARNING: no reference image set, cannot compute image difference')
+        elif (ref_image.shape != input_image.shape):
+            print(
+                f'WARNING: reference image "{self.reference.get_path()}"'
+                f' size {ref_image.shape}'
+                f' does not match input image "{self.compare_image.get_path()}"'
+                f' size {input_image.shape}',
+              )
+            self.diff_image.clear()
+            self.similarity = None
+        else:
+            (image_buffer, similarity) = diff_images(ref_image, input_image, self.color_map)
             path = self.compare_image.get_path()
             self.diff_image.set_image(path, image_buffer)
-        else:
-            print(f'WARNING: no reference image set, cannot compute image difference')
-            pass
+            self.similarity = similarity
