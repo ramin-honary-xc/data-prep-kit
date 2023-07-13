@@ -127,7 +127,11 @@ def main():
         appWindow.show()
         sys.exit(app.exec_())
     else:
-        matcher.batch_crop_matched_patterns()
+        if config.pattern is None or \
+          (len(config.inputs) == 0):
+            arper.print_usage()
+        else:
+            matcher.batch_crop_matched_patterns()
 
 ####################################################################################################
 
