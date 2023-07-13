@@ -104,12 +104,45 @@ Other CLI arguments include:
     usually be  visible in  the CLI  window from  which the  script is
     launched.
 
+### `imgdiffkit.py`: an image comparison tool
+
+This program is used to validate the results of the `patmatkit.py`
+tool. If two images are provided, (1) an "input" image and (2) a
+"reference" image, both being the exact same size, every pixel of the
+reference image is subtracted from its corresponding (same x,y
+coordinate) pixel in the input image, producing a new "difference"
+image where each corresponding pixel contains the difference
+value. Difference values are color-coded:
+
+- Black -- identical
+- Green -- 25% difference
+- Yellow -- 50% difference
+- Orange -- 75% difference
+- Red -- 100% difference
+
+#### Using this application in GUI mode
+
+ 1. Open the result images created by `patmatkit.py` in the "Search"
+    tab by right-clicking in the left-hand file list, or by dragging and
+    dropping the directory containing the results.
+
+ 2. In the "Reference" tab, select the pattern image that was used to
+    construct the results.
+
+ 3. Go back to the "Search" tab and click on each file in the file
+    list to select the "input" image to be compared to the "reference"
+    image selected in the previous step. You may also use up/down
+    arrow keys to navigate through each item in the list.
+
+    In the right-hand display you will see the difference image
+    visualization computed for each as described above.
+
 ### `imgcropkit.py`: a feature matching tool
   
-Used  for crop  specific objects  or recognizable  features in  larger
-images. This  tool allows you to  select a reference image  to set the
+Used for crop specific objects or recognizable features in larger
+images. This tool allows you to select a reference image to set the
 cropping area relative to certain features in the image. Then, given a
-larger set of images, similar  features are searched-for in each image
+larger set of images, similar features are searched-for in each image
 and cropped according to the reference image.
 
 The [ORB feature-matching algorithm](https://docs.opencv.org/3.4/d1/d89/tutorial_py_orb.html)
