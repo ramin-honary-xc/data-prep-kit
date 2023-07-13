@@ -1,4 +1,5 @@
 import re
+import numpy as np
 
 ####################################################################################################
 # Parsing command line arguments
@@ -40,3 +41,24 @@ def flatten_list(input):
     input.extend(result)
     return input
 
+def numpy_map_colors(gray_image, color_map):
+    """Construct a color RGB image from a gray image."""
+    if not isinstance(gray_image, np.ndarray) or \
+      (gray_image.dtype != np.uint8) or \
+      (len(gray_image.shape) != 2):
+        raise ValueError(
+            f'first argument must be np.ndarray of dtype uint8',
+          )
+    elif not isinstance(color_map, np.ndarray) or \
+      (color_map.dtype != np.uint8) or \
+      (color_map.shape != (256,3)):
+        raise ValueError(
+            f'second argument must be a color map, i.e. np.ndarray of dtype uint8 and of shape (256,3)',
+          )
+    else:
+        (h, w) = gray_image.shape
+        mapped = np.empty((h, w, 3), dtype=np.uint8)
+        for y in range(0,h):
+            for x in range(0,w):
+                mapped[y,x] = color_map[gray_image[y,x]]
+        return mapped

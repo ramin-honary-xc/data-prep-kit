@@ -1,6 +1,8 @@
 from DataPrepKit.FileSet import FileSet
 from DataPrepKit.FileSetGUI import FileSetGUI
 from DataPrepKit.CachedCVImageLoader import CachedCVImageLoader
+import DataPrepKit.utilities as util
+import DataPrepKit.Consts as const
 
 import cv2 as cv
 import numpy as np
@@ -20,10 +22,13 @@ def diff_images(refimg, srcimg, color_map=None):
     elif len(shape) == 2:
         pass
     else:
-        print(f'WARNING DataPrepKit.ImageDiff.diff_images(): unexpected result image shape {shape}')
-        pass
-    # TODO: apply the color_map
-    return result_img
+        raise ValueError(
+            f'unexpected result image shape {shape}',
+          )
+    if color_map is None:
+        return result_img
+    else:
+        return util.numpy_map_colors(result_img, color_map)
 
 ####################################################################################################
 
@@ -51,6 +56,7 @@ class ImageDiff():
         self.compare_image = CachedCVImageLoader();
         self.diff_image = CachedCVImageLoader()
         self.show_diff_enabled = True
+        self.color_map = const.color_forest_fire
             # ^ Set to False to show the image without comparison to the reference
 
     def enable_show_diff(self, boolean):
@@ -97,6 +103,20 @@ class ImageDiff():
         else:
             return self.compare_image.get_raw_image()
 
+    def get_color_map(self):
+        return self.color_map
+
+    def set_color_map(self, color_map):
+        if isinstance(color_map, np.ndarray) and \
+          (color_map.dtype == np.uint8) and \
+          (color_map.shape == (256,3)):
+            self.color_map = color_map
+        else:
+            raise ValueError(
+                f'color scheme must be numpy.ndarray of dtype uint8 and shape (256,3)',
+                color_map
+              )
+
     def set_compare_image_path(self, path):
         """Set which path is to be compared to the reference image. If
         enable_show_diff(True) has been set, the diff image is also
@@ -115,7 +135,7 @@ class ImageDiff():
         input_image = self.compare_image.get_raw_image()
         print(f'ImageDiff.update_diff_image() #(type(ref_image) = {type(ref_image)}, type(input_image) = {type(input_image)})')
         if (ref_image is not None) and (input_image is not None):
-            image_buffer = diff_images(ref_image, input_image)
+            image_buffer = diff_images(ref_image, input_image, self.color_map)
             path = self.compare_image.get_path()
             self.diff_image.set_image(path, image_buffer)
         else:
