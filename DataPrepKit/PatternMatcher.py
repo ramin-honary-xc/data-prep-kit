@@ -47,16 +47,16 @@ class DistanceMap():
         square-difference distance map.
         """
         self.target = target
-        self.pattern = pattern
-        print(f'pattern = {self.pattern.get_path()!s}')
+        self.reference = pattern
+        print(f'reference = {self.reference.get_path()!s}')
         self.target_image_path = target.get_path()
-        pattern_image = pattern.get_image()
-        pat_shape = pattern_image.shape
-        self.pattern_height = pat_shape[0]
-        self.pattern_width  = pat_shape[1]
+        reference_image = pattern.get_image()
+        pat_shape = reference_image.shape
+        self.reference_height = pat_shape[0]
+        self.reference_width  = pat_shape[1]
         print(
-            f"pattern_width = {self.pattern_width},"
-            f" pattern_height = {self.pattern_height},",
+            f"reference_width = {self.reference_width},"
+            f" reference_height = {self.reference_height},",
           )
 
         target_image = target.get_image()
@@ -69,7 +69,7 @@ class DistanceMap():
           )
 
         # The target image might have also a cropping rectangle set to
-        # limit the bounds of the pattern matching. Apply this
+        # limit the bounds of the reference matching. Apply this
         # cropping to the image buffer now.
         crop = target.get_crop_rect()
         if crop is not None:
@@ -78,17 +78,17 @@ class DistanceMap():
         else:
             pass
 
-        # Here we check that the pattern image size is not too large
-        # relative to the target image size. The pattern image size
+        # Here we check that the reference image size is not too large
+        # relative to the target image size. The reference image size
         # threshold is hard-coded here (for now) as 2/3rds the size of
         # the target image size.
 
-        if float(self.pattern_width)  > self.target_width  / 2 * 3 or \
-           float(self.pattern_height) > self.target_height / 2 * 3 :
+        if float(self.reference_width)  > self.target_width  / 2 * 3 or \
+           float(self.reference_height) > self.target_height / 2 * 3 :
             raise ValueError(
-                "pattern image is too large relative to target image",
-                {"pattern_width": self.pattern_width,
-                 "pattern_height": self.pattern_height,
+                "reference image is too large relative to target image",
+                {"reference_width": self.reference_width,
+                 "reference_height": self.reference_height,
                  "target_width": self.target_width,
                  "target_height": self.target_height,
                 },
@@ -97,25 +97,25 @@ class DistanceMap():
             pass
 
         # When searching the convolution result for local minima, we could
-        # use a window size the same as the pattern size, but a slightly
+        # use a window size the same as the reference size, but a slightly
         # finer window size tends to have better results. If possible, halve
-        # each dimension of pattern size to define the window size.
+        # each dimension of reference size to define the window size.
 
-        self.window_height = math.ceil(self.pattern_height / 2) \
-            if self.pattern_height >= 4 else self.pattern_height
-        self.window_width  = math.ceil(self.pattern_width  / 2) \
-            if self.pattern_width  >= 4 else self.pattern_width
+        self.window_height = math.ceil(self.reference_height / 2) \
+            if self.reference_height >= 4 else self.reference_height
+        self.window_width  = math.ceil(self.reference_width  / 2) \
+            if self.reference_width  >= 4 else self.reference_width
 
         print(f"window_height = {self.window_height}, window_width = {self.window_width}")
 
-        ### Available methods for pattern matching in OpenCV
+        ### Available methods for reference matching in OpenCV
         #
         # cv.TM_CCOEFF  cv.TM_CCOEFF_NORMED
         # cv.TM_CCORR   cv.TM_CCORR_NORMED
         # cv.TM_SQDIFF  cv.TM_SQDIFF_NORMED
 
         # Apply template Matching
-        pre_distance_map = cv.matchTemplate(target_image, pattern_image, cv.TM_SQDIFF_NORMED)
+        pre_distance_map = cv.matchTemplate(target_image, reference_image, cv.TM_SQDIFF_NORMED)
         pre_dist_map_height, pre_dist_map_width = pre_distance_map.shape
         print(f"pre_dist_map_height = {pre_dist_map_height}, pre_dist_map_width = {pre_dist_map_width}")
 
@@ -142,8 +142,8 @@ class DistanceMap():
     def get_target(self):
         return self.target
 
-    def get_pattern(self):
-        return self.pattern
+    def get_reference(self):
+        return self.reference
 
     def save_distance_map(self, file_path):
         """Write the distance map that was computed at the time this object
@@ -168,7 +168,7 @@ class DistanceMap():
             pass
 
         # We use reshape to cut the search_image up into pieces exactly
-        # equal in size to the pattern image.
+        # equal in size to the reference image.
         dist_map_height, dist_map_width = self.distance_map.shape
         window_vcount = round(dist_map_height / self.window_height)
         window_hcount = round(dist_map_width  / self.window_width)
@@ -192,7 +192,7 @@ class DistanceMap():
                     results.append(
                         RegionSize(
                             global_x, global_y,
-                            self.pattern_width, self.pattern_height,
+                            self.reference_width, self.reference_height,
                           )
                       )
                 else:
@@ -228,7 +228,7 @@ class PatternMatcher():
         self.threshold = 0.78
         self.target = CachedCVImageLoader()
         self.target_matched_regions = []
-        self.pattern = CachedCVImageLoader()
+        self.reference = CachedCVImageLoader()
         if config:
             self.set_config(config)
         else:
@@ -244,40 +244,40 @@ class PatternMatcher():
         self.results_dir = config.output_dir
         self.threshold = config.threshold
         self.save_distance_map = config.save_map
-        # Load the pattern right away, if it is not None
-        self.pattern_image_path = config.pattern
-        if self.pattern_image_path:
-            self.pattern.load_image(self.pattern_image_path)
+        # Load the reference right away, if it is not None
+        self.reference_image_path = config.pattern
+        if self.reference_image_path:
+            self.reference.load_image(self.reference_image_path)
         else:
             pass
 
-    def get_pattern(self):
-        return self.pattern
+    def get_reference(self):
+        return self.reference
 
     def get_reference_image_path(self):
-        return self.pattern.get_path()
+        return self.reference.get_path()
 
     def set_reference_image_path(self, path):
-        self.pattern_image_path = path
+        self.reference_image_path = path
         if path:
-            self.pattern.load_image(path)
+            self.reference.load_image(path)
         else:
             pass
 
-    def set_pattern_pixmap(self, pattern_path, pixmap):
-        self.pattern.set_image(pattern_path, pixmap)
+    def set_reference_pixmap(self, reference_path, pixmap):
+        self.reference.set_image(reference_path, pixmap)
 
-    def get_pattern_rect(self):
-        return self.pattern_rect
+    def get_reference_rect(self):
+        return self.reference_rect
 
-    def set_pattern_rect(self, rect):
+    def set_reference_rect(self, rect):
         if rect is None:
-            self.pattern.set_crop_rect(None)
+            self.reference.set_crop_rect(None)
         elif isinstance(rect, tuple) and (len(rect) == 4):
-            if self.pattern is not None:
-                self.pattern.set_crop_rect(rect)
+            if self.reference is not None:
+                self.reference.set_crop_rect(rect)
         else:
-            raise ValueError(f'PatternMatcher.set_pattern_rect() must take a 4-tuple', rect)
+            raise ValueError(f'PatternMatcher.set_reference_rect() must take a 4-tuple', rect)
 
     def get_target(self):
         return self.target
@@ -315,15 +315,15 @@ class PatternMatcher():
         list in the "FilesTab". It starts running the pattern matching algorithm and
         changes the display of the GUI over to the "InspectTab".
         """
-        patimg = self.pattern.get_image()
+        patimg = self.reference.get_image()
         targimg = self.target.get_image()
         if patimg is None:
-            print(f'PatternMatcher.match_on_file() #(self.pattern.get_image() returned None)')
+            print(f'PatternMatcher.match_on_file() #(self.reference.get_image() returned None)')
         elif targimg is None:
             print(f'PatternMatcher.match_on_file() #(self.target.get_image() returned None)')
         else:
             target_image_path = self.target.get_path()
-            self.distance_map = DistanceMap(self.target, self.pattern)
+            self.distance_map = DistanceMap(self.target, self.reference)
             self.target_matched_regions = \
                 self.distance_map.find_matching_regions(self.threshold)
 
@@ -344,7 +344,7 @@ class PatternMatcher():
         self.distance_map.find_matching_region() function."""
         return self.target_matched_regions
 
-    def crop_matched_patterns(self, target_image_path):
+    def crop_matched_references(self, target_image_path):
         # Create results directory if it does not exist
         if not os.path.isdir(self.results_dir):
             os.mkdir(self.results_dir)
@@ -352,8 +352,8 @@ class PatternMatcher():
             pass
         target = CachedCVImageLoader()
         target.load_image(target_image_path)
-        self.pattern.load_image(self.pattern_image_path)
-        distance_map = DistanceMap(target, self.pattern)
+        self.reference.load_image(self.reference_image_path)
+        distance_map = DistanceMap(target, self.reference)
         if self.save_distance_map is not None:
             # Save the convolution image:
             distance_map.save_distance_map(self.save_distance_map)
@@ -361,8 +361,8 @@ class PatternMatcher():
             pass
         distance_map.write_all_cropped_images(target.get_image(), self.threshold, self.results_dir)
 
-    def batch_crop_matched_patterns(self):
-        self.pattern.load_image()
+    def batch_crop_matched_references(self):
+        self.reference.load_image()
         for image in self.target_fileset:
             #print(
             #    f'image = {image!s}\n'
@@ -370,8 +370,8 @@ class PatternMatcher():
             #    f'threshold = {self.threshold}\n'
             #    f'save_distance_map = {self.save_distance_map}',
             #  )
-            self.crop_matched_patterns(image)
+            self.crop_matched_references(image)
 
     def load_image(self, path):
-        self.pattern.set_reference_image_path(path)
-        self.pattern.load_image()
+        self.reference.set_reference_image_path(path)
+        self.reference.load_image()

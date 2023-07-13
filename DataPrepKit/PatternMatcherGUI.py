@@ -72,7 +72,7 @@ class FilesTab(FileSetGUI):
         ## Action: Use as pattern
         self.use_as_pattern = context_menu_item(
             "Use as pattern",
-            self.use_current_item_as_pattern,
+            self.use_current_item_as_reference,
             qgui.QKeySequence.Find,
           )
         self.list_widget.addAction(self.use_as_pattern)
@@ -91,9 +91,9 @@ class FilesTab(FileSetGUI):
                 "A pattern image must be set for matching on the selected image.",
               )
 
-    def use_current_item_as_pattern(self):
+    def use_current_item_as_reference(self):
         path = self.current_item_path()
-        print(f'FilesTab.use_current_item_as_pattern() #("{path}")')
+        print(f'FilesTab.use_current_item_as_reference() #("{path}")')
         self.app_model.set_reference_image_path(path)
         self.main_view.update_reference_pixmap()
 
@@ -115,7 +115,7 @@ class PatternPreview(ReferenceImagePreview):
         self.crop_rect_tool.redraw()
 
     def change_crop_rect(self, rect):
-        self.app_model.set_pattern_rect(rect)
+        self.app_model.set_reference_rect(rect)
 
 #---------------------------------------------------------------------------------------------------
 
