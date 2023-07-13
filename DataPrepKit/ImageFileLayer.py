@@ -62,12 +62,7 @@ class ImageFileLayer():
         """Sets the image buffer (which must be an instance of QImage) and the
         filepath without loading the image buffer from the filepath."""
         if image_buffer is None:
-            if self.pixmap_item is not None:
-                print(f'ImageFileLayer.set_image_buffer("{filepath!s}") #(self.scene.removeItem())')
-                self.scene.removeItem(self.pixmap_item)
-            else:
-                pass
-            return
+            return self.clear()
         elif isinstance(image_buffer, qgui.QPixmap):
             pass
         else:
@@ -87,9 +82,11 @@ class ImageFileLayer():
 
     def clear(self):
         if self.pixmap_item is not None:
+            print(f'ImageFileLayer.set_image_buffer("{self.filepath!s}") #(self.scene.removeItem())')
             self.scene.removeItem(self.pixmap_item)
         else:
             pass
+        self.filepath = None
         self.pixmap = None
         self.pixmap_item = None
         

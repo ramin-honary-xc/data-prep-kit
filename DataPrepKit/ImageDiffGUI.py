@@ -1,6 +1,7 @@
 import DataPrepKit.ImageDiff as patm
 from DataPrepKit.PercentSlider import PercentSlider
 from DataPrepKit.FileSetGUI import FileSetGUI, qt_modal_image_file_selection
+from DataPrepKit.SimpleImagePreview import ImagePreview
 from DataPrepKit.ContextMenuItem import context_menu_item
 from DataPrepKit.ReferenceImagePreviewGUI import ReferenceImagePreview
 from DataPrepKit.CropRectTool import CropRectTool
@@ -40,7 +41,17 @@ class FilesTab(FileSetGUI):
             qgui.QKeySequence.Find,
           )
         self.list_widget.addAction(self.use_as_reference)
-        self.image_preview.addAction(self.use_as_reference)
+        #self.display = self.get_image_display().get_display()
+
+    def default_image_display_widget(self):
+        return super(FilesTab, self).default_image_display_widget()
+
+    def set_image_display_widget(self, image_display):
+        super(FilesTab, self).set_image_display_widget(image_display)
+        if self.image_display is not None:
+            self.image_display.addAction(self.use_as_reference)
+        else:
+            pass
 
     def activation_handler(self, path):
         print(f'FilesTab.activation_handler("{path!s}")')
@@ -50,12 +61,14 @@ class FilesTab(FileSetGUI):
     def item_change_handler(self, path):
         self.app_model.set_compare_image_path(path)
         image_buffer = self.app_model.get_display_image()
-        if image_buffer is None:
-            print(f'FilesTab.item_change_handler("{path!s}") #(self.app_model.get_display_image() returned None)')
-            pass
+        image_display = self.get_image_display()
+        if image_display is not None:
+            if image_buffer is None:
+                image_display.clear()
+            else:
+                image_display.set_image_buffer(path, numpy_array_to_QPixmap(image_buffer))
         else:
-            image_preview = self.get_image_preview()
-            image_preview.set_image_buffer(path, numpy_array_to_QPixmap(image_buffer))
+            pass
         
     def use_current_item_as_reference(self):
         path = self.current_item_path()
@@ -122,6 +135,7 @@ class ImageDiffGUI(qt.QTabWidget):
         self.resize(800, 600)
         self.setTabPosition(qt.QTabWidget.North)
         self.files_tab = FilesTab(app_model, self)
+        self.files_tab.default_image_display_widget()
         self.reference_tab = ReferenceSetupTab(app_model, self)
         self.addTab(self.files_tab, "Search")
         self.addTab(self.reference_tab, "Reference")

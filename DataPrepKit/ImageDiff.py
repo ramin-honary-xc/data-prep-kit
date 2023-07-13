@@ -134,10 +134,17 @@ class ImageDiff():
         ref_image = self.reference.get_raw_image()
         input_image = self.compare_image.get_raw_image()
         print(f'ImageDiff.update_diff_image() #(type(ref_image) = {type(ref_image)}, type(input_image) = {type(input_image)})')
-        if (ref_image is not None) and (input_image is not None):
+        if (ref_image is None) or (input_image is None):
+            print(f'WARNING: no reference image set, cannot compute image difference')
+        elif (ref_image.shape != input_image.shape):
+            print(
+                f'WARNING: reference image {self.reference.get_path()}'
+                f' size {ref_image.shape}'
+                f' does not match input image {self.compare_image.get_path()}'
+                f' size {input_image.shape}',
+              )
+            self.diff_image.clear()
+        else:
             image_buffer = diff_images(ref_image, input_image, self.color_map)
             path = self.compare_image.get_path()
             self.diff_image.set_image(path, image_buffer)
-        else:
-            print(f'WARNING: no reference image set, cannot compute image difference')
-            pass
