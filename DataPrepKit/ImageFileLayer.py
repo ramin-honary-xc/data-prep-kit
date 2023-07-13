@@ -87,7 +87,7 @@ class ImageFileLayer():
 
     def clear(self):
         if self.pixmap_item is not None:
-            self.removeItem(self.pixmap_item)
+            self.scene.removeItem(self.pixmap_item)
         else:
             pass
         self.pixmap = None

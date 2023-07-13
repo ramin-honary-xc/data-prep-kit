@@ -259,10 +259,13 @@ class FileSetGUI(qt.QWidget):
 
     def remove_from_list_handler(self):
         item = self.list_widget.currentItem()
-        path = item.get_path()
-        self.fileset.delete(path)
-        self.list_widget.takeItem(item)
-        self.image_preview.clear_display()
+        if item is not None:
+            path = item.get_path()
+            self.fileset.delete(path)
+            self.list_widget.takeItem(self.list_widget.currentRow())
+            self.image_preview.clear()
+        else:
+            pass
 
     def reset_paths_list(self):
         """Populate the list view with an item for each file path."""
