@@ -4,9 +4,19 @@ import os
 # Classes for working with files.
 
 def filter_image_files_by_ext(filepath):
-    """This function expects a value of type Path() or PurePath."""
+    """This function expects a value of type Path() or PurePath.
+
+    The list of image file extensions used here can be found in the OpenCV v3.4 documentation:
+    https://docs.opencv.org/3.4/d4/da8/group__imgcodecs.html#ga288b8b3da0892bd651fce07b3bbd3a56
+    """
     ext = filepath.suffix.lower()
-    return (ext == ".png") or (ext == ".jpg") or (ext == ".jpeg")
+    return \
+        (ext == ".png") or (ext == ".jpg") or (ext == ".jpeg") or \
+        (ext == ".bmp") or (ext == ".webp") or (ext == ".pbm") or \
+        (ext == ".ppm") or (ext == ".pgm") or (ext == ".pxm") or \
+        (ext == ".pnm") or (ext == ".tif") or (ext == ".tiff") or \
+        (ext == ".sr") or (ext == ".ras") or (ext == ".exr") or \
+        (ext == ".hdr") or (ext == ".pic")
 
 class FileSet():
     """A FileSet is a class of mutable objects responsible for keeping

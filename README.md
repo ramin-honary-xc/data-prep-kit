@@ -2,9 +2,9 @@
 
 This repository contains a few simple Python scripts which run a PyQt5
 GUI allowing you to interactively prepare data using algorithms in the
-OpenCV libarary.  In particular these  tools are useful  for preparing
-data stored in  PNG or JPEG files,  for use as input  to other machine
-learning processes.
+OpenCV libarary.  In  particular these tools are  useful for preparing
+data stored  in PNG,  BMP, or JPEG  files, for use  as input  to other
+machine learning processes.
 
   **Note** that this repository does not included any machine learning
   algorithms, and only  makes use of algorithms present  in the OpenCV

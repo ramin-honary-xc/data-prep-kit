@@ -9,6 +9,18 @@ import PyQt5.QtCore as qcore
 import PyQt5.QtGui as qgui
 import PyQt5.QtWidgets as qt
 
+# The list of image file extensions used here can be found in the OpenCV v3.4 documentation:
+# https://docs.opencv.org/3.4/d4/da8/group__imgcodecs.html#ga288b8b3da0892bd651fce07b3bbd3a56
+qt_image_file_filter_string = \
+  ( 'Images ('
+    ' *.png *.bmp *.jpg *.jpeg *.webp'
+    ' *.pbm *.pgm *.ppm *.pxm *.pnm'
+    ' *.tif *.tiff'
+    ' *.sr *.ras'
+    ' *.exr *.hdr *.pic'
+    ' )' \
+  )
+
 def qt_modal_file_selection(widget, default_dir=None, message='Select files', qt_file_filter_string=''):
     """Simplifies calling qt.QFileDialog.getOpenFileUrls() function, a
     modal dialog box allowing end users to select files from the
@@ -59,12 +71,20 @@ def qt_modal_file_selection(widget, default_dir=None, message='Select files', qt
 def qt_modal_image_file_selection(widget, default_dir=None, message="Open images files"):
     """Convenience function, calls 'qt_modal_file_selection' with the
     'qt_file_filter_string' argument set to the correct value to allow
-    end users to select only image files."""
+    end users to select only image files.
+    """
     return qt_modal_file_selection(
         widget,
         default_dir=default_dir,
         message=message,
-        qt_file_filter_string='Images (*.png *.jpg *.jpeg)'
+        qt_file_filter_string=\
+          'Images ('
+          ' *.png *.bmp *.jpg *.jpeg *.webp'
+          ' *.pbm *.pgm *.ppm *.pxm *.pnm'
+          ' *.tif *.tiff'
+          ' *.sr *.ras'
+          ' *.exr *.hdr *.pic'
+          ' )'
       )
 
 class FileListItem(qt.QListWidgetItem):
