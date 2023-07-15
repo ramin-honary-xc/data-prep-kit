@@ -4,6 +4,8 @@ from DataPrepKit.CachedCVImageLoader import CachedCVImageLoader
 import DataPrepKit.utilities as util
 import DataPrepKit.Consts as const
 
+from pathlib import PurePath
+import csv
 import cv2 as cv
 import numpy as np
 
@@ -39,6 +41,28 @@ def diff_images(refimg, srcimg, color_map=None):
     else:
         result_img = util.numpy_map_colors(result_img, color_map)
     return (result_img, similarity)
+
+def rename_path_to_diff(path, output_dir=None):
+    if output_dir is None:
+        output_dir = path.parent
+    else:
+        pass
+    return output_dir / PurePath(f'{path.stem}_diff{path.suffix}')
+
+def _warn_different_shapes(ref_image, input_image):
+    ref_image_buffer = ref_image.get_image()
+    input_image_buffer = input_image.get_image()
+    if ref_image_buffer.shape != input_image_buffer.shape:
+        print(
+            f'WARNING: reference image "{ref_image.get_path()}"'
+            f' size {ref_image_buffer.shape}'
+            f' does not match input image "{input_image.get_path()}"'
+            f' size {input_image_buffer.shape}',
+          )
+        return True
+    else:
+        return False
+
 
 ####################################################################################################
 
@@ -154,17 +178,65 @@ class ImageDiff():
         #print(f'ImageDiff.update_diff_image() #(type(ref_image) = {type(ref_image)}, type(input_image) = {type(input_image)})')
         if (ref_image is None) or (input_image is None):
             print(f'WARNING: no reference image set, cannot compute image difference')
-        elif (ref_image.shape != input_image.shape):
-            print(
-                f'WARNING: reference image "{self.reference.get_path()}"'
-                f' size {ref_image.shape}'
-                f' does not match input image "{self.compare_image.get_path()}"'
-                f' size {input_image.shape}',
-              )
+        elif _warn_different_shapes(self.reference, self.compare_image):
             self.diff_image.clear()
             self.similarity = None
         else:
             (image_buffer, similarity) = diff_images(ref_image, input_image, self.color_map)
             path = self.compare_image.get_path()
-            self.diff_image.set_image(path, image_buffer)
+            diff_path = rename_path_to_diff(path)
+            self.diff_image.set_image(diff_path, image_buffer)
             self.similarity = similarity
+
+    def save_diff_image(self, filepath=None):
+        """Save the image content currently in 'self.diff_image'."""
+        image_buffer = self.diff_image.get_image()
+        if filepath is None:
+            filepath = self.diff_image.get_path()
+        else:
+            pass
+        if image_buffer is None:
+            raise ValueError(f'No image buffer. Cannot save image "{filepath!s}"')
+        else:
+            pass
+        cv.imwrite(str(filepath), image_buffer)
+
+    def save_all(self, output_dir=None):
+        """This method will compute the difference between the reference and
+        every single item in the 'self.file_set', and save each
+        computed image in a file named with a string '_diff' appended
+        to the file name before the file extension (for example:
+        "input.png" becomes "input_diff.png")
+        """
+        if (output_dir is None) or isinstance(output_dir, PurePath):
+            pass
+        elif isinstance(output_dir, str):
+            output_dir = PurePath(output_dir)
+        else:
+            raise ValueError(f'argument must be string or instance of PurePath', output_dir)
+        ref_image = self.reference.get_image()
+        if ref_image is None:
+            raise ValueError(f'no reference image set')
+        else:
+            pass
+        with \
+          open(
+            str(output_dir / PurePath('similarity.csv')),
+            'w',
+            newline='',
+          ) as csvfile:
+            csvwriter = csv.writer(csvfile, delimiter=',', quotechar='\\')
+            img_loader = CachedCVImageLoader()
+            for path in self.file_set:
+                img_loader.load_image(path=path)
+                input_image = img_loader.get_image()
+                if input_image is None:
+                    print(f'WARNING: failed to open image file "{path!s}"')
+                elif _warn_different_shapes(self.reference, img_loader):
+                    pass
+                else:
+                    (image_buffer, similarity) = \
+                        diff_images(ref_image, input_image, self.color_map)
+                    out_path = rename_path_to_diff(path, output_dir)
+                    cv.imwrite(str(out_path), image_buffer)
+                    csvwriter.writerow([similarity, out_path.name])
