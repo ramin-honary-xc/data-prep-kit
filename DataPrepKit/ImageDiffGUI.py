@@ -1,6 +1,6 @@
 import DataPrepKit.ImageDiff as patm
 from DataPrepKit.PercentSlider import PercentSlider
-from DataPrepKit.FileSetGUI import FileSetGUI, qt_modal_image_file_selection
+import DataPrepKit.FileSetGUI as fs
 from DataPrepKit.SimpleImagePreview import ImagePreview
 from DataPrepKit.ContextMenuItem import context_menu_item
 from DataPrepKit.ReferenceImagePreviewGUI import ReferenceImagePreview
@@ -8,7 +8,7 @@ from DataPrepKit.CropRectTool import CropRectTool
 from DataPrepKit.GUIHelpers import numpy_array_to_QPixmap
 
 import pathlib
-from pathlib import PurePath
+from pathlib import Path, PurePath
 
 import PyQt5.QtCore as qcore
 import PyQt5.QtGui as qgui
@@ -25,7 +25,7 @@ class MessageBox(qt.QWidget):
         self.message = qt.QLabel(message)
         self.layout.addWidget(self.message)
 
-class FilesTab(FileSetGUI):
+class FilesTab(fs.FileSetGUI):
 
     def __init__(self, app_model, main_view):
         super(FilesTab, self).__init__(
@@ -46,6 +46,22 @@ class FilesTab(FileSetGUI):
         self._display = ImagePreview()
         self.set_image_display_widget(self._display)
         self._display.set_info_widget(self._infobox)
+        self._display.setContextMenuPolicy(qcore.Qt.ContextMenuPolicy.ActionsContextMenu)
+        #---------- Setup context menus ----------
+        self.save_selected_action = context_menu_item(
+            "Save diff image for selected file",
+            self.do_save_selected,
+            qgui.QKeySequence.Save,
+          )
+        self._display.addAction(self.save_selected_action)
+        #---------------
+        self.save_all_action = context_menu_item(
+            "Save diff image for every file",
+            self.do_save_all,
+            qgui.QKeySequence.SaveAs,
+          )
+        self._display.addAction(self.save_all_action)
+        self.get_list_widget().addAction(self.save_all_action)
 
     def default_image_display_widget(self):
         return super(FilesTab, self).default_image_display_widget()
@@ -88,6 +104,45 @@ class FilesTab(FileSetGUI):
         self.app_model.set_reference_image_path(path)
         self.main_view.update_reference_pixmap()
 
+    def modal_prompt_get_directory(self, init_dir):
+        output_dir = \
+            qt.QFileDialog.getExistingDirectory(
+                self, "Write images to directory",
+                str(init_dir),
+                qt.QFileDialog.ShowDirsOnly,
+              )
+        return PurePath(output_dir)
+
+    def modal_prompt_save_file(self, init_file):
+        out_path = \
+            qt.QFileDialog.getSaveFileName(
+                self, "Save diff image for selected file",
+                str(init_file),
+                fs.qt_image_file_filter_string,
+              )
+        #print(f'FilesTab.model_prompt_save_file() $({out_path})')
+        if out_path is None:
+            return None
+        else:
+            return PurePath(out_path[0])
+
+    def do_save_selected(self):
+        out_path = self.modal_prompt_save_file(
+            self.app_model.get_diff_image().get_path(),
+          )
+        if out_path is not None:
+            self.app_model.save_diff_image(filepath=out_path)
+        else:
+            pass
+
+    def do_save_all(self):
+        if self.app_model.get_reference().get_raw_image() is not None:
+            output_dir = self.modal_prompt_get_directory(Path.cwd())
+            self.app_model.save_all(output_dir=output_dir)
+        else:
+            # TODO: display error dialog box
+            print(f'WARNING: no reference image selected')
+
 #---------------------------------------------------------------------------------------------------
 
 class ReferenceSetupTab(qt.QWidget):
@@ -119,7 +174,7 @@ class ReferenceSetupTab(qt.QWidget):
 
     def open_reference_file_handler(self):
         #target_dir = self.app_model.get_config().reference
-        paths = qt_modal_image_file_selection(self, "Open images in which to search for patterns")
+        paths = fs.qt_modal_image_file_selection(self, "Open images in which to search for patterns")
         print(f'ReferenceSetupTab.open_reference_file_handler() #(paths = {paths})')
         if len(paths) > 0:
             self.set_reference_image_path(paths[0])

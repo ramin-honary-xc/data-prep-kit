@@ -73,18 +73,12 @@ def qt_modal_image_file_selection(widget, default_dir=None, message="Open images
     'qt_file_filter_string' argument set to the correct value to allow
     end users to select only image files.
     """
+    global qt_image_file_filter_string
     return qt_modal_file_selection(
         widget,
         default_dir=default_dir,
         message=message,
-        qt_file_filter_string=\
-          'Images ('
-          ' *.png *.bmp *.jpg *.jpeg *.webp'
-          ' *.pbm *.pgm *.ppm *.pxm *.pnm'
-          ' *.tif *.tiff'
-          ' *.sr *.ras'
-          ' *.exr *.hdr *.pic'
-          ' )'
+        qt_file_filter_string=qt_image_file_filter_string
       )
 
 class FileListItem(qt.QListWidgetItem):
