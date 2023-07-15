@@ -115,7 +115,8 @@ class SimpleImagePreview(ImageDisplay, DragDropHandler):
         if image_buffer is None:
             self.clear()
         else:
-            pass
+            scene = self._image_file_layer.get_scene()
+            #scene.setSceneRect(image_buffer.rect())
 
     def get_filepath(self):
         return self._image_file_layer.get_filepath()
@@ -133,7 +134,6 @@ class SimpleImagePreview(ImageDisplay, DragDropHandler):
         if self._image_file_layer is not None:
             layer_item = self._image_file_layer.get_pixmap_item()
             if layer_item is not None:
-                #self.setSceneRect(self._image_file_layer.get_image_bounds())
                 self.fitInView(layer_item, 1) # 1: qcore.AspectRatioMode::KeepAspectRatio
             else:
                 pass
