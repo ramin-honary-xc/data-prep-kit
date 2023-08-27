@@ -6,6 +6,7 @@ from DataPrepKit.ContextMenuItem import context_menu_item
 from DataPrepKit.SimpleImagePreview import SimpleImagePreview
 from DataPrepKit.ReferenceImagePreviewGUI import ReferenceImagePreview
 from DataPrepKit.CropRectTool import CropRectTool
+from DataPrepKit.ImageMask
 
 from pathlib import PurePath
 

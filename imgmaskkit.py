@@ -10,7 +10,7 @@ import PyQt5.QtWidgets as qt
 
 def main():
     app = qt.QApplication(sys.argv)
-    app_window = gui.ImgMaskGUI()
+    app_window = gui.ImageMaskGUI()
     app_window.show()
     sys.exit(app.exec_())
 
