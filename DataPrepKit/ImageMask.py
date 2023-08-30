@@ -23,31 +23,6 @@ def numFromJSON(obj: int|float|str) -> Optional[int|float]:
 def inlineBool(b: bool, o: TextIO, level: int) -> None:
     o.write(boolToJSON(b))
 
-def writeListJSON(o: TextIO, level: int, items: list[JSONizable]) -> None:
-    """Can be inlined or indented depending on how many items there are."""
-    l = len(items)
-    if l == 0:
-        o.write('[]')
-    elif l == 1:
-        o.write('[')
-        tempbuf = io.StringIO()
-        items[0].prettyJSON(tempbuf, level+1)
-        result = tempbuf.getvalue()
-        if len(result) > 80 or result.find('\n') >= 0:
-            o.write('\n')
-            o.write(result)
-        else:
-            pass
-        o.write(']')
-    else:
-        o.write('[\n')
-        level1 = level+1
-        items[0].prettyJSON(o, level1)
-        for item in items[1:]:
-            o.write(',\n')
-            item.prettyJSON(o, level1)
-        indented(o, level, ']')
-
 def goodLengthOrDie(args: list|dict, expected: int, constrName: str) -> None:
     if len(args) != expected:
         raise ValueError('{len(args)} arguments given to {constrName}, {expected} expected')
@@ -78,6 +53,33 @@ class JSONizable():
     @abstractmethod
     def fromJSON(obj): pass
 
+def writeListJSON(o: TextIO, level: int, items: list[JSONizable]) -> None:
+    """Can be inlined or indented depending on how many items there are."""
+    itemslen = len(items)
+    if itemslen == 0:
+        o.write('[]')
+    elif itemslen == 1:
+        o.write('[')
+        tempbuf = io.StringIO()
+        items[0].prettyJSON(tempbuf, level+1)
+        result = tempbuf.getvalue()
+        if len(result) > 80 or result.find('\n') >= 0:
+            o.write('\n')
+            indented(o, level+1, result)
+        else:
+            o.write(result)
+        o.write(']')
+    else:
+        o.write('[\n')
+        level1 = level+1
+        indented(o, level1, '')
+        items[0].prettyJSON(o, level1)
+        for item in items[1:]:
+            o.write(',\n')
+            indented(o, level1, '')
+            item.prettyJSON(o, level1)
+        o.write('\n')
+        indented(o, level, ']')
 
 # ==================================================================================================
 
@@ -162,8 +164,8 @@ class Rectangle(MaskShape, JSONizable):
         o.write('["rectangle",')
         self.point.prettyJSON(o, level)
         self.bounds.prettyJSON(o, level)
-        self.visible.inlineBool(o, level)
-        self.write(']')
+        inlineBool(self.visible, o, level)
+        o.write(']')
 
     def toJSON(self):
         return ['rectangle', self.point.toJSON(), self.bounds.toJSON(), self.visible]
@@ -196,7 +198,7 @@ class Circle(MaskShape, JSONizable):
         o.write(f'["circle",')
         self.point.prettyJSON(o, level)
         o.write(f',{self.radius},{self.startAngle},{self.endAngle},')
-        self.visible.inlineBool(o, level)
+        inlineBool(self.visible, o, level)
         o.write(']')
 
     def toJSON(self):
@@ -444,16 +446,17 @@ class ShapeGroup(MaskShape, JSONizable):
         indent(o, level, '}]')
 
     def prettyJSONName(self, o, level):
-        indented(o, level, '"name":')
+        o.write('"name":')
         dump(self.name, o)
         o.write(',\n')
 
     def prettyJSONContent(self, o, level, constrName, trailingComma):
-        indented(o, level, '"transforms":')
-        writeListJSON(o, self.transforms, level+1)
+        level1 = level+1
+        indented(o, level1, '"transforms":')
+        writeListJSON(o, level, self.transforms)
         o.write(',\n')
-        indent(o, level, '"shapes":')
-        writeListJSON(o, level, self.shapes)
+        indented(o, level1, '"shapes":')
+        writeListJSON(o, level1, self.shapes)
         if trailingComma:
             o.write(',\n')
         else:
@@ -473,7 +476,7 @@ class ShapeGroup(MaskShape, JSONizable):
 
     def toJSONContent(self, result):
         transforms = []
-        for t in self.tranforms:
+        for t in self.transforms:
             transforms.append(t.toJSON())
         shapes = []
         for s in self.shapes:
@@ -502,7 +505,7 @@ class ShapeGroup(MaskShape, JSONizable):
             raise ValueError(
                 'incorrect format for '
                 f'{constrName}'
-                ', require {"tranforms", "shapes"}, optional {"name"}'
+                ', require {"transforms", "shapes"}, optional {"name"}'
               )
         else:
             goodLengthOrDie(obj, 2, '"group"')
@@ -699,20 +702,22 @@ class ImageMask(ShapeGroup):
     name: str
 
     def prettyJSON(self, o: TextIO, level: int):
-        indented(o, level, '["mask",{')
+        indented(o, level, '["mask",')
         level1 = level+1
         self.blitOp.prettyJSON(o, level1)
+        o.write(',')
         inlineBool(self.color, o, level1)
         o.write(',\n')
+        indented(o, level1, '{')
         self.prettyJSONName(o, level1)
         self.prettyJSONContent(o, level1, '"mask"', False)
-        indented(o, level, '}]')
+        indented(o, level1, '}]')
 
     def toJSON(self):
         result = {}
         self.toJSONName(result)
         self.toJSONContent(result)
-        return ['mask', self.blitOp.toJSON(), self.color.toJSON(), result]
+        return ['mask', self.blitOp.toJSON(), self.color, result]
 
     def fromJSON(obj):
         if obj[0] == 'mask':
