@@ -1,14 +1,16 @@
+from typing import Union, Optional, TextIO
+from abc import abstractmethod
 from dataclasses import dataclass
 from json import JSONEncoder, JSONDecoder, loads, dump
 import io
 
-def indented(o: io.TextIOBase, level: int, s: str) -> None:
-    o.write((' '*level) + str)
+def indented(o: TextIO, level: int, s: str) -> None:
+    o.write((' '*level) + s)
 
-def boolToJSON(b):
+def boolToJSON(b: bool) -> str:
     return ('true' if b else 'false')
 
-def numFromJSON(obj):
+def numFromJSON(obj: int|float|str) -> Optional[int|float]:
     if isinstance(obj, int):
         return obj
     elif isinstance(obj, float):
@@ -18,40 +20,68 @@ def numFromJSON(obj):
     else:
         return None
 
-def inlineBool(b, o, level):
+def inlineBool(b: bool, o: TextIO, level: int) -> None:
     o.write(boolToJSON(b))
 
-def writeListJSON(o, level, items):
+def writeListJSON(o: TextIO, level: int, items: list[JSONizable]) -> None:
     """Can be inlined or indented depending on how many items there are."""
     l = len(items)
     if l == 0:
         o.write('[]')
     elif l == 1:
         o.write('[')
-        writer(item[0])
+        tempbuf = io.StringIO()
+        items[0].prettyJSON(tempbuf, level+1)
+        result = tempbuf.getvalue()
+        if len(result) > 80 or result.find('\n') >= 0:
+            o.write('\n')
+            o.write(result)
+        else:
+            pass
         o.write(']')
     else:
         o.write('[\n')
         level1 = level+1
-        items[0].writeJSON(o, level1)
+        items[0].prettyJSON(o, level1)
         for item in items[1:]:
             o.write(',\n')
-            items.writeJSON(o, level1)
+            item.prettyJSON(o, level1)
         indented(o, level, ']')
 
-def goodLengthOrDie(args, expected, constrName):
+def goodLengthOrDie(args: list|dict, expected: int, constrName: str) -> None:
     if len(args) != expected:
         raise ValueError('{len(args)} arguments given to {constrName}, {expected} expected')
     else:
         pass
 
-def goodArgOrDie(arg, argn, constrName, expected):
+def goodArgOrDie(arg, argn: int, constrName: str, expected: str) -> None:
+    """Assertion that checks if the first argument is not 'None'. In the
+    event of 'None', eports an error for the constructor and what type
+    was expected."""
     if not arg:
         raise ValueError('incorrect format for {constrName} argument {argn}, expected {expected}')
+    else:
+        pass
+
+# --------------------------------------------------------------------------------------------------
+
+class JSONizable():
+    """Abstract class declaring the functions that the various @dataclass
+    nodes must implement in order to be read or written as JSON data."""
+
+    @abstractmethod
+    def prettyJSON(self, o: TextIO, level: int) -> None: pass
+
+    @abstractmethod
+    def toJSON(self): pass
+
+    @abstractmethod
+    def fromJSON(obj): pass
+
 
 # ==================================================================================================
 
-class MaskShape():
+class MaskShape(JSONizable):
     """This is a value used to create shapes that mask or unmask bits in a
     bitmap image. Note the naming convention I am using here: "black"
     means opaque (masked), white is transparent (unmasked).
@@ -75,11 +105,11 @@ class MaskShape():
 # --------------------------------------------------------------------------------------------------
 
 @dataclass
-class Point():
+class Point(JSONizable):
     x: float
     y: float
 
-    def writeJSON(self, o, level):
+    def prettyJSON(self, o, level):
         o.write('{' f'"x":{self.x},"y":{self.y}' '}')
 
     def toJSON(self):
@@ -99,11 +129,11 @@ class Point():
 # --------------------------------------------------------------------------------------------------
 
 @dataclass
-class BoundArea():
+class BoundArea(JSONizable):
     width: float
     height: float
 
-    def writeJSON(self, o, level):
+    def prettyJSON(self, o, level):
         o.write('{' f'width:{self.width},height:{self.height}' '}')
 
     def toJSON(self):
@@ -123,15 +153,15 @@ class BoundArea():
 # --------------------------------------------------------------------------------------------------
 
 @dataclass
-class Rectangle(MaskShape):
+class Rectangle(MaskShape, JSONizable):
     point: Point
     bounds: BoundArea
     visible: bool = True
 
-    def writeJSON(self, o, level):
+    def prettyJSON(self, o, level):
         o.write('["rectangle",')
-        self.point.writeJSON(o, level)
-        self.bounds.writeJSON(o, level)
+        self.point.prettyJSON(o, level)
+        self.bounds.prettyJSON(o, level)
         self.visible.inlineBool(o, level)
         self.write(']')
 
@@ -155,16 +185,16 @@ class Rectangle(MaskShape):
 # --------------------------------------------------------------------------------------------------
 
 @dataclass
-class Circle(MaskShape):
+class Circle(MaskShape, JSONizable):
     point: Point
     radius: float
-    startAngle: float = None
-    endAngle: float = None
+    startAngle: Optional[float] = None
+    endAngle: Optional[float] = None
     visible: bool = True
 
-    def writeJSON(self, o, level):
+    def prettyJSON(self, o, level):
         o.write(f'["circle",')
-        self.point.writeJSON(o, level)
+        self.point.prettyJSON(o, level)
         o.write(f',{self.radius},{self.startAngle},{self.endAngle},')
         self.visible.inlineBool(o, level)
         o.write(']')
@@ -200,15 +230,15 @@ class Circle(MaskShape):
 # --------------------------------------------------------------------------------------------------
 
 @dataclass
-class Ellipse(MaskShape):
+class Ellipse(MaskShape, JSONizable):
     point: Point
     bounds: BoundArea
     visible: bool = True
 
-    def writeJSON(self, o, level):
+    def prettyJSON(self, o, level):
         o.write('["ellipse",')
-        self.point.writeJSON(o, level)
-        self.bounds.writeJSON(o, level)
+        self.point.prettyJSON(o, level)
+        self.bounds.prettyJSON(o, level)
         o.write(f',{self.visible!r}]')
 
     def toJSON(self):
@@ -236,14 +266,14 @@ class Ellipse(MaskShape):
 # --------------------------------------------------------------------------------------------------
 
 @dataclass
-class Polygon(MaskShape):
+class Polygon(MaskShape, JSONizable):
     points: list[Point]
 
-    def writeJSON(self, o, level):
+    def prettyJSON(self, o, level):
         o.write('["polygon"')
         for p in self.points:
             o.write(',\n')
-            p.writeJSON(o, level+1)
+            p.prettyJSON(o, level+1)
         indented(o, level, ']')
 
     def toJSON(self):
@@ -264,16 +294,16 @@ class Polygon(MaskShape):
 # --------------------------------------------------------------------------------------------------
 
 @dataclass
-class BPoint():
+class BPoint(JSONizable):
     point: Point
     ctrl1: Point
     ctrl2: Point
 
-    def writeJSON(self, o, level):
+    def prettyJSON(self, o, level):
         o.write('["bpt",')
-        self.point.writeJSON(o, level+1)
-        self.ctrl1.writeJSON(o, level+1)
-        self.ctrl2.writeJSON(o, level+1)
+        self.point.prettyJSON(o, level+1)
+        self.ctrl1.prettyJSON(o, level+1)
+        self.ctrl2.prettyJSON(o, level+1)
         o.write(']')
 
     def toJSON(self):
@@ -296,14 +326,14 @@ class BPoint():
 # --------------------------------------------------------------------------------------------------
 
 @dataclass
-class Bspline(MaskShape):
+class Bspline(MaskShape, JSONizable):
     points: list[BPoint]
 
-    def writeJSON(self, o, level):
+    def prettyJSON(self, o, level):
         o.write('["bspline"')
         for pt in self.points:
             o.write(',\n')
-            pt.writeJSON(o, level+1)
+            pt.prettyJSON(o, level+1)
             comma = True
         indented(o, level, ']')
 
@@ -323,7 +353,7 @@ class Bspline(MaskShape):
 
 # --------------------------------------------------------------------------------------------------
 
-class Transform():
+class Transform(JSONizable):
     def fromJSON(obj):
         return \
             Rotate.fromJSON(obj) or \
@@ -333,12 +363,12 @@ class Transform():
 # --------------------------------------------------------------------------------------------------
 
 @dataclass
-class Rotate(Transform):
+class Rotate(Transform, JSONizable):
     angle: float
 
-    def writeJSON(self, o, level):
+    def prettyJSON(self, o, level):
         o.write('["rotate",')
-        self.offset.writeJSON(o, level)
+        self.offset.prettyJSON(o, level)
         o.write(']')
 
     def toJSON(self):
@@ -356,12 +386,12 @@ class Rotate(Transform):
 # --------------------------------------------------------------------------------------------------
 
 @dataclass
-class Translate(Transform):
+class Translate(Transform, JSONizable):
     offset: Point
 
-    def writeJSON(self, o, level):
+    def prettyJSON(self, o, level):
         o.write('["translate",')
-        self.offset.writeJSON(o, level)
+        self.offset.prettyJSON(o, level)
         o.write(']')
 
     def toJSON(self):
@@ -379,12 +409,12 @@ class Translate(Transform):
 # --------------------------------------------------------------------------------------------------
 
 @dataclass
-class Scale(Transform):
+class Scale(Transform, JSONizable):
     offset: BoundArea
 
-    def writeJSON(self, o, level):
+    def prettyJSON(self, o, level):
         o.write(f'["scale",')
-        self.offset.writeJSON(o, level)
+        self.offset.prettyJSON(o, level)
         o.write(f']')
 
     def toJSON(self):
@@ -402,25 +432,25 @@ class Scale(Transform):
 # --------------------------------------------------------------------------------------------------
 
 @dataclass
-class ShapeGroup(MaskShape):
+class ShapeGroup(MaskShape, JSONizable):
     transforms: list[Transform]
     shapes: list[MaskShape]
     name: str
 
-    def writeJSON(self, o, level):
+    def prettyJSON(self, o, level):
         o.write('["group",{')
-        self.writeJSONName(o, level+1)
-        self.writeJSONContent(o, level+1, '"group"', False)
+        self.prettyJSONName(o, level+1)
+        self.prettyJSONContent(o, level+1, '"group"', False)
         indent(o, level, '}]')
 
-    def writeJSONName(self, o, level):
-        indent(o, level, '"name":')
-        o.write(dump(self.name))
+    def prettyJSONName(self, o, level):
+        indented(o, level, '"name":')
+        dump(self.name, o)
         o.write(',\n')
 
-    def writeJSONContent(self, o, level, constrName, trailingComma):
-        indent(o, level, '"transforms":')
-        writeListJSON(self.transforms)
+    def prettyJSONContent(self, o, level, constrName, trailingComma):
+        indented(o, level, '"transforms":')
+        writeListJSON(o, self.transforms, level+1)
         o.write(',\n')
         indent(o, level, '"shapes":')
         writeListJSON(o, level, self.shapes)
@@ -500,7 +530,7 @@ class ShapeGroup(MaskShape):
 # --------------------------------------------------------------------------------------------------
 
 @dataclass
-class GuideObject():
+class GuideObject(JSONizable):
     def fromJSON(obj):
         return \
             GuidePoint.fromJSON(obj) or \
@@ -511,12 +541,12 @@ class GuideObject():
 # --------------------------------------------------------------------------------------------------
 
 @dataclass
-class GuidePoint(GuideObject):
+class GuidePoint(GuideObject, JSONizable):
     point: Point
 
-    def writeJSON(self, o, level):
+    def prettyJSON(self, o, level):
         o.write('["guide-point",')
-        self.point.writeJSON(o, level)
+        self.point.prettyJSON(o, level)
         o.write(']')
 
     def toJSON(self):
@@ -533,15 +563,15 @@ class GuidePoint(GuideObject):
 
 # --------------------------------------------------------------------------------------------------
 
-class GuideLine(GuideObject):
+class GuideLine(GuideObject, JSONizable):
     a: Point
     b: Point
 
-    def writeJSON(self, o, level):
+    def prettyJSON(self, o, level):
         o.write('["guideline",{"a":')
-        a.writeJSON(o, level)
+        a.prettyJSON(o, level)
         o.write(',"b":')
-        b.writeJSON(o, level)
+        b.prettyJSON(o, level)
         o.write('}]')
 
     def toJSON(self):
@@ -559,10 +589,10 @@ class GuideLine(GuideObject):
 
 # --------------------------------------------------------------------------------------------------
 
-class GuideHorizontal(GuideObject):
+class GuideHorizontal(GuideObject, JSONizable):
     x: float
 
-    def writeJSON(self, o, level):
+    def prettyJSON(self, o, level):
         o.write(f'["horizontal",{self.x}]')
 
     def toJSON(self):
@@ -577,10 +607,10 @@ class GuideHorizontal(GuideObject):
         else:
             return None
 
-class GuideVertical(GuideObject):
+class GuideVertical(GuideObject, JSONizable):
     y: float
 
-    def writeJSON(self, o, level):
+    def prettyJSON(self, o, level):
         o.write(f'["vertical",{self.y}]')
 
     def toJSON(self):
@@ -594,15 +624,40 @@ class GuideVertical(GuideObject):
         else:
             return None
 
-class BlitOp():
+class BlitOp(JSONizable):
     def fromJSON(obj):
         return \
             Fill.fromJSON(obj) or \
             Stroke.fromJSON(obj)
 
-@dataclass
-class Fill(BlitOp):
-    def writeJSON(self, o, level):
+class StrokeJoin(JSONizable):
+    def fromJSON(obj):
+        return \
+            RoundJoin.fromJSON(obj) or \
+            MiterJoin.fromJSON(obj)
+
+class RoundJoin(StrokeJoin, JSONizable):
+    def prettyJSON(self, o, level):
+        o.write('"round"')
+
+    def toJSON(self):
+        return 'round'
+
+    def fromJSON(obj):
+        return RoundJoin() if obj == 'round' else None
+
+class MiterJoin(StrokeJoin, JSONizable):
+    def prettyJSON(self, o, level):
+        o.write( '"miter"')
+
+    def toJSON(self):
+        return 'miter'
+
+    def fromJSON(obj):
+        return MiterJoin() if obj == 'miter' else None
+
+class Fill(BlitOp, JSONizable):
+    def prettyJSON(self, o, level):
         o.write('"fill"')
 
     def toJSON(self):
@@ -612,42 +667,15 @@ class Fill(BlitOp):
         if obj == 'fill':
             return Fill()
 
-class StrokeJoin():
-    def fromJSON(obj):
-        return \
-            RoundJoin.fromJSON(obj) or \
-            MiterJoin.fromJSON(obj)
-
 @dataclass
-class RoundJoin(StrokeJoin):
-    def writeJSON(self, o, level):
-        o.write('"round"')
-
-    def toJSON(self):
-        return 'round'
-
-    def fromJSON(obj):
-        return RoundJoin() if obj == 'round' else None
-
-class MiterJoin(StrokeJoin):
-    def writeJSON(self, o, level):
-        o.write( '"miter"')
-
-    def toJSON(self):
-        return 'miter'
-
-    def fromJSON(obj):
-        return MiterJoin() if obj == 'miter' else None
-
-@dataclass
-class Stroke(BlitOp):
+class Stroke(BlitOp, JSONizable):
     lineWidth: float
     joinStyle: StrokeJoin
 
-    def writeJSON(self, o: io.TextIOBase, level: int):
+    def prettyJSON(self, o: TextIO, level: int):
         indented(o, level, f'["stroke",{self.lineWidth},')
-        self.joinStyle.writeJSON(o, level)
-        intended(o, level, f']')
+        self.joinStyle.prettyJSON(o, level)
+        indented(o, level, f']')
 
     def toJSON(self):
         return ['stroke', self.lineWidth.toJSON(), self.joinStyle.toJSON()]
@@ -670,14 +698,14 @@ class ImageMask(ShapeGroup):
     color: bool
     name: str
 
-    def writeJSON(self, o: io.TextIOBase, level: int):
+    def prettyJSON(self, o: TextIO, level: int):
         indented(o, level, '["mask",{')
         level1 = level+1
-        self.blitOp.writeJSON(o, level1)
+        self.blitOp.prettyJSON(o, level1)
         inlineBool(self.color, o, level1)
         o.write(',\n')
-        self.writeJSONName(o, level1)
-        self.writeJSONContent(o, level1, '"mask"', False)
+        self.prettyJSONName(o, level1)
+        self.prettyJSONContent(o, level1, '"mask"', False)
         indented(o, level, '}]')
 
     def toJSON(self):
