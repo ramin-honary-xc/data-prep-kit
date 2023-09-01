@@ -75,27 +75,38 @@ def testToJSON(inobj, CLASS, show=False):
     else:
         print('TEST FAILED: Decoding toJSON() generated object yeilds different object from original')
         print('-------------------- toJSON() --------------------')
-        json.dump(inobj, sys.stdout, indent=2)
+        json.dump(jsonobj, sys.stdout, indent=2)
         print('\n-------------------- fromJSON ---------------------')
-        json.dump(reloaded, sys.stdout, indent=2)
+        print(f'{reloaded!r}')
+        print('--------------------------------------------------\n')
 
 # --------------------------------------------------------------------------------------------------
 
-pt0 = Point(x=0, y=0)
+pt0 = Point(x=0, y=0.01)
 testToJSON(pt0, Point, False)
 testPrettyJSON(pt0, Point, False)
 
 # --------------------------------------------------------------------------------------------------
 
-circle = Circle(origin=pt0, radius=5)
+area = BoundArea(width=5, height=6.3)
+testToJSON(area, BoundArea, False)
+
+# --------------------------------------------------------------------------------------------------
+
+circle = Circle(origin=pt0, radius=5.8)
 testToJSON(circle, Circle, False)
 testPrettyJSON(circle, Circle, False)
 
 # --------------------------------------------------------------------------------------------------
 
-rectangle = Rectangle(origin=Point(x=0, y=0), bounds=BoundArea(width=5, height=5))
+rectangle = Rectangle(origin=pt0, bounds=area)
 testToJSON(rectangle, Rectangle, False)
 testPrettyJSON(rectangle, Rectangle, False)
+
+# --------------------------------------------------------------------------------------------------
+
+ellipse = Ellipse(origin=pt0, bounds=area)
+testToJSON(ellipse, Ellipse, True)
 
 # --------------------------------------------------------------------------------------------------
 

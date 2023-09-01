@@ -361,7 +361,7 @@ class BoundArea(JSONizable):
             assertArgCount(obj, 2, 'BoundArea')
             width  = require(obj, 'width',  numFromJSON, 'BoundArea', 'number')
             height = require(obj, 'height', numFromJSON, 'BoundArea', 'number')
-            return BoundArea(width=float(width), height=float(width))
+            return BoundArea(width=float(width), height=float(height))
         else:
             return None
 
