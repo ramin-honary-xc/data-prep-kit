@@ -466,8 +466,11 @@ class Ellipse(MaskShape, JSONizable):
     def prettyJSON(self, o, level):
         o.write(f'["{Ellipse.symbol}",')
         self.origin.prettyJSON(o, level)
+        o.write(',')
         self.bounds.prettyJSON(o, level)
+        o.write(',')
         inlineJSON(o, level, self.visible)
+        o.write(']')
 
     def toJSON(self):
         return (
@@ -532,23 +535,24 @@ class BPoint(JSONizable):
     ctrl2: Point
 
     def prettyJSON(self, o, level):
-        o.write('["bpt",')
+        o.write('{"point":')
         self.point.prettyJSON(o, level+1)
+        o.write(',"ctrl1":')
         self.ctrl1.prettyJSON(o, level+1)
+        o.write(',"ctrl2":')
         self.ctrl2.prettyJSON(o, level+1)
-        o.write(']')
+        o.write('}')
 
     def toJSON(self):
-        return ['bpt', self.point, self.ctrl1, self.ctrl2]
+        return {'point': self.point, 'ctrl1': self.ctrl1, 'ctrl2': self.ctrl2}
 
     def fromJSON(obj):
-        if obj[0] == 'bpt':
+        if ('point' in obj) and ('ctrl1' in obj) and ('ctrl2' in obj):
             assertArgCount(obj, 4, '"bpt"')
-            return BPoint(
-                point = require(obj, 1, Point.fromJSON, '"bpt"', 'point: Point'),
-                ctrl1 = require(obj, 2, Point.fromJSON, '"bpt"', 'ctrl1: Point'),
-                ctrl2 = require(obj, 3, Point.fromJSON, '"bpt"', 'ctrl2: Point'),
-              )
+            point = require(obj, 'point', Point, 'BPoint', 'Point')
+            ctrl1 = require(obj, 'ctrl1', Point, 'BPoint', 'Point')
+            ctrl2 = require(obj, 'ctrl2', Point, 'BPoint', 'Point')
+            return BPoint(point=point, ctrl1=ctrl1, ctrl2=ctrl2)
         else:
             return None
 

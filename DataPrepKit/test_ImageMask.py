@@ -64,6 +64,11 @@ def testPrettyJSON(obj, CLASS, show=False):
 
 def testToJSON(inobj, CLASS, show=False):
     jsonobj = inobj.toJSON()
+    if jsonobj is None:
+      print('TEST FAILED: toJSON() resulted in None')
+      return
+    else:
+        pass
     jsonobjstr = json.dumps(jsonobj, indent=2)
     if show:
         print(jsonobjstr)
@@ -106,7 +111,44 @@ testPrettyJSON(rectangle, Rectangle, False)
 # --------------------------------------------------------------------------------------------------
 
 ellipse = Ellipse(origin=pt0, bounds=area)
-testToJSON(ellipse, Ellipse, True)
+testToJSON(ellipse, Ellipse, False)
+testPrettyJSON(ellipse, Ellipse, False)
+
+# --------------------------------------------------------------------------------------------------
+
+polygon = Polygon(
+  points=[
+      Point(x=14.2, y=1.0),
+      Point(x=33.0, y=17.9),
+      Point(x=3.3, y=24.5),
+    ]
+  )
+testToJSON(polygon, Polygon, False)
+testPrettyJSON(polygon, Polygon, False)
+
+# --------------------------------------------------------------------------------------------------
+
+bspline = BSpline(
+  points=[
+      BPoint(
+          point=Point(x=14.2, y=1.0),
+          ctrl1=Point(x=13.0, y=1.5),
+          ctrl2=Point(x=30.9, y=16.8),
+        ),
+      BPoint(
+          point=Point(x=33.0, y=17.9),
+          ctrl1=Point(x=28.4, y=18.5),
+          ctrl2=Point(x=5.7, y=25.6),
+        ),
+      BPoint(
+          point=Point(x=3.3, y=24.5),
+          ctrl1=Point(x=2.0, y=27.8),
+          ctrl2=Point(x=11.3, y=2.0),
+        ),
+    ]
+  )
+testToJSON(bspline, BSpline, True)
+testPrettyJSON(bspline, BSpline, True)
 
 # --------------------------------------------------------------------------------------------------
 
