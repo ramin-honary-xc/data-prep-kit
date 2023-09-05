@@ -128,6 +128,14 @@ testPrettyJSON(polygon, Polygon, False)
 
 # --------------------------------------------------------------------------------------------------
 
+bpoint = BPoint(
+    point=Point(x=0, y=1),
+    ctrl1=Point(x=2, y=3),
+    ctrl2=Point(x=4, y=5),
+  )
+testToJSON(bpoint, BPoint, False)
+testPrettyJSON(bpoint, BPoint, False)
+
 bspline = BSpline(
   points=[
       BPoint(
@@ -147,8 +155,40 @@ bspline = BSpline(
         ),
     ]
   )
-testToJSON(bspline, BSpline, True)
-testPrettyJSON(bspline, BSpline, True)
+testToJSON(bspline, BSpline, False)
+testPrettyJSON(bspline, BSpline, False)
+
+# --------------------------------------------------------------------------------------------------
+
+translate = Translate(offset=Point(x=-5,y=4))
+testToJSON(translate, Translate, False)
+testPrettyJSON(translate, Translate, False)
+
+rotate = Rotate(angle=0.707)
+testToJSON(rotate, Rotate, False)
+testPrettyJSON(rotate, Rotate, False)
+
+scale = Scale(by=BoundArea(width=0.8,height=1.5))
+testToJSON(scale, Scale, False)
+testPrettyJSON(scale, Scale, False)
+
+# --------------------------------------------------------------------------------------------------
+
+guidepoint = GuidePoint(point=Point(x=50,y=75))
+testToJSON(guidepoint, GuidePoint, False)
+testPrettyJSON(guidepoint, GuidePoint, False)
+
+guideline = GuideLine(a=Point(0,0),b=Point(50,75))
+testToJSON(guideline, GuideLine, False)
+testPrettyJSON(guideline, GuideLine, False)
+
+horizontal = GuideHorizontal(x=50)
+testToJSON(horizontal, GuideHorizontal, False)
+testPrettyJSON(horizontal, GuideHorizontal, False)
+
+vertical = GuideVertical(y=75)
+testToJSON(vertical, GuideVertical, False)
+testPrettyJSON(vertical, GuideVertical, False)
 
 # --------------------------------------------------------------------------------------------------
 
@@ -156,9 +196,9 @@ imask = ImageMask(
     blitOp=Fill(),
     color=True,
     name="simple example",
-    transforms=[],
-    shapes=[circle, rectangle],
+    transforms=[translate, rotate, scale],
+    guides=[guidepoint, guideline, horizontal, vertical],
+    shapes=[circle, rectangle, bspline, ellipse, polygon],
   )
-
 testPrettyJSON(imask, ImageMask, True)
 testToJSON(imask, ImageMask, True)

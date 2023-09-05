@@ -26,6 +26,7 @@ class FromJSONError(Exception):
     inputNumArgs: Optional[int] = None
     expectedNumArgs: Optional[int] = None
     expectedFields: Optional[list[str]] = None
+    optionalFields: Optional[list[str]] = None
     inputIndex: Optional[int|str] = None
     expectedType: Optional[str] = None
 
@@ -35,14 +36,13 @@ class FromJSONError(Exception):
             (f'decoding {self.decoderClass}\n' if self.decoderClass else '') +
             (f'decoding input: {self.inputJSON}\n' if self.inputJSON else '') +
             (f'number of input arguments: {self.inputNumArgs}\n'
-             if self.inputNumArgs else ''
-             ) +
+              if self.inputNumArgs else '') +
             (f'expected number of arguments: {self.expectedNumArgs}\n'
-             if self.expectedNumArgs else ''
-             ) +
+              if self.expectedNumArgs else '') +
             (f'expected fields: {self.expectedFields}\n'
-             if self.expectedFields else ''
-             )
+              if self.expectedFields else '') +
+            (f'optional fields: {self.optionalFields}\n'
+              if self.optionalFields else '')
           )
 
 def indented(o: TextIO, level: int, s: str) -> None:
@@ -117,6 +117,33 @@ def require(obj: list|dict, idx: int|str, decoder: Callable, constrName: str, ex
             )
     else:
         return decoded
+
+def checkPoperties(obj, constrName, required, permitted):
+    fields = obj.keys()
+    for k in required:
+        if k in fields:
+            pass
+        else:
+            raise FromJSONError(
+                message='missing required fields',
+                decoderClass=constrName,
+                inputJSON=obj,
+                expectedFields=list(keys(required)),
+                optionalFields=list(keys(permitted)),
+              )
+    fields -= required
+    for k in fields:
+        if k in permitted:
+            pass
+        else:
+            raise FromJSONError(
+                message=f'invalid field "{k}"',
+                decoderClass=constrName,
+                inputJSON=obj,
+                expectedFields=required,
+                optionalFields=permitted,
+              )
+    return None
 
 # --------------------------------------------------------------------------------------------------
 
@@ -293,7 +320,7 @@ class MaskShape(JSONizable):
     visible: bool = True
 
     @staticmethod
-    def getSymbols():
+    def getDecoders():
         return {
             Rectangle.symbol: Rectangle,
             Circle.symbol: Circle,
@@ -304,8 +331,13 @@ class MaskShape(JSONizable):
           }
 
     def fromJSON(obj):
-        if isinstance(obj,list) and len(obj) > 1:
-            return MaskShape.getSymbols()[obj[0]].fromJSON(obj)
+        if isinstance(obj,list) and (len(obj) > 1):
+            decoders = MaskShape.getDecoders()
+            symbol = obj[0]
+            if symbol in decoders:
+                return decoders[symbol].fromJSON(obj)
+            else:
+                return None
         else:
             return None
 
@@ -502,13 +534,16 @@ class Polygon(MaskShape, JSONizable):
     def prettyJSON(self, o, level):
         o.write(f'["{Polygon.symbol}"')
         i = 0
+        level1 = level+1
         for p in self.points:
             if not isinstance(p, Point):
                 raise ValueError(f'polygon object contains non-point at index {i}')
             else:
                 i += 1
                 o.write(',\n')
-                p.prettyJSON(o, level+1)
+                indented(o, level1, '')
+                p.prettyJSON(o, level1)
+        o.write('\n')
         indented(o, level, ']')
 
     def toJSON(self):
@@ -534,6 +569,8 @@ class BPoint(JSONizable):
     ctrl1: Point
     ctrl2: Point
 
+    symbol = 'bpoint'
+
     def prettyJSON(self, o, level):
         o.write('{"point":')
         self.point.prettyJSON(o, level+1)
@@ -544,15 +581,23 @@ class BPoint(JSONizable):
         o.write('}')
 
     def toJSON(self):
-        return {'point': self.point, 'ctrl1': self.ctrl1, 'ctrl2': self.ctrl2}
+        return \
+          { 'point': self.point.toJSON(),
+            'ctrl1': self.ctrl1.toJSON(),
+            'ctrl2': self.ctrl2.toJSON(),
+          }
 
     def fromJSON(obj):
-        if ('point' in obj) and ('ctrl1' in obj) and ('ctrl2' in obj):
-            assertArgCount(obj, 4, '"bpt"')
-            point = require(obj, 'point', Point, 'BPoint', 'Point')
-            ctrl1 = require(obj, 'ctrl1', Point, 'BPoint', 'Point')
-            ctrl2 = require(obj, 'ctrl2', Point, 'BPoint', 'Point')
-            return BPoint(point=point, ctrl1=ctrl1, ctrl2=ctrl2)
+        if dict(obj) and \
+          ('point' in obj) and \
+          ('ctrl1' in obj) and \
+          ('ctrl2' in obj):
+            assertArgCount(obj, 3, f'"{BPoint.symbol}"')
+            return BPoint(
+                point=require(obj, 'point', Point.fromJSON, 'BPoint', 'Point'),
+                ctrl1=require(obj, 'ctrl1', Point.fromJSON, 'BPoint', 'Point'),
+                ctrl2=require(obj, 'ctrl2', Point.fromJSON, 'BPoint', 'Point'),
+              )
         else:
             return None
 
@@ -567,26 +612,31 @@ class BSpline(MaskShape, JSONizable):
     def prettyJSON(self, o, level):
         o.write(f'["{BSpline.symbol}"')
         i = 0
+        level1 = level+1
         for pt in self.points:
             if not isinstance(pt, BPoint):
                 raise ValueError(f'BSpline contains non-BPoint value at index {i}')
             else:
                 i += 1
                 o.write(',\n')
+                indented(o, level1, '')
                 pt.prettyJSON(o, level+1)
                 comma = True
+        o.write('\n')
         indented(o, level, ']')
 
     def toJSON(self):
         points = [BSpline.symbol]
         for pt in self.points:
             points.append(pt.toJSON())
+        return points
 
     def fromJSON(obj):
-        if obj[0] == BSpline.symbol:
+        if list(obj) and (obj[0] == BSpline.symbol):
             points = []
-            for pt in obj[1:]:
-                points.append(Point.fromJSON(pt))
+            for i in range(1, len(obj)):
+                ptobj = require(obj, i, BPoint.fromJSON, f'"{BSpline.symbol}"', BPoint.symbol)
+                points.append(ptobj)
             return BSpline(points=points)
         else:
             return None
@@ -594,11 +644,25 @@ class BSpline(MaskShape, JSONizable):
 # --------------------------------------------------------------------------------------------------
 
 class Transform(JSONizable):
+
+    @staticmethod
+    def getDecoders():
+        return {
+            Rotate.symbol:    Rotate,
+            Translate.symbol: Translate,
+            Scale.symbol:     Scale,
+          }
+
     def fromJSON(obj):
-        return \
-            Rotate.fromJSON(obj) or \
-            Translate.fromJSON(obj) or \
-            Scale.fromJSON(obj)
+        if isinstance(obj, list) and (len(obj) > 0):
+            decoders = Transform.getDecoders()
+            symbol = obj[0]
+            if symbol in decoders:
+                return decoders[symbol].fromJSON(obj)
+            else:
+                return None
+        else:
+            return None
 
 # --------------------------------------------------------------------------------------------------
 
@@ -606,19 +670,21 @@ class Transform(JSONizable):
 class Rotate(Transform, JSONizable):
     angle: float
 
+    symbol = 'rotate'
+
     def prettyJSON(self, o, level):
-        o.write('["rotate",')
+        o.write(f'["{Rotate.symbol}",')
         dump(self.angle, o)
         o.write(']')
 
     def toJSON(self):
-        return ["rotate", self.angle]
+        return [Rotate.symbol, self.angle]
 
     def fromJSON(obj):
-        if obj[0] == 'rotate':
-            assertArgCount(obj, 2, '"rotate"')
+        if isinstance(obj, list) and (obj[0] == Rotate.symbol):
+            assertArgCount(obj, 2, f'"{Rotate.symbol}"')
             return Rotate(
-                angle = require(obj, 2, numFromJSON, '"rotate"', 'angle: float'),
+                angle = require(obj, 1, numFromJSON, f'"Rotate.symbol"', 'angle: float'),
               )
         else:
             return None
@@ -629,23 +695,22 @@ class Rotate(Transform, JSONizable):
 class Translate(Transform, JSONizable):
     offset: Point
 
+    symbol = 'translate'
+
     def prettyJSON(self, o, level):
-        o.write('["translate",')
+        o.write(f'["{Translate.symbol}",')
         self.offset.prettyJSON(o, level)
         o.write(']')
 
     def toJSON(self):
-        return ['transform', self.offset.toJSON()]
+        return [Translate.symbol, self.offset.toJSON()]
 
     def fromJSON(obj):
-        if obj[0] == 'translate':
-            assertArgCount(obj, 2, '"translate"')
+        if isinstance(obj, list) and (obj[0] == Translate.symbol):
+            assertArgCount(obj, 2, f'"{Translate.symbol}"')
             return Translate(
-                offset = require(),
+                offset=require(obj, 1, Point.fromJSON, f'"{Translate.symbol}"', 'offset: Point'),
               )
-            offset = Point.fromJSON(obj[1])
-            require(offset, 1, '"translate"', 'offset: Point')
-            return Translate(offset=offset)
         else:
             return None
 
@@ -653,21 +718,143 @@ class Translate(Transform, JSONizable):
 
 @dataclass
 class Scale(Transform, JSONizable):
-    scale: BoundArea
+    by: BoundArea
+
+    symbol = 'scale'
 
     def prettyJSON(self, o, level):
-        o.write(f'["scale",')
-        self.scale.prettyJSON(o, level)
+        o.write(f'["{Scale.symbol}",')
+        self.by.prettyJSON(o, level)
         o.write(f']')
 
     def toJSON(self):
-        return ['translate', self.scale.toJSON()]
+        return [Scale.symbol, self.by.toJSON()]
 
     def fromJSON(obj):
-        if obj[0] == 'scale':
-            assertArgCount(obj, 2, '"scale"')
+        if isinstance(obj, list) and (obj[0] == Scale.symbol):
+            assertArgCount(obj, 2, f'"{Scale.symbol}"')
             return Scale(
-                scale = require(obj, 1, numFromJSON, '"scale"', 'scale: BoundArea')
+                by=require(obj, 1, BoundArea.fromJSON, f'"{Scale.symbol}"', 'by: BoundArea'),
+              )
+        else:
+            return None
+
+# --------------------------------------------------------------------------------------------------
+
+@dataclass
+class GuideObject(JSONizable):
+    @staticmethod
+    def getDecoders():
+        return {
+            GuidePoint.symbol:      GuidePoint,
+            GuideLine.symbol:       GuideLine,
+            GuideHorizontal.symbol: GuideHorizontal,
+            GuideVertical.symbol:   GuideVertical,
+          }
+
+    def fromJSON(obj):
+        if isinstance(obj, list) and (len(obj) > 0):
+            decoders = GuideObject.getDecoders()
+            symbol = obj[0]
+            if symbol in decoders:
+                return decoders[symbol].fromJSON(obj)
+            else:
+                return None
+        else:
+            return None
+
+@dataclass
+class GuidePoint(GuideObject, JSONizable):
+    point: Point
+
+    symbol = 'guide-point'
+
+    def prettyJSON(self, o, level):
+        o.write(f'["{GuidePoint.symbol}",')
+        self.point.prettyJSON(o, level)
+        o.write(']')
+
+    def toJSON(self):
+        return [GuidePoint.symbol, self.point.toJSON()]
+
+    def fromJSON(obj):
+        if obj[0] == GuidePoint.symbol:
+            assertArgCount(obj, 2, f'"{GuidePoint.symbol}"')
+            return GuidePoint(
+                point=require(obj, 1, Point.fromJSON, f'"{GuidePoint.symbol}"', 'Point'),
+              )
+        else:
+            return None
+
+@dataclass
+class GuideLine(GuideObject, JSONizable):
+    a: Point
+    b: Point
+
+    symbol = 'guideline'
+
+    def prettyJSON(self, o, level):
+        o.write(f'["{GuideLine.symbol}"' ',{"a":')
+        self.a.prettyJSON(o, level+1)
+        o.write(',"b":')
+        self.b.prettyJSON(o, level+1)
+        o.write('}]')
+
+    def toJSON(self):
+        return [GuideLine.symbol, {'a': self.a.toJSON(), 'b': self.b.toJSON()}]
+
+    def fromJSON(obj):
+        if obj[0] == GuideLine.symbol:
+            assertArgCount(obj, 2, f'"{GuideLine.symbol}"')
+            points = obj[1]
+            return GuideLine(
+                a=require(points, 'a', Point.fromJSON, f'"{GuideLine.symbol}"', 'a: "Point"'),
+                b=require(points, 'b', Point.fromJSON, f'"{GuideLine.symbol}"', 'b: "Point"'),
+              )
+        else:
+            return None
+
+@dataclass
+class GuideHorizontal(GuideObject, JSONizable):
+    x: float
+
+    symbol = 'horizontal'
+
+    def prettyJSON(self, o, level):
+        o.write(f'["{GuideHorizontal.symbol}",')
+        dump(self.x, o)
+        o.write(']')
+
+    def toJSON(self):
+        return [GuideHorizontal.symbol, self.x]
+
+    def fromJSON(obj):
+        if obj[0] == GuideHorizontal.symbol:
+            assertArgCount(obj, 2, f'"GuideHorizontal.symbol"')
+            return GuideHorizontal(
+                require(obj, 1, numFromJSON, f'"{GuideHorizontal.symbol}"', 'x: number'),
+              )
+        else:
+            return None
+
+@dataclass
+class GuideVertical(GuideObject, JSONizable):
+    y: float
+
+    symbol = 'vertical'
+
+    def prettyJSON(self, o, level):
+        o.write(f'["{GuideVertical.symbol}",')
+        dump(self.y, o)
+        o.write(']')
+
+    def toJSON(self):
+        return [GuideVertical.symbol, self.y]
+
+    def fromJSON(obj):
+        if isinstance(obj, list) and (obj[0] == GuideVertical.symbol):
+            return GuideVertical(
+                y = require(obj, 1, numFromJSON, '"vertical"', 'y: float'),
               )
         else:
             return None
@@ -678,12 +865,13 @@ class Scale(Transform, JSONizable):
 class ShapeGroup(MaskShape, JSONizable):
     name: str
     transforms: list[Transform]
+    guides: list[GuideObject]
     shapes: list[MaskShape]
 
     symbol = 'group'
 
     def prettyJSON(self, o, level):
-        o.write(f'["{ShapeGroup.symbol}",''{')
+        o.write(f'["{ShapeGroup.symbol}",' '{')
         self.prettyJSONName(o, level+1)
         self.prettyJSONContent(o, level+1, f'"{ShapeGroup.symbol}"', False)
         indent(o, level, '}]')
@@ -697,9 +885,18 @@ class ShapeGroup(MaskShape, JSONizable):
             pass
 
     def prettyJSONContent(self, o, level, constrName, trailingComma):
-        indented(o, level+1, '"transforms":')
-        prettyListJSON(o, level+2, self.transforms)
-        o.write(',\n')
+        if self.transforms and (len(self.transforms) > 0):
+            indented(o, level+1, '"transforms":')
+            prettyListJSON(o, level+2, self.transforms)
+            o.write(',\n')
+        else:
+            pass
+        if self.guides and (len(self.guides) > 0):
+            indented(o, level+1, '"guides":')
+            prettyListJSON(o, level+2, self.guides)
+            o.write(',\n')
+        else:
+            pass
         indented(o, level+1, '"shapes":')
         prettyListJSON(o, level+2, self.shapes)
         if trailingComma:
@@ -723,10 +920,20 @@ class ShapeGroup(MaskShape, JSONizable):
         transforms = []
         for t in self.transforms:
             transforms.append(t.toJSON())
+        guides = []
+        for g in self.guides:
+            guides.append(g.toJSON())
         shapes = []
         for s in self.shapes:
             shapes.append(s.toJSON())
-        result['transforms'] = transforms
+        if len(transforms) > 0:
+            result['transforms'] = transforms
+        else:
+            pass
+        if len(guides) > 0:
+            result['guides'] = guides
+        else:
+            pass
         result['shapes'] = shapes
 
     def fromJSON(obj):
@@ -737,142 +944,33 @@ class ShapeGroup(MaskShape, JSONizable):
         return Group.fromJSONContent(obj[1], f'"{ShapeGroup.symbol}"')
 
     def fromJSONContent(obj, constrName):
-        if not \
-           (('transforms' in obj) and \
-            ('shapes' in obj) and \
-            ((len(obj) == 2) or \
-             ((len(obj) == 3) and \
-              ('name' in obj)
-              )
-             )
-            ):
-            raise FromJSONError(
-                message=f'invalid properties for "{ShapeGroup.symbol}" constructor\n',
-                inputJSON=obj,
-                expectedFields=['"name" (optional)', '"transforms"', '"shapes"']
-              )
-        else:
-            name = obj['name'] if 'name' in obj else None
-            transforms = []
-            transformsJSON = obj['transforms']
-            for i in range(0,len(transformsJSON)):
-                trans = require(trans, i, Transform.fromJSON, 'Transform', f'{ShapeGroup.symbol}')
-                transforms.append(trans)
-            shapes = []
-            shapesJSON = obj['shapes']
-            for i in range(0,len(shapesJSON)):
-                shape = require(shapesJSON, i, MaskShape.fromJSON, 'MaskShape', f'{ShapeGroup.symbol}')
-                if not shape:
-                    raise FromJSONError(
-                        message='not a valid shape object',
-                        inputJSON=shapeJSON,
-                        inputIndex=i,
-                        decoderClass=f'["{ShapeGroup.symbol}"]["shapes"]',
-                      )
-                shapes.append(shape)
-            return ShapeGroup(name=name, transforms=transforms, shapes=shapes)
-
-# --------------------------------------------------------------------------------------------------
-
-@dataclass
-class GuideObject(JSONizable):
-    def fromJSON(obj):
-        return (
-            GuidePoint.fromJSON(obj) or \
-            GuileLine.fromJSON(obj) or \
-            GuideHorizontal.fromJSON(obj) or \
-            GuideVertical.fromJSON(obj)
+        checkPoperties(
+            obj, constrName,
+            {'shapes'},
+            {'name','transforms','guides'},
           )
+        name = obj['name'] if 'name' in obj else None
+        transforms = []
+        transformsJSON = obj['transforms'] if 'transforms' in obj else []
+        for i in range(0,len(transformsJSON)):
+            transforms.append(
+                require(transformsJSON, i, Transform.fromJSON, 'Transform', f'"{ShapeGroup.symbol}"'),
+              )
+        guides = []
+        guidesJSON = obj['guides'] if 'guides' in obj else []
+        for i in range(0,len(guidesJSON)):
+            guides.append(
+                require(guidesJSON, i, GuideObject.fromJSON, 'MaskShape', f'"{ShapeGroup.symbol}"'),
+              )
+        shapes = []
+        shapesJSON = obj['shapes'] if 'shapes' in obj else []
+        for i in range(0,len(shapesJSON)):
+            shapes.append(
+                require(shapesJSON, i, MaskShape.fromJSON, 'MaskShape', f'"{ShapeGroup.symbol}"'),
+              )
+        return ShapeGroup(name=name, transforms=transforms, shapes=shapes, guides=guides)
 
 # --------------------------------------------------------------------------------------------------
-
-@dataclass
-class GuidePoint(GuideObject, JSONizable):
-    point: Point
-
-    def prettyJSON(self, o, level):
-        o.write('["guide-point",')
-        self.point.prettyJSON(o, level)
-        o.write(']')
-
-    def toJSON(self):
-        return ['guidepoint', self.point.toJSON()]
-
-    def fromJSON(obj):
-        if obj[0] == 'guidepoint':
-            assertArgCount(obj, 2, '"guidepoint"')
-            return GuidePoint(
-                point=require(obj, 1, Point.fromJSON, '"guide-point"', 'Point'),
-              )
-        else:
-            return None
-
-# --------------------------------------------------------------------------------------------------
-
-class GuideLine(GuideObject, JSONizable):
-    a: Point
-    b: Point
-
-    def prettyJSON(self, o, level):
-        o.write('["guideline",{"a":')
-        a.prettyJSON(o, level)
-        o.write(',"b":')
-        b.prettyJSON(o, level)
-        o.write('}]')
-
-    def toJSON(self):
-        return ['guideline', self.a.toJSON(), self.b.toJSON()]
-
-    def fromJSON(obj):
-        if obj[0] == 'guideline':
-            assertArgCount(obj, 3, '"guideline"')
-            return GuideLine(
-                a = require(obj, 'a', Point.fromJSON, '"guideline"', 'a: Point'),
-                b = require(obj, 'b', Point.fromJSON, '"guideline"', 'b: Point'),
-              )
-        else:
-            return None
-
-# --------------------------------------------------------------------------------------------------
-
-class GuideHorizontal(GuideObject, JSONizable):
-    x: float
-
-    def prettyJSON(self, o, level):
-        o.write('["horizontal",')
-        dump(self.x, o)
-        o.write(']')
-
-    def toJSON(self):
-        return ['horizontal', self.x]
-
-    def fromJSON(obj):
-        if obj[0] == 'horizontal':
-            assertArgCount(obj, 2, '"horizontal"')
-            return GuideHorizontal(
-                require(obj, 1, numFromJSON, '"horizontal"', 'x: number'),
-              )
-        else:
-            return None
-
-class GuideVertical(GuideObject, JSONizable):
-    y: float
-
-    def prettyJSON(self, o, level):
-        o.write('["vertical",')
-        dump(self.y, o)
-        o.write(']')
-
-    def toJSON(self):
-        return ['vertical', self.x]
-
-    def fromJSON(obj):
-        if obj[0] == 'vertical':
-            return GuideVertical(
-                y = require(obj, 1, numFromJSON, '"vertical"', 'y: float'),
-              )
-        else:
-            return None
 
 class BlitOp(JSONizable):
     def fromJSON(obj):
@@ -889,14 +987,16 @@ class StrokeJoin(JSONizable):
           )
 
 class RoundJoin(StrokeJoin, JSONizable):
+    symbol = 'round'
+
     def prettyJSON(self, o, level):
-        o.write('"round"')
+        o.write(f'"{RoundJoin.symbol}"')
 
     def toJSON(self):
-        return 'round'
+        return RoundJoin.symbol
 
     def fromJSON(obj):
-        return RoundJoin() if obj == 'round' else None
+        return RoundJoin() if obj == RoundJoin.symbol else None
 
 class MiterJoin(StrokeJoin, JSONizable):
     def prettyJSON(self, o, level):
@@ -927,7 +1027,7 @@ class Stroke(BlitOp, JSONizable):
     symbol = 'stroke'
 
     def prettyJSON(self, o: TextIO, level: int):
-        indented(o, level, '["stroke",')
+        indented(o, level, f'["{Stroke.symbol}",')
         dump(self.lineWidth, o)
         o.write(',')
         self.joinStyle.prettyJSON(o, level)
@@ -940,8 +1040,8 @@ class Stroke(BlitOp, JSONizable):
         if obj[0] == Stroke.symbol:
             assertArgCount(args, 3, '"stroke"')
             return Stroke(
-                lineWidth = require(obj, 1, numFromJSON,         '"stroke"', 'lineWidth: float'),
-                joinStyle = require(obj, 2, StrokeJoin.fromJSON, '"stroke"', 'joinStyle: StrokeJoin'),
+                lineWidth = require(obj, 1, numFromJSON,         f'"{Stroke.symbol}"', 'lineWidth: float'),
+                joinStyle = require(obj, 2, StrokeJoin.fromJSON, f'"{Stroke.symbol}"', 'joinStyle: StrokeJoin'),
               )
         else:
             return None
@@ -970,9 +1070,7 @@ class ImageMask(ShapeGroup):
         return ['mask', self.blitOp.toJSON(), self.color, result]
 
     def fromJSON(obj):
-        if not isinstance(obj, list):
-            raise ValueError(f'ImageMask.fromJSON() expects list argument (got {type(obj)})')
-        elif obj[0] == 'mask':
+        if isinstance(obj, list) and (obj[0] == 'mask'):
             assertArgCount(obj, 4, '"mask"')
             blitOp = require(obj, 1, BlitOp.fromJSON, '"mask"', 'BlitOp')
             color  = require(obj, 2, bool,            '"mask"', 'color: bool')
@@ -982,6 +1080,7 @@ class ImageMask(ShapeGroup):
                 color      = color,
                 name       = group.name,
                 transforms = group.transforms,
+                guides     = group.guides,
                 shapes     = group.shapes,
               )
         else:
