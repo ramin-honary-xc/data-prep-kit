@@ -214,7 +214,7 @@ def defaultParseJSON(i: TextIO, c: type[JSONizable]):
 # --------------------------------------------------------------------------------------------------
 
 def stringTooLong(offset, s):
-    return (offset + len(result) > 80 or result.find('\n') >= 0)
+    return (offset + len(s) > 80 or s.find('\n') >= 0)
 
 def inlineJSON(o: TextIO, level: int, obj: object) -> None:
     if isinstance(obj, JSONizable):
@@ -493,7 +493,7 @@ class Ellipse(MaskShape, JSONizable):
     bounds: BoundArea
     visible: bool = True
 
-    symbol = 'Ellipse'
+    symbol = 'ellipse'
 
     def prettyJSON(self, o, level):
         o.write(f'["{Ellipse.symbol}",')
@@ -871,14 +871,17 @@ class ShapeGroup(MaskShape, JSONizable):
     symbol = 'group'
 
     def prettyJSON(self, o, level):
-        o.write(f'["{ShapeGroup.symbol}",' '{')
-        self.prettyJSONName(o, level+1)
+        o.write(f'["{ShapeGroup.symbol}",' '{\n')
+        self.prettyJSONName(True, o, level+1)
         self.prettyJSONContent(o, level+1, f'"{ShapeGroup.symbol}"', False)
-        indent(o, level, '}]')
+        indented(o, level, '}]')
 
-    def prettyJSONName(self, o, level):
+    def prettyJSONName(self, doIndent, o, level):
         if self.name:
-            o.write('"name":')
+            if doIndent:
+                indented(o, level+1, '"name":')
+            else:
+                o.write('"name":')
             dump(self.name, o)
             o.write(',\n')
         else:
@@ -941,7 +944,7 @@ class ShapeGroup(MaskShape, JSONizable):
             return None
         else:
             pass
-        return Group.fromJSONContent(obj[1], f'"{ShapeGroup.symbol}"')
+        return ShapeGroup.fromJSONContent(obj[1], f'"{ShapeGroup.symbol}"')
 
     def fromJSONContent(obj, constrName):
         checkPoperties(
@@ -979,6 +982,7 @@ class BlitOp(JSONizable):
             Stroke.fromJSON(obj)
           )
 
+@dataclass
 class StrokeJoin(JSONizable):
     def fromJSON(obj):
         return (
@@ -986,6 +990,7 @@ class StrokeJoin(JSONizable):
             MiterJoin.fromJSON(obj)
           )
 
+@dataclass
 class RoundJoin(StrokeJoin, JSONizable):
     symbol = 'round'
 
@@ -998,6 +1003,7 @@ class RoundJoin(StrokeJoin, JSONizable):
     def fromJSON(obj):
         return RoundJoin() if obj == RoundJoin.symbol else None
 
+@dataclass
 class MiterJoin(StrokeJoin, JSONizable):
     def prettyJSON(self, o, level):
         o.write( '"miter"')
@@ -1008,6 +1014,7 @@ class MiterJoin(StrokeJoin, JSONizable):
     def fromJSON(obj):
         return MiterJoin() if obj == 'miter' else None
 
+@dataclass
 class Fill(BlitOp, JSONizable):
     def prettyJSON(self, o, level):
         o.write('"fill"')
@@ -1038,7 +1045,7 @@ class Stroke(BlitOp, JSONizable):
 
     def fromJSON(obj):
         if obj[0] == Stroke.symbol:
-            assertArgCount(args, 3, '"stroke"')
+            assertArgCount(obj, 3, '"stroke"')
             return Stroke(
                 lineWidth = require(obj, 1, numFromJSON,         f'"{Stroke.symbol}"', 'lineWidth: float'),
                 joinStyle = require(obj, 2, StrokeJoin.fromJSON, f'"{Stroke.symbol}"', 'joinStyle: StrokeJoin'),
@@ -1059,7 +1066,7 @@ class ImageMask(ShapeGroup):
         dump(self.color, o)
         o.write(',\n')
         indented(o, level1, '{')
-        self.prettyJSONName(o, level1)
+        self.prettyJSONName(False, o, level1)
         self.prettyJSONContent(o, level1, '"mask"', False)
         indented(o, level1, '}]')
 

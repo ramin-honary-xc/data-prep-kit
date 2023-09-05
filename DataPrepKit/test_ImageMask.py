@@ -5,6 +5,8 @@ from dataclasses import dataclass
 import json
 from json import JSONDecodeError
 import traceback
+from random import random, randint, choice
+import math
 import sys
 
 # --------------------------------------------------------------------------------------------------
@@ -200,5 +202,229 @@ imask = ImageMask(
     guides=[guidepoint, guideline, horizontal, vertical],
     shapes=[circle, rectangle, bspline, ellipse, polygon],
   )
-testPrettyJSON(imask, ImageMask, True)
-testToJSON(imask, ImageMask, True)
+testPrettyJSON(imask, ImageMask, False)
+testToJSON(imask, ImageMask, False)
+
+# --------------------------------------------------------------------------------------------------
+
+maxdepth = 3
+
+def randListOf(randGen, d, minLength=0, maxLength=10):
+  length = randint(minLength, maxLength)
+  result = []
+  for i in range(minLength, length):
+    result.append(randGen(d))
+  return result
+
+def randName(d):
+  a = choice([None, None, None, None, None, None, None, None, None, None, None, None, None,
+              'near', 'far', 'close', 'distant', 'upper', 'lower', 'left', 'right', 'center',
+              'middle', 'foreward', 'backward', 'tiny', 'small', 'medium', 'big', 'large',
+              'sideways', 'diagonal', 'long', 'short', 'crooked', 'twisted', 'main', 'alternate'])
+  b = choice([None, None, None, None, None, None,
+              'red','orange','yellow','green','blue','purple','violet'])
+  c = choice(['circle', 'polygon', 'triangle', 'square', 'pentagon', 'hexagon', 'octagon',
+              'semicircle', 'star', 'trapezoid', 'rhombus', 'parallelogram', 'chip', 'chunk',
+              'lead', 'stem', 'path', 'lamp', 'cell', 'switch', 'contact', 'pad', 'sample'])
+  a = [a] if a else []
+  b = [b] if b else []
+  return ' '.join(a + b + [c])
+
+randMaybeName = (
+    lambda d: (choice([(lambda d: None), randName]))(d)
+  )
+
+def randComment(d):
+  # Almost as good as ChatGPT:
+  nounChoices = [
+      (lambda: f'the {randName(d)}'),
+      (lambda: f'the {randName(d)} and the {randName(d)}'),
+      (lambda: f'either the {randName(d)} or the {randName(d)}'),
+      (lambda: f'any of the {randName(d)}s, the {randName(d)}s, and/or the {randName(d)}s'),
+      (lambda: f'the {randName(d)} but not {randName(d)}'),
+      (lambda: f'all of the {randName(d)}s'),
+      (lambda: f'any one of the {randName(d)}'),
+      (lambda: f'the {randName(d)} next to the {randName(d)}'),
+    ]
+  ##-------- start test --------
+  #print('Nouns:')
+  #for f in nounChoices:
+  #  print(f'- {f()}')
+  ##-------- end test --------
+  noun = (lambda: (choice(nounChoices))())
+  relativePlacement = \
+    ( lambda:
+        choice(
+            [ 'next to', 'between', 'below', 'above', 'around', 'near',
+              'parallel to', 'perpendicular to',
+              'to the left of', 'to the right of', 'that is connected to'
+            ]
+          )
+     )
+  relativeNounChoices = [
+      noun, noun, noun, noun, noun,
+      (lambda: f'{noun()} {relativePlacement()} {noun()}'),
+      (lambda: f'{noun()} and {noun()} that are {relativePlacement()} {noun()}'),
+      (lambda: f'{noun()} that is {relativePlacement()} {noun()} and {noun()}'),
+      (lambda: f'{noun()} and {noun()} that are {relativePlacement()} {noun()} and {noun()}'),
+      (lambda: f'{noun()} {relativePlacement()} {noun()} and {relativePlacement()} {noun()}'),
+      (lambda: f'{noun()} that is {relativePlacement()} {noun()}, but not {relativePlacement()} {noun()}'),
+    ]
+  ##-------- start test --------
+  #print('Relative nouns:')
+  #for f in relativeNounChoices:
+  #  print(f'- {f()}')
+  ##-------- end test --------
+  relativeNoun = (lambda: (choice(relativeNounChoices))())
+  intransitiveVerb = \
+    ( lambda:
+        choice(['is connected to', 'is detatched from', 'overlays', 'awaits signals from', 'is set to move toward'])
+    )
+  intransitiveClause = (lambda: f'{relativeNoun()} {intransitiveVerb()} {relativeNoun()}')
+  transitiveVerb = \
+    ( lambda:
+        choice(['connects to', 'detaches from', 'recedes from', 'signals', 'moves toward'])
+    )
+  transitiveClause = (lambda: f'{relativeNoun()} {transitiveVerb()} {relativeNoun()}')
+  factChoice = [
+      intransitiveClause, intransitiveClause, intransitiveClause,
+      (lambda: f'{intransitiveClause()}, and {intransitiveClause()}.'),
+      (lambda: f'{intransitiveClause()}, and also {intransitiveClause()}.'),
+      (lambda: f'{intransitiveClause()}, while {intransitiveClause()}.'),
+      (lambda: f'{intransitiveClause()}, however {intransitiveClause()}.'),
+      (lambda: f'{intransitiveClause()}, as opposed to {relativeNoun()} which {intransitiveVerb()} {relativeNoun()}.'),
+    ]
+  fact = (lambda: (choice(factChoice))())
+  actionChoice = [
+      (lambda: f'{relativeNoun()} {transitiveClause()} {relativeNoun()}.'),
+      (lambda: f'{relativeNoun()} {transitiveClause()} {relativeNoun()}, which then {transitiveClause()} {relativeNoun()}.'),
+      (lambda: f'Once {relativeNoun()} {transitiveClause()} {relativeNoun()}, {relativeNoun()} {transitiveClause()} {relativeNoun()}.'),
+      (lambda: f'When {relativeNoun()} {transitiveClause()} {relativeNoun()}, {relativeNoun()} then {transitiveClause()} {relativeNoun()}.'),
+      (lambda: f'While {relativeNoun()} {transitiveClause()} {relativeNoun()}, {relativeNoun()} {transitiveClause()} {relativeNoun()}.'),
+      (lambda: f'{relativeNoun()} {transitiveClause()} {relativeNoun()}, while at the same time {relativeNoun()} {transitiveClause()} {relativeNoun()}.'),
+    ]
+  ##-------- start test --------
+  #print('Action:')
+  #for f in actionChoice:
+  #  print(f'- {f()}')
+  ##-------- end test --------
+  action = (lambda: (choice(actionChoice))())
+  factStatement = (lambda: (choice([fact, (lambda: f'{fact()} {fact()}')]))())
+  actionStatement = (lambda: (choice([action, (lambda: f'{action()} {action()}')]))())
+  conclusion = (lambda: (choice([(lambda: ''), (lambda: f' Finally, {factStatement()}')]))())
+  return f'{factStatement()} {actionStatement()} {conclusion()}'
+
+##test randComment
+#print(randComment(0))
+
+randBool       = lambda d: (randint(0,2**31) % 2 == 0)
+randAngle      = lambda d: random()*math.pi
+randScalar     = lambda d: randint(-1000000,1000000)/1000
+randPoint      = lambda d: Point(x=randScalar(d), y=randScalar(d))
+randBoundArea  = lambda d: BoundArea(width=randScalar(d), height=randScalar(d))
+randPolygon    = lambda d: Polygon(points=randListOf(randPoint, d))
+randRotate     = lambda d: Rotate(angle=randAngle(d))
+randTranslate  = lambda d: Translate(offset=randPoint(d))
+randScale      = lambda d: Scale(by=randBoundArea(d))
+randGuidePoint = lambda d: GuidePoint(point=randPoint(d))
+randGuideLine  = lambda d: GuideLine(a=randPoint(d), b=randPoint(d))
+randTransform  = lambda d: (choice([randRotate, randTranslate, randScale]))(d)
+randStrokeJoin = lambda d: (choice([(lambda d: RoundJoin()), (lambda d: MiterJoin())]))(d)
+
+randGuideHorizontal = lambda d: GuideHorizontal(x=random()*10000)
+randGuideVertical   = lambda d: GuideVertical(y=random()*10000)
+
+randStroke = (
+    lambda d:
+      Stroke(
+          lineWidth=(round(90*random()+10)/randint(2, 10)),
+          joinStyle=randStrokeJoin(d),
+        )
+  )
+
+randBlitOp = lambda d: (choice([(lambda d: Fill()), (lambda d: randStroke(d))]))(d)
+
+randGuide = (
+    lambda d:
+      (choice([randGuidePoint, randGuideLine, randGuideHorizontal, randGuideVertical]))(d)
+  )
+
+randBPoint = (
+    lambda d:
+      BPoint(
+          point=randPoint(d),
+          ctrl1=randPoint(d),
+          ctrl2=randPoint(d),
+        )
+  )
+
+randBSpline = lambda d: BSpline(points=randListOf(randBPoint, d))
+
+randRectangle = (
+    lambda d:
+      Rectangle(
+          origin=randPoint(d),
+          bounds=randBoundArea(d),
+          visible=randBool(d),
+        )
+  )
+
+randCircle = (
+    lambda d:
+      Circle(
+          origin=randPoint(d),
+          radius=randScalar(d),
+          startAngle=randAngle(d),
+          endAngle=randAngle(d),
+          visible=randBool(d),
+        )
+  )
+
+randEllipse = (
+    lambda d:
+      Ellipse(
+          origin=randPoint(d),
+          bounds=randBoundArea(d),
+          visible=randBool(d),
+        )
+  )
+
+randGroup = (
+    lambda d:
+      ShapeGroup(
+          name=randMaybeName(d),
+          transforms=randListOf(randTransform, d),
+          guides=randListOf(randGuide, d),
+          shapes=randListOf(randShape, d),
+        )
+  )
+
+def randShape(d):
+  shapeGens = [randBSpline, randRectangle, randCircle, randEllipse, randPolygon]
+  if d < maxdepth:
+    groupGen = (lambda d: randGroup(d+1))
+    shapeGens += [groupGen, groupGen]
+  else:
+    pass
+  return (choice(shapeGens))(d)
+
+randImageMask = (
+    lambda:
+      ImageMask(
+          blitOp=randBlitOp(0),
+          color=randBool(0),
+          name=randMaybeName(0),
+          transforms=randListOf(randTransform, 0),
+          guides=randListOf(randGuide, 0),
+          shapes=randListOf(randShape, 0),
+        )
+  )
+
+#test randImageMask()
+randImageMask().prettyJSON(sys.stdout, 0)
+
+# Run many tests on procedurally generated objects
+for i in range(0,10000):
+  obj = randImageMask()
+  testPrettyJSON(obj, ImageMask, False)
+  testToJSON(obj, ImageMask, False)
