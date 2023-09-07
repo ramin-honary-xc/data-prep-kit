@@ -421,10 +421,13 @@ randImageMask = (
   )
 
 #test randImageMask()
-randImageMask().prettyJSON(sys.stdout, 0)
-
-# Run many tests on procedurally generated objects
-for i in range(0,10000):
+def runRandomTest(showJSON, showPretty):
   obj = randImageMask()
-  testPrettyJSON(obj, ImageMask, False)
-  testToJSON(obj, ImageMask, False)
+  testToJSON(obj, ImageMask, showJSON)
+  testPrettyJSON(obj, ImageMask, showPretty)
+
+runRandomTest(True, True)
+
+## Run many tests on procedurally generated objects
+#for i in range(0,10000):
+#  runRandomTest(False, False)
