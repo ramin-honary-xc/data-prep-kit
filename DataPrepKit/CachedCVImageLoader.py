@@ -68,10 +68,19 @@ class CachedCVImageLoader():
 
     def get_crop_rect(self):
         """You can crop the image before performing processing on it, you can
-        do this for true of both pattern and target images. The value
-        returned might be None, in which case the entire image is
-        used."""
-        return self.crop_rect
+        do this for true of both pattern and target images. If
+        'set_crop_rect()' method has never been called for an object
+        of this class, this method returns a rectangle that encompases
+        the whole image. If the image is not loaded, this function
+        returns None."""
+        if self.crop_rect is None:
+            if self.image is None:
+                return None
+            else:
+                shape = self.image.shape
+                return (0, 0, shape[1], shape[0])
+        else:
+            return self.crop_rect
 
     def set_crop_rect(self, crop_rect):
         """You may set the crop_rect to None, in this case the whole image

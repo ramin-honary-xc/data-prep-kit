@@ -3,6 +3,7 @@
 import DataPrepKit.utilities as util
 import DataPrepKit.PatternMatcher as patm
 import DataPrepKit.PatternMatcherGUI as gui
+from DataPrepKit.FileSet import image_file_suffix_set
 
 import argparse
 import sys
@@ -32,9 +33,9 @@ def main():
       )
 
     arper.add_argument(
-        "-v", "--verbose",
-        dest="verbose",
-        action="store_true",
+        '-v', '--verbose',
+        dest='verbose',
+        action='store_true',
         default=False,
         help="""
           Reports number of matching regions per input image,
@@ -43,79 +44,93 @@ def main():
       )
 
     arper.add_argument(
-        "--gui",
-        dest="gui",
-        action="store_true",
+        '--gui',
+        dest='gui',
+        action='store_true',
         default=False,
         help="""
           Inlcude this arugment to launch the GUI utility.
           """,
       )
 
-    arper.add_argument( \
-        "--no-gui", \
-        dest="gui", \
-        action="store_false", \
+    arper.add_argument(
+        '--no-gui',
+        dest='gui',
+        action='store_false',
         help="""
           Program runs in "batch mode," without presenting a GUI or requesting user feedback.
-          """ \
+          """
       )
 
-    arper.add_argument( \
-        "-t", "--threshold", \
-        dest="threshold", \
-        action="store", \
-        default="95", \
-        type=util.threshold, \
+    arper.add_argument(
+        '-t', '--threshold',
+        dest='threshold',
+        action='store',
+        default='95',
+        type=util.threshold,
         help="""
           The minimum percentage of similarity reqiured between a pattern and a
           region of the image in order for the region to be selected and cropped.
           """,
       )
 
-    arper.add_argument( \
-        "-p", "--pattern", \
-        dest="pattern", \
-        action="store", \
-        default=None, \
-        type=PurePath, \
+    arper.add_argument(
+        '-p', '--pattern',
+        dest='pattern',
+        action='store',
+        default=None,
+        type=PurePath,
         help="""
           Specify the file path of the image to be used as the pattern.
-          """ \
+          """
       )
 
-    arper.add_argument( \
-        "-o", "--output-dir", \
-        dest="output_dir", \
-        action="store", \
-        default=PurePath("./matched-images"), \
-        type=PurePath, \
+    arper.add_argument(
+        '-o', '--output-dir',
+        dest='output_dir',
+        action='store',
+        default=PurePath('./matched-images'),
+        type=PurePath,
         help="""
           Specify the output directory into which multiple image files can be created.
           """,
       )
 
-    arper.add_argument( \
-        "--save-map", \
-        dest="save_map", \
-        action="store", \
-        default=None, \
+    arper.add_argument(
+        '--save-map',
+        dest='save_map',
+        action='store',
+        default=None,
         help="""
           If a filename suffix string is supplied as this argument, the resulting image of
           the pattern matching convolution is saved to a file of the same name as the input
           file with the prefix apended to the filename (but before the file extension).
-          """ \
+          """
       )
 
-    arper.add_argument( \
-        "inputs", \
-        nargs="*", \
-        action="store", \
-        type=PurePath, \
+    arper.add_argument(
+        '--encoding',
+        dest='encoding',
+        action='store',
+        default='png',
+        help=\
+          f'A file extension symbol (without a dot) indicating how to encode\n'
+          f'the output image files. The set of valid file encodings and their\n'
+          f'symbols is defined by OpenCV, please refer to this documentation:\n'
+          f'https://docs.opencv.org/3.4/d4/da8/group__imgcodecs.html#ga288b8b3da0892bd651fce07b3bbd3a56\n'
+          f'Encoding symbols accepted as this argument include:\n'
+          f'{image_file_suffix_set!r}',
+        )
+
+    arper.add_argument(
+        'inputs',
+        nargs='*',
+        action='store',
+        type=PurePath,
         help="""
           A set of images, or directories containing images, in which the pattern image is searched.
           Directories are searched for images, but not recursively. See the --recursive option.
-          """ \
+          """,
       )
 
     (config, remaining_argv) = arper.parse_known_args()

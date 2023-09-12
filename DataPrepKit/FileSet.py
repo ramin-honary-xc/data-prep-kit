@@ -3,6 +3,12 @@ import os
 
 # Classes for working with files.
 
+image_file_suffix_set = {
+    'png', 'jpg', 'jpeg', 'bmp', 'webp', 'pbm',
+    'ppm', 'pgm', 'pxm', 'pnm', 'tif', 'tiff',
+    'sr', 'ras', 'exr', 'hdr', 'pic',
+  }
+
 def filter_image_files_by_ext(filepath):
     """This function expects a value of type Path() or PurePath.
 
@@ -10,13 +16,11 @@ def filter_image_files_by_ext(filepath):
     https://docs.opencv.org/3.4/d4/da8/group__imgcodecs.html#ga288b8b3da0892bd651fce07b3bbd3a56
     """
     ext = filepath.suffix.lower()
-    return \
-        (ext == ".png") or (ext == ".jpg") or (ext == ".jpeg") or \
-        (ext == ".bmp") or (ext == ".webp") or (ext == ".pbm") or \
-        (ext == ".ppm") or (ext == ".pgm") or (ext == ".pxm") or \
-        (ext == ".pnm") or (ext == ".tif") or (ext == ".tiff") or \
-        (ext == ".sr") or (ext == ".ras") or (ext == ".exr") or \
-        (ext == ".hdr") or (ext == ".pic")
+    if ext[0] == '.':
+        ext = ext[1:]
+    else:
+        pass
+    return (ext in image_file_suffix_set)
 
 class FileSet():
     """A FileSet is a class of mutable objects responsible for keeping

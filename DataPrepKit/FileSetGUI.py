@@ -154,6 +154,7 @@ class FileSetGUI(qt.QWidget):
         else:
             self.fileset = fileset
         #---------- Setup visible widgets ----------
+        screenWidth = qgui.QGuiApplication.primaryScreen().virtualSize().width()
         self.layout = qt.QHBoxLayout(self)
         self.splitter = qt.QSplitter(qcore.Qt.Orientation.Horizontal, self)
         self.setAcceptDrops(True)
@@ -161,10 +162,17 @@ class FileSetGUI(qt.QWidget):
         self.list_widget = qt.QListWidget(self)
         self.list_widget.setObjectName("FilesTab list_widget")
         self.list_widget.setContextMenuPolicy(qcore.Qt.ContextMenuPolicy.ActionsContextMenu)
+        self.list_widget.setSizePolicy(
+            qt.QSizePolicy(
+                qt.QSizePolicy.Preferred,
+                qt.QSizePolicy.Preferred,
+              ),
+          )
         self.splitter.insertWidget(0, self.list_widget)
         self.image_display = None
         self.set_image_display_widget(image_display)
         self.layout.addWidget(self.splitter)
+        self.splitter.setSizes([round(screenWidth/2), round(screenWidth/2)])
         self.display_pixmap_path = None
         #---------- Populate list view ----------
         self.reset_paths_list()

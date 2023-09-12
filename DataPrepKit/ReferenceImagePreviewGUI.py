@@ -1,5 +1,6 @@
 import DataPrepKit.utilities as util
 from DataPrepKit.SimpleImagePreview import SimpleImagePreview
+import PyQt5.QtWidgets as qt
 
 from pathlib import PurePath
 
@@ -27,6 +28,12 @@ class ReferenceImagePreview(SimpleImagePreview):
         self.app_model = app_model
         self.main_view = main_view
         self.enable_drop_handlers(True)
+        self.setSizePolicy(
+            qt.QSizePolicy(
+                qt.QSizePolicy.Expanding,
+                qt.QSizePolicy.Preferred,
+              ),
+          )
 
     def drop_url_handler(self, urls):
         if len(urls) > 0:

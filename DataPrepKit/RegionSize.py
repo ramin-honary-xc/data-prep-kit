@@ -1,4 +1,4 @@
-from pathlib import PurePath
+from pathlib import Path, PurePath
 import cv2 as cv
 
 #---------------------------------------------------------------------------------------------------
@@ -37,7 +37,7 @@ class RegionSize():
         else:
             return True
 
-    def crop_image(self, image):
+    def crop_image(self, image, relative_rect=None):
         """Return a copy of the given image cropped to this object's
         rectangle. """
         if self.check_image_size(image):
@@ -57,27 +57,44 @@ class RegionSize():
                 },
              )
 
-    def as_file_name(self):
+    def as_file_name(self, prefix=None, suffix='png'):
         """Return a string repreentation of this rectangle object that can be
         appended to a file name. This method is used to describe
         images that have been cropped from a larger image and written
         into a file.
         """
-        return PurePath(f"{self.x_min:0>5}x{self.y_min:0>5}.png")
-
-    def crop_write_image(self, image, results_dir, file_prefix=None):
-        """Takes an image to crop, crops it with 'crop_image()', takes a
-        PurePath() 'results_dir', writes the cropped image to the file
-        path given by (results_dir/self.as_file_name()) using
-        'cv.imwrite()'.
-        """
-        write_path = self.as_file_name()
-        if file_prefix:
-            write_path = PurePath(f"{file_prefix!s}_{write_path!s}")
+        coord_string = f'{self.x_min:0>5}x{self.y_min:0>5}'
+        if prefix is not None and prefix != '':
+            return PurePath(f'{prefix}_{coord_string}.{suffix}')
         else:
-            pass
-        write_path = results_dir / write_path
+            return PurePath(f'{coord_string}.{suffix}')
+
+    def crop_write_image(self, image, results_dir, file_prefix=None, file_suffix='png'):
+        """Takes the following arguments:
+
+         1. an image to crop, crops it with 'crop_image()'
+
+         2. a dictionary of crop regions (keys are subdirectories in
+            which to store cropped images, values are rectangles
+            relative to this RegionSize). If this value is None, this
+            RegionSize is used as a single crop region.
+
+         3. takes a PurePath() 'results_dir'
+
+         4. The 'file_suffix' must be an element of
+            'DataPrepKit.FileSet.image_file_suffix_set', a file prefix
+            with no dot (e.g. "png", "bmp", "jpg") indicating the file
+            encoding to use according to the OpenCV imwrite()
+            function. It defaults to "png".
+
+         It will write the cropped image to the file path given by
+         (results_dir/self.as_file_name()) using 'cv.imwrite()'.
+
+        """
+        write_path = self.as_file_name(file_prefix, file_suffix)
+        write_path = Path(results_dir / write_path)
         print(f"RegionSize.crop_write_image() #(write file: {write_path})")
+        write_path.parent.mkdir(exist_ok=True, parents=True)
         cv.imwrite(str(write_path), self.crop_image(image))
 
     def get_point_and_size(self):

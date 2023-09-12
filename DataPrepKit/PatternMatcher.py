@@ -41,11 +41,15 @@ class DistanceMap():
     hard-coded to be 2/3rds the size of the target's size.
     """
 
-    def __init__(self, target, pattern):
+    def __init__(self, target, pattern, write_file_suffix=None):
         """Takes two 2D-images, NumPy arrays loaded from files by
         OpenCV. Constructing this object computes the convolution and
-        square-difference distance map.
-        """
+        square-difference distance map. The "write_file_suffix" should
+        be a string (without a dot) indicating the file type to
+        create. The OpenCV backend for this program uses this suffix
+        to decide how to encode the file, so for example "bmp" will
+        construct a MS-Windows "Bitmap" encoded image file, "png" will
+        construct a PNG encoded image file."""
         self.target = target
         self.reference = pattern
         print(f'reference = {self.reference.get_path()!s}')
@@ -136,7 +140,7 @@ class DistanceMap():
         # Copy the result into the "search_image".
         self.distance_map[0:pre_dist_map_height, 0:pre_dist_map_width] = pre_distance_map
 
-        # The 'find_matching_regions()' method will memoize it's results.
+        # The 'find_matching_points()' method will memoize it's results.
         self.memoized_regions = {}
 
     def get_target(self):
@@ -151,7 +155,7 @@ class DistanceMap():
         """
         cv.imwrite(str(file_path), util.float_to_uint32(self.distance_map))
 
-    def find_matching_regions(self, threshold=0.95):
+    def find_matching_points(self, threshold=0.95):
         """Given a 'distance_map' that has been computed by the
         'compute_distance_map()' function above, and a threshold
         value, return a list of all regions where the distance map is
@@ -189,27 +193,35 @@ class DistanceMap():
                 global_y = y * self.window_height + min_y
                 global_x = x * self.window_width  + min_x
                 if tile[min_y, min_x] <= (1.0 - threshold):
-                    results.append(
-                        RegionSize(
-                            global_x, global_y,
-                            self.reference_width, self.reference_height,
-                          )
-                      )
+                    results.append((global_x, global_y,))
+                    # RegionSize(
+                    #     global_x, global_y,
+                    #     self.reference_width, self.reference_height,
+                    #   )
                 else:
                     pass
 
         self.memoized_regions[threshold] = results
         return results
 
-    def write_all_cropped_images(self, target_image, threshold, results_dir):
+    def write_all_cropped_images(self, target_image, threshold, crop_regions, results_dir):
         print(
             f'threshold = {threshold!s}\n'
             f'target_image = {self.target_image_path!s}',
           )
-        regions = self.find_matching_regions(threshold=threshold)
+        points = self.find_matching_points(threshold=threshold)
         prefix = self.target_image_path.stem
-        for reg in regions:
-            reg.crop_write_image(target_image, results_dir, prefix)
+        if crop_regions is None or len(crop_regions) == 0:
+            print(f'DistanceMap.write_all_cropped_images() #(no crop_regions, len(points) = {len(points)})')
+            for (x,y) in points:
+                reg = RegionSize(x, y, self.reference_width, self.reference_height)
+                reg.crop_write_image(target_image, results_dir, prefix)
+        else:
+            print(f'DistanceMap.write_all_cropped_images() #(len(points) = {len(points)}, len(crop_regions) = {len(crop_regions)})')
+            for (x,y) in points:
+                for (label,(x_off, y_off, width, height)) in crop_regions.items():
+                    reg = RegionSize(x+x_off, y+y_off, width, height)
+                    reg.crop_write_image(target_image, results_dir/PurePath(label), prefix)
 
 #---------------------------------------------------------------------------------------------------
 
@@ -227,7 +239,9 @@ class PatternMatcher():
         self.save_distance_map = None
         self.threshold = 0.78
         self.target = CachedCVImageLoader()
-        self.target_matched_regions = []
+        self.target_matched_points = []
+        self.file_encoding = 'png'
+        self.crop_regions = {}
         self.reference = CachedCVImageLoader()
         if config:
             self.set_config(config)
@@ -244,6 +258,11 @@ class PatternMatcher():
         self.results_dir = config.output_dir
         self.threshold = config.threshold
         self.save_distance_map = config.save_map
+        self.file_encoding = config.encoding
+        if self.file_encoding not in fs.image_file_suffix_set:
+            raise ValueError(f'unknown image file encoding symbol "{self.file_encoding}"')
+        else:
+            pass
         # Load the reference right away, if it is not None
         self.reference_image_path = config.pattern
         if self.reference_image_path:
@@ -268,7 +287,10 @@ class PatternMatcher():
         self.reference.set_image(reference_path, pixmap)
 
     def get_reference_rect(self):
-        return self.reference_rect
+        if self.reference is None:
+            return None
+        else:
+            return self.reference.get_crop_rect()
 
     def set_reference_rect(self, rect):
         if rect is None:
@@ -278,6 +300,18 @@ class PatternMatcher():
                 self.reference.set_crop_rect(rect)
         else:
             raise ValueError(f'PatternMatcher.set_reference_rect() must take a 4-tuple', rect)
+
+    def get_crop_regions(self):
+        return self.crop_regions
+
+    def set_crop_regions(self, crop_regions):
+        self.crop_regions = crop_regions
+
+    def set_results_dir(self, results_dir):
+        self.results_dir = results_dir
+
+    def add_crop_region(sefl, label, rect):
+        self.crop_regions[label] = rect
 
     def get_target(self):
         return self.target
@@ -312,8 +346,8 @@ class PatternMatcher():
 
     def match_on_file(self):
         """This function is triggered when you double-click on an item in the image
-        list in the "FilesTab". It starts running the pattern matching algorithm and
-        changes the display of the GUI over to the "InspectTab".
+        list in the "FilesTab". It starts running the pattern matching algorithm
+        and changes the display of the GUI over to the "InspectTab".
         """
         patimg = self.reference.get_image()
         targimg = self.target.get_image()
@@ -324,25 +358,25 @@ class PatternMatcher():
         else:
             target_image_path = self.target.get_path()
             self.distance_map = DistanceMap(self.target, self.reference)
-            self.target_matched_regions = \
-                self.distance_map.find_matching_regions(self.threshold)
+            self.target_matched_points = \
+                self.distance_map.find_matching_points(self.threshold)
 
     def change_threshold(self, threshold):
         if self.distance_map is not None:
              if self.threshold != threshold:
-                 self.target_matched_regions = \
-                     self.distance_map.find_matching_regions(threshold)
+                 self.target_matched_points = \
+                     self.distance_map.find_matching_points(threshold)
                  self.threshold = threshold
              else:
                  print(f'PatternMatcher.change_threshold({threshold}) #(thrshold is already set to this value)')
         else:
             print(f'PatternMatcher.change_threshold() #(called before DistanceMap was constructed)')
 
-    def get_matched_regions(self):
+    def get_matched_points(self):
         """This function returns the list of patterm matching regions that
         were most recently computed by running the
         self.distance_map.find_matching_region() function."""
-        return self.target_matched_regions
+        return self.target_matched_points
 
     def crop_matched_references(self, target_image_path):
         # Create results directory if it does not exist
@@ -359,7 +393,12 @@ class PatternMatcher():
             distance_map.save_distance_map(self.save_distance_map)
         else:
             pass
-        distance_map.write_all_cropped_images(target.get_image(), self.threshold, self.results_dir)
+        distance_map.write_all_cropped_images(
+            target.get_image(),
+            self.threshold,
+            self.crop_regions,
+            self.results_dir,
+          )
 
     def batch_crop_matched_references(self):
         self.reference.load_image()

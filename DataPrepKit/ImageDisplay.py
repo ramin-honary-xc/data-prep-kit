@@ -33,6 +33,12 @@ class ImageDisplay(qt.QGraphicsView):
         super(ImageDisplay, self).setScene(self._scene)
         super(LayeredGraphicsScene, self._scene).changed.connect(self.updateScene)
         self.setContextMenuPolicy(2) # 2 = qcore::ContextMenuPolicy::ActionsContextMenu
+        self.setSizePolicy(
+            qt.QSizePolicy(
+                qt.QSizePolicy.Expanding,
+                qt.QSizePolicy.Preferred,
+              ),
+          )
 
     def get_mouse_mode(self):
         return self._scene.get_mouse_mode()
