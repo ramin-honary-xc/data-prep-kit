@@ -1,4 +1,5 @@
 import PyQt5.QtCore as qcore
+import PyQt5.QtGui as qgui
 import PyQt5.QtWidgets as qt
 
 from DataPrepKit.ImageDisplay import ImageDisplay
@@ -88,9 +89,13 @@ class SimpleImagePreview(ImageDisplay, DragDropHandler):
         self.setSizePolicy(
             qt.QSizePolicy(
                 qt.QSizePolicy.Expanding,
-                qt.QSizePolicy.Preferred,
+                qt.QSizePolicy.Expanding,
               ),
           )
+
+    def sizeHint(self):
+        screen = qgui.QGuiApplication.primaryScreen().virtualSize()
+        return qcore.QSize(screen.width(), screen.height())
 
     def resizeEvent(self, newSize):
         super(SimpleImagePreview, self).resizeEvent(newSize)

@@ -4,7 +4,7 @@ import PyQt5.QtWidgets as qt
 
 #---------------------------------------------------------------------------------------------------
 
-class PercentSlider(qt.QWidget):
+class PercentSlider(qt.QGroupBox):
     """This is a simple Qt Widget composed of 3 other widgets: a Label, a
     LineEdit text box, and a Slider. Dragging the slider changes the
     percentage value shown in the LineEdit box, changing the value in
@@ -14,11 +14,11 @@ class PercentSlider(qt.QWidget):
     """
 
     def __init__(self, label, init_value, callback):
-        super().__init__()
+        super().__init__(label)
         self.init_value = init_value
         self.percent = init_value
         self.callback = callback
-        self.label = qt.QLabel(label)
+        #self.label = qt.QLabel(label)
         self.slider = qt.QSlider(1, self)
         self.slider.setMinimum(500)
         self.slider.setMaximum(1000)
@@ -28,7 +28,10 @@ class PercentSlider(qt.QWidget):
         self.slider.setObjectName("InspectTab slider")
         self.slider.valueChanged.connect(self.value_changed_handler)
         self.setSizePolicy(self.slider.sizePolicy())
-        self.textbox = qt.QLineEdit(str(round(self.percent * 1000.0) / 10.0), self)
+        self.textbox = qt.QLineEdit(
+            str(round(self.percent * 1000.0) / 10.0),
+            parent=self,
+          )
         self.textbox.setMaxLength(5)
         self.textbox.setObjectName("InspectTab textbox")
         font_metrics = qt.QLabel("100.0 %").fontMetrics()
@@ -37,9 +40,10 @@ class PercentSlider(qt.QWidget):
         #---------- The top bar is always visible ----------
         self.layout = qt.QHBoxLayout(self)
         self.layout.setObjectName("InspectTab layout")
-        self.layout.addWidget(self.label)
+        #self.layout.addWidget(self.label)
         self.layout.addWidget(self.textbox)
         self.layout.addWidget(self.slider)
+        self.setLayout(self.layout)
 
     def reset_to_init_value(self):
         self.value_changed_handler(self.init_value)

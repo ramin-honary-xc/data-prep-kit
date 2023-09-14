@@ -162,6 +162,12 @@ class FileSetGUI(qt.QWidget):
         self.list_widget = qt.QListWidget(self)
         self.list_widget.setObjectName("FilesTab list_widget")
         self.list_widget.setContextMenuPolicy(qcore.Qt.ContextMenuPolicy.ActionsContextMenu)
+        self.setSizePolicy(
+            qt.QSizePolicy(
+                qt.QSizePolicy.Preferred,
+                qt.QSizePolicy.Preferred,
+              ),
+          )
         self.list_widget.setSizePolicy(
             qt.QSizePolicy(
                 qt.QSizePolicy.Preferred,

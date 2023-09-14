@@ -258,17 +258,23 @@ class PatternMatcher():
         self.results_dir = config.output_dir
         self.threshold = config.threshold
         self.save_distance_map = config.save_map
-        self.file_encoding = config.encoding
-        if self.file_encoding not in fs.image_file_suffix_set:
-            raise ValueError(f'unknown image file encoding symbol "{self.file_encoding}"')
-        else:
-            pass
+        self.set_file_encoding(config.encoding)
         # Load the reference right away, if it is not None
         self.reference_image_path = config.pattern
         if self.reference_image_path:
             self.reference.load_image(self.reference_image_path)
         else:
             pass
+
+    def get_file_encoding(self):
+        return self.file_encoding
+
+    def set_file_encoding(self, encoding):
+        encoding = encoding.lower()
+        if encoding not in fs.image_file_suffix_set:
+            raise ValueError(f'unknown image file encoding symbol "{self.file_encoding}"')
+        else:
+            self.file_encoding = encoding
 
     def get_reference(self):
         return self.reference

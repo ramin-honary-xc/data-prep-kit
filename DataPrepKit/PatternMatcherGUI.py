@@ -6,6 +6,7 @@ from DataPrepKit.ContextMenuItem import context_menu_item
 from DataPrepKit.SimpleImagePreview import SimpleImagePreview
 from DataPrepKit.ReferenceImagePreviewGUI import ReferenceImagePreview
 from DataPrepKit.CropRectTool import CropRectTool
+from DataPrepKit.FileSet import image_file_suffix_set
 
 from pathlib import PurePath
 
@@ -272,6 +273,66 @@ class PatternSetupTab(qt.QWidget):
 
 #---------------------------------------------------------------------------------------------------
 
+class EncodingMenu(qt.QGroupBox):
+    """Group box showing the popup-down menu where the image encoding can be selected."""
+
+    def __init__(self, title, app_model, parent):
+        super().__init__(title, parent=parent)
+        self.app_model = app_model
+        self.setSizePolicy(
+            qt.QSizePolicy(qt.QSizePolicy.Preferred, qt.QSizePolicy.Minimum)
+          )
+        self.layout = qt.QHBoxLayout(self)
+        self.menu = qt.QMenu('Choose Encoding', parent=self)
+        # Add most popular encodings at the top.
+        self.menu.addAction('PNG')
+        self.menu.addAction('BMP')
+        self.menu.addAction('JPG')
+        self.menu.addSeparator()
+        # Add all other encodings, it's OK to insert duplicates items,
+        # the text of the menu item is used to decide the action.
+        for item in image_file_suffix_set:
+            self.menu.addAction(item.upper())
+        self.menu.triggered.connect(self.menu_item_selected)
+        self.popup_menu = qt.QPushButton(self)
+        self.popup_menu.setText('PNG')
+        self.popup_menu.setMenu(self.menu)
+        self.layout.addWidget(self.popup_menu)
+        self.layout.setSizeConstraint(qt.QLayout.SizeConstraint.SetFixedSize)
+        self.setLayout(self.layout)
+
+    def menu_item_selected(self, action):
+        print(f'InspectTabControl.menu_item_selected("{action.text()}")')
+        self.app_model.set_file_encoding(action.text())
+        self.popup_menu.setText(action.text())
+
+
+class InspectTabControl(qt.QWidget):
+    """The upper control bar for the Inspect tab"""
+
+    def __init__(self, app_model, inspect_tab):
+        super().__init__(inspect_tab)
+        self.setObjectName('InspectTab controls')
+        self.app_model = app_model
+        self.inspect_tab = inspect_tab
+        self.setSizePolicy(
+            qt.QSizePolicy(qt.QSizePolicy.Preferred, qt.QSizePolicy.Minimum)
+          )
+        self.layout = qt.QHBoxLayout(self)
+        config = app_model.get_config()
+        # ---------- setup slider ----------
+        self.slider = PercentSlider(
+            "Threshold %",
+            config.threshold,
+            inspect_tab.slider_handler,
+          )
+        # ---------- setup popup-menu ----------
+        self.encoding_menu = EncodingMenu('Encoding', self.app_model, parent=self)
+        # ---------- lay out the widgets ----------
+        self.layout.addWidget(self.encoding_menu)
+        self.layout.addWidget(self.slider)
+
+
 class InspectTab(qt.QWidget):
     """This tab shows an image on which the pattern matching computation
     has been run, and outlines the matched areas of the image with a
@@ -287,17 +348,16 @@ class InspectTab(qt.QWidget):
         # message view. The graphics view or message view can be changed depending on whether
         # the target and pattern are both selected.
         self.layout = qt.QVBoxLayout(self)
-        self.layout.setObjectName("InspectTab layout")
-        config = app_model.get_config()
-        self.slider = PercentSlider(
-            "Threshold %",
-            config.threshold,
-            self.slider_handler,
-          )
-        self.layout.addWidget(self.slider)
+        self.layout.setObjectName('InspectTab layout')
+        self.control_widget = InspectTabControl(app_model, self)
+        self.slider = self.control_widget.slider
+        self.layout.addWidget(self.control_widget)
         self.message_box = MessageBox("Please select SEARCH target image and PATTERN image.")
         self.layout.addWidget(self.message_box)
         self.image_display = InspectImagePreview(self.app_model, self)
+        image_display_size_policy = self.image_display.sizePolicy()
+        image_display_size_policy.setRetainSizeWhenHidden(True)
+        self.image_display.setSizePolicy(image_display_size_policy)
         self.image_display.hide()
         self.layout.addWidget(self.image_display)
         #---------- Setup context menus ----------
@@ -333,7 +393,10 @@ class InspectTab(qt.QWidget):
         threshold = self.slider.get_percent()
         if threshold is not None:
             self.app_model.change_threshold(threshold)
-            self.image_display.redraw()
+            if self.app_model.get_reference_rect() is not None:
+                self.image_display.redraw()
+            else:
+                pass
         else:
             pass
 
