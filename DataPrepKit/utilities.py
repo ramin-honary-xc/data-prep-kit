@@ -2,6 +2,16 @@ import re
 import numpy as np
 
 ####################################################################################################
+# Operating on data structures
+
+def dict_keep_defined(d):
+    """filter out any keys in the dictionary that are None, return a new dictionary."""
+    return \
+      {k:v for k,v in d.items() if v is not None} \
+        if d is not None else {}
+
+
+####################################################################################################
 # Parsing command line arguments
 
 def threshold(val):

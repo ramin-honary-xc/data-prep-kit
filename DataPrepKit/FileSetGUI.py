@@ -210,6 +210,14 @@ class FileSetGUI(qt.QWidget):
         self.list_widget.currentItemChanged.connect(self.__item_change_handler)
         self.list_widget.itemActivated.connect(self.__activation_handler)
 
+    def sizeHint(self):
+        screen = self.nativeParentWidget()
+        if screen is None:
+            screen = qgui.QGuiApplication.primaryScreen().virtualSize()
+        else:
+            pass
+        return qcore.QSize(round(screen.width()/2), screen.height())
+
     def get_fileset(self):
         return self.fileset
 

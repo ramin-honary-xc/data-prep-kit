@@ -21,12 +21,12 @@ class ImagePreview(qt.QWidget):
         self._display = SimpleImagePreview(parent=parent)
         self._display.setResizeAnchor(qt.QGraphicsView.AnchorViewCenter)
         self._splitter = qt.QVBoxLayout(self)
-        self._splitter.setSizePolicy(
-            QSizePolicy(
-                qgui.QSizePolicy.Expanding,
-                qgui.QSizePolicy.Preferred,
-              ),
-          )
+        #self._splitter.setSizePolicy(
+        #    qt.QSizePolicy(
+        #        qgui.QSizePolicy.Expanding,
+        #        qgui.Qt.QSizePolicy.Preferred,
+        #      ),
+        #  )
         self._info_widget = None
         self.set_info_widget(info_widget)
         self._splitter.insertWidget(1, self._display)
@@ -94,7 +94,11 @@ class SimpleImagePreview(ImageDisplay, DragDropHandler):
           )
 
     def sizeHint(self):
-        screen = qgui.QGuiApplication.primaryScreen().virtualSize()
+        screen = self.nativeParentWidget()
+        if screen is None:
+            screen = qgui.QGuiApplication.primaryScreen().virtualSize()
+        else:
+            pass
         return qcore.QSize(screen.width(), screen.height())
 
     def resizeEvent(self, newSize):
