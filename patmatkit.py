@@ -86,6 +86,38 @@ def main():
       )
 
     arper.add_argument(
+        '-x', '--crop-regions',
+        dest='crop_regions_json',
+        action='store',
+        default=None,
+        type=util.crop_region_json,
+        help="""
+          Without specifying this option, the image file used as the "--pattern"
+          argument will specify the pattern to seek in each target image, and
+          will also determine how big of an image to crop. However it is
+          possible to specify a list of crop regions relative to the pattern
+          image using this argument. The argument must be a string of valid
+          JSON. The JSON data must be a dictionary of crop regions, where each
+          crop region is a list of 4 numbers: X coordinate, Y coordinate, width,
+          and height. For example:
+
+          '--crop-regions={"lower-right":[5,5,30,20],"upper-left":[-25,-15,30,20]}'
+
+          This will crop two regions for every matched pattern of each input
+          image. In this example, the first crop region is labeled "lower-right"
+          which is situated at point x=5,y=5, and has a size of width=30,
+          height=20. The second crop region is labeled "upper-left" starts at
+          x=-25 (25 pixels to the left of the candidate point) and y=-15
+          (15 pixels above the candidate point), and also has a width=30 and
+          height=20.
+
+          Region labels are used to create directories for storing cropped
+          images, so region labels must contain only characters that can be used
+          as names for directories in the filesystem.
+          """
+      )
+
+    arper.add_argument(
         '-o', '--output-dir',
         dest='output_dir',
         action='store',
@@ -94,6 +126,22 @@ def main():
         help="""
           Specify the output directory into which multiple image files can be created.
           """,
+      )
+
+    arper.add_argument(
+        '--overlap',
+        dest='overlap_ok',
+        action='store_true',
+        default=False,
+        help="""
+          Candidate matching points within a target that are similar may match the
+          pattern image such that the crop region arount one candidate point overlaps
+          with the crop region around a nearby candidate point. By default, when
+          overlapping crop regions are found, the candidate point with the higher
+          similarity value will be used and regions that overlap it will be removed
+          as candidates. Using this flag asks all candidates to be used regardless
+          of whether they overlap candidates with higher similarity values.
+          """
       )
 
     arper.add_argument(
@@ -135,7 +183,6 @@ def main():
 
     (config, remaining_argv) = arper.parse_known_args()
     matcher = patm.PatternMatcher(config)
-    #print(config)
     if config.gui:
         app = qt.QApplication(remaining_argv)
         appWindow = gui.PatternMatcherView(matcher)

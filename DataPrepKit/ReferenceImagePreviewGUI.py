@@ -34,6 +34,7 @@ class ReferenceImagePreview(SimpleImagePreview):
                 qt.QSizePolicy.Preferred,
               ),
           )
+        self.update_reference_pixmap()
 
     def drop_url_handler(self, urls):
         if len(urls) > 0:

@@ -52,10 +52,19 @@ class DistanceMap():
         to decide how to encode the file, so for example "bmp" will
         construct a MS-Windows "Bitmap" encoded image file, "png" will
         construct a PNG encoded image file."""
+        #----------------------------------------
+        # Type checking
+        if not isinstance(target, CachedCVImageLoader):
+            raise ValueError(f'DistanceMap() argument "target" wrong type: {type(target)}')
+        else:
+            pass
+        if not isinstance(pattern, CachedCVImageLoader):
+            raise ValueError(f'DistanceMap() argument "reference" wrong type: {type(reference)}')
+        else:
+            pass
+        #----------------------------------------
         self.target = target
         self.reference = pattern
-        print(f'reference = {self.reference.get_path()!s}')
-        self.target_image_path = target.get_path()
         reference_image = pattern.get_image()
         pat_shape = reference_image.shape
         self.reference_height = pat_shape[0]
@@ -84,13 +93,11 @@ class DistanceMap():
         else:
             pass
 
-        # Here we check that the reference image size is not too large
-        # relative to the target image size. The reference image size
-        # threshold is hard-coded here (for now) as 2/3rds the size of
-        # the target image size.
+        # Here we check that the reference image size is not larger
+        # than the target image size.
 
-        if float(self.reference_width)  > self.target_width  / 2 * 3 or \
-           float(self.reference_height) > self.target_height / 2 * 3 :
+        if float(self.reference_width) > self.target_width or \
+          float(self.reference_height) > self.target_height:
             raise ValueError(
                 "reference image is too large relative to target image",
                 {"reference_width": self.reference_width,
@@ -160,15 +167,16 @@ class DistanceMap():
     def find_matching_points(self, threshold=0.95):
         """Given a 'distance_map' that has been computed by the
         'compute_distance_map()' function above, and a threshold
-        value, return a list of all regions where the distance map is
-        less or equal to the complement of the threshold value.
-        """
+        value, return an iterator that produces all regions where the
+        distance map is less or equal to the complement of the
+        threshold value. """
         if threshold < 0.5:
             raise ValueError(
                 "threshold {str(threshold)} too low, minimum is 0.5",
                 {"threshold": threshold},
               )
         elif threshold in self.memoized_regions:
+            print(f'DistanceMap.find_matching_points(threshold={threshold}) #(threshold memoized, returning list of {len(self.memoized_regions[threshold])} items)')
             return self.memoized_regions[threshold]
         else:
             pass
@@ -184,7 +192,8 @@ class DistanceMap():
             window_hcount, self.window_width
           )
 
-        results = []
+        print(f'DistanceMap.find_matching_points(threshold={threshold}) #(searching image)')
+        results = []  # used to memoize these results
         for y in range(window_vcount):
             for x in range(window_hcount):
                 tile = tiles[y, :, x, :]
@@ -194,8 +203,10 @@ class DistanceMap():
                   )
                 global_y = y * self.window_height + min_y
                 global_x = x * self.window_width  + min_x
-                if tile[min_y, min_x] <= (1.0 - threshold):
-                    results.append((global_x, global_y,))
+                similarity = 1.0 - tile[min_y, min_x]
+                if similarity >= threshold:
+                    result = (global_x, global_y, similarity,)
+                    results.append(result)
                     # RegionSize(
                     #     global_x, global_y,
                     #     self.reference_width, self.reference_height,
@@ -204,26 +215,8 @@ class DistanceMap():
                     pass
 
         self.memoized_regions[threshold] = results
+        print(f'DistanceMap.find_matching_points(threshold={threshold}) #(memoized list of {len(results)} results)')
         return results
-
-    def write_all_cropped_images(self, target_image, threshold, crop_regions, results_dir):
-        print(
-            f'threshold = {threshold!s}\n'
-            f'target_image = {self.target_image_path!s}',
-          )
-        points = self.find_matching_points(threshold=threshold)
-        prefix = self.target_image_path.stem
-        if crop_regions is None or len(crop_regions) == 0:
-            print(f'DistanceMap.write_all_cropped_images() #(no crop_regions, len(points) = {len(points)})')
-            for (x,y) in points:
-                reg = RegionSize(x, y, self.reference_width, self.reference_height)
-                reg.crop_write_image(target_image, results_dir, prefix)
-        else:
-            print(f'DistanceMap.write_all_cropped_images() #(len(points) = {len(points)}, len(crop_regions) = {len(crop_regions)})')
-            for (x,y) in points:
-                for (label,(x_off, y_off, width, height)) in crop_regions.items():
-                    reg = RegionSize(x+x_off, y+y_off, width, height)
-                    reg.crop_write_image(target_image, results_dir/PurePath(label), prefix)
 
 #---------------------------------------------------------------------------------------------------
 
@@ -376,6 +369,71 @@ class SingleFeatureMultiCrop():
             self.print_state()
             return True
 
+    ###############  Iterating over point sets  ###############
+
+    def iterate_feature_regions(self, point_list):
+        """This is a generator function that takes a point_list and produces
+        a list of rectangular regions over which you can iterate. The
+        "point_list" argument here is actually a 3-tuple of (x, y, similarity)
+        which is expected to have been returned by the
+        "DistanceMap.find_matching_points()" method.
+
+        The objects yielded by this generator are all 4-tuples of the
+        form: (x, y, width, height).
+
+        NOTE that if self.get_feature_region() returns None, this
+        generator produces no values. The feature region MUST be
+        defined for this to work.
+        """
+        ref_rect = self.get_feature_region()
+        if ref_rect is None:
+            return None
+        else:
+            (_x0, _y0, width, height) = ref_rect
+            for (x,y,_similarity) in point_list:
+                yield (x, y, width, height)
+
+    def iterate_crop_regions(self, point_list):
+        """This is a generator function that takes a point_list and produces a
+        list of rectangular regions over which you can iterate. The
+        "point_list" argument here is actually a 3-tuple of the form:
+        (x, y, similarity)
+        which is expected to have been returned by the
+        "DistanceMap.find_matching_points()" method.
+
+        The objects yielded by this generator are all tuples of the
+        form: (region_name, (x, y, width, height)).
+
+        NOTE that if there are no crop regions, the feature region is
+        used as the one and only crop region, and the objects yielded
+        by this generator are all tuples of the form:
+        (None, (x, y, width, height)).
+
+        NOTE that if self.get_feature_region() returns None, this
+        generator produces no values. The feature region MUST be
+        defined for this to work.
+
+        """
+        ref_rect = self.get_feature_region()
+        if ref_rect is None:
+            print(f'{self.__class__.__name__}.iterate_crop_regions() #(no reference rectangle set)')
+            return None
+        else:
+            (x0, y0, width, height) = ref_rect
+            crop_rect_iter = self.get_crop_regions()
+            if (crop_rect_iter is None) or (len(crop_rect_iter) == 0):
+                print(f'{self.__class__.__name__}.iterate_crop_regions() #(no crop regions, using feature region as single crop region)')
+                crop_rect_iter = iter([(None, ref_rect)])
+            else:
+                print(f'{self.__class__.__name__}.iterate_crop_regions() #(iterating over {len(crop_rect_iter)} crop regions)')
+                crop_rect_iter = crop_rect_iter.items()
+            #----------------------------------------
+            for (x,y,_similarity) in point_list:
+                x_off = x - x0
+                y_off = y - y0
+                for (label, (crop_x, crop_y, width, height)) in crop_rect_iter:
+                    yield (label, (crop_x+x_off, crop_y+y_off, width, height,),)
+
     ###############  Debugging methods  ###############
 
     def rect_to_str(self, rect):
@@ -430,6 +488,11 @@ class PatternMatcher(SingleFeatureMultiCrop):
         self.reference_image_path = config.pattern
         if self.reference_image_path:
             self.reference.load_image(self.reference_image_path)
+            self.feature_region = self.reference.get_crop_rect()
+        else:
+            pass
+        if config.crop_regions_json:
+            self.crop_regions = config.crop_regions_json
         else:
             pass
 
@@ -450,29 +513,51 @@ class PatternMatcher(SingleFeatureMultiCrop):
         return self.reference.get_path()
 
     def set_reference_image_path(self, path):
+        """This function sets the reference image path and also attempts to
+        load the image from this path. Also the feature region is set
+        to the value returned by
+        "CachedCVImageLoader.get_crop_rect()", which is, when it is
+        first loaded, always the rectangular region that circumscribes
+        the full the image. """
         self.reference_image_path = path
         if path:
-            self.reference.load_image(path)
+            self.reference.load_image(path=path, crop_rect=self.feature_region)
         else:
             pass
+        SingleFeatureMultiCrop.set_feature_region(self, self.reference.get_crop_rect())
 
     def set_reference_pixmap(self, reference_path, pixmap):
         self.reference.set_image(reference_path, pixmap)
 
-    def get_reference_rect(self):
+    def get_feature_region(self):
+        """Overloads the "SingleFeatureMultiCrop.get_feature_region"
+        method. The "SingleFeatureMultiCrop" member variable
+        "feature_region" is still used in case the "self.reference"
+        has not been set yet. But if there is a "self.reference"
+        image, the reference image's crop region is used as the
+        feature region."""
         if self.reference is None:
-            return None
+            SingleFeatureMultiCrop.get_feature_region(self)
         else:
             return self.reference.get_crop_rect()
 
-    def set_reference_rect(self, rect):
+    def set_feature_region(self, rect):
+        """Overloads the "SingleFeatureMultiCrop.set_feature_region"
+        method. The "SingleFeatureMultiCrop" member variable
+        "feature_region" is still used in case the "self.reference"
+        has not been set yet. But if there is a "self.reference"
+        image, the reference image's crop region is used as the
+        feature region. """
         if rect is None:
             self.reference.set_crop_rect(None)
         elif isinstance(rect, tuple) and (len(rect) == 4):
             if self.reference is not None:
                 self.reference.set_crop_rect(rect)
+            else:
+                pass
         else:
-            raise ValueError(f'PatternMatcher.set_reference_rect() must take a 4-tuple', rect)
+            raise ValueError(f'PatternMatcher.set_feature_region() must take a 4-tuple', rect)
+        SingleFeatureMultiCrop.set_feature_region(self, rect)
 
     def set_results_dir(self, results_dir):
         self.results_dir = results_dir
@@ -485,7 +570,7 @@ class PatternMatcher(SingleFeatureMultiCrop):
 
     def set_target_image_path(self, path):
         #print(f'PatternMatcher.set_target_image_path("{path}")')
-        self.target.load_image(path)
+        self.target.load_image(path=path)
 
     def get_target_fileset(self):
         return self.target_fileset
@@ -544,13 +629,17 @@ class PatternMatcher(SingleFeatureMultiCrop):
 
     def crop_matched_references(self, target_image_path):
         # Create results directory if it does not exist
+        print(f'{self.__class__.__name__}.crop_matched_references({target_image_path!r}) #(after clean-up self.crop_regions)')
         if not os.path.isdir(self.results_dir):
             os.mkdir(self.results_dir)
         else:
             pass
         target = CachedCVImageLoader()
-        target.load_image(target_image_path)
-        self.reference.load_image(self.reference_image_path)
+        target.load_image(path=target_image_path)
+        self.reference.load_image(
+            path=self.reference_image_path,
+            crop_rect=self.feature_region,
+          )
         distance_map = DistanceMap(target, self.reference)
         if self.save_distance_map is not None:
             # Save the convolution image:
@@ -558,15 +647,35 @@ class PatternMatcher(SingleFeatureMultiCrop):
         else:
             pass
         self.crop_regions = util.dict_keep_defined(self.crop_regions)
-        distance_map.write_all_cropped_images(
-            target.get_image(),
+        self.print_state()
+        self.write_all_cropped_images(
+            distance_map,
             self.threshold,
-            self.crop_regions,
             self.results_dir,
           )
 
-    def batch_crop_matched_references(self):
-        self.reference.load_image()
+    def write_all_cropped_images(self, distance_map, threshold, results_dir):
+        target_image = distance_map.get_target()
+        target_image_path = target_image.get_path()
+        prefix = target_image_path.stem
+        print(f'{self.__class__.__name__}.write_all_cropped_images(target={target_image_path!r}, threshold={threshold!s}, results_dir={results_dir!r})')
+        point_list = distance_map.find_matching_points(threshold=threshold)
+        print(f'PatternMatcher.write_all_cropped_images()')
+        for (label,(x,y,width,height)) in self.iterate_crop_regions(point_list):
+            # Here we make use of the "iterate_crop_regions()" method
+            # inherited from the "SingleFeatureMultiCrop" class.
+            out_dir = results_dir / PurePath(label) if label is not None else results_dir
+            reg = RegionSize(x, y, width, height)
+            reg.crop_write_image(
+                target_image.get_raw_image(),
+                out_dir,
+                file_prefix=prefix,
+                file_suffix=self.file_encoding,
+              )
+
+    def batch_crop_matched_patterns(self):
+        self.reference.load_image(crop_rect=self.feature_region)
+        print(f'{self.__class__.__name__}.batch_crop_matched_references() #(will operate on {len(self.target_fileset)} image files)')
         for image in self.target_fileset:
             #print(
             #    f'image = {image!s}\n'
@@ -575,7 +684,3 @@ class PatternMatcher(SingleFeatureMultiCrop):
             #    f'save_distance_map = {self.save_distance_map}',
             #  )
             self.crop_matched_references(image)
-
-    def load_image(self, path):
-        self.reference.set_reference_image_path(path)
-        self.reference.load_image()

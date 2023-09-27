@@ -1,5 +1,6 @@
 import re
 import numpy as np
+import json
 
 ####################################################################################################
 # Operating on data structures
@@ -20,6 +21,40 @@ def threshold(val):
         return (float(val) / 100.0)
     else:
         raise ValueError("threshold must be percentage value between 0 and 100")
+
+def crop_region_json(json_string):
+    """Parse a JSON string from the command line into a dictionary of
+    4-tuple crop regions."""
+    crop_regions = json.loads(json_string)
+    if not isinstance(crop_regions, dict):
+        raise ArgumentError('"--crop-regions" argument must be a JSON dictionary')
+    else:
+        for label, region in crop_regions.items():
+            if not isinstance(region, list):
+                raise ArgumentError(
+                    '"--crop-regions" argument, {label!r}, expected list, got {type(region)}',
+                    (label, region),
+                  )
+            elif len(region) != 4:
+                raise ArgumentError(
+                    f'"--crop-regions" argument, {label!r} expected length 4, got length {len(region)}',
+                    (label, region),
+                  )
+            else:
+                for i,n in zip(range(0,4), region):
+                    if not (isinstance(n, int) or isinstance(n, float)):
+                        raise ArgumentError(
+                            '"--crop-regions" argument, {label!r}[{i}] expected number, got {type(n)}',
+                            (label, region),
+                          )
+                    else:
+                        crop_regions[label] = (
+                            region[0],
+                            region[1],
+                            region[2],
+                            region[3],
+                          )
+    return crop_regions
 
 ####################################################################################################
 # Miscelaneous utilities (that ought to already exist somewhere else, but do not).

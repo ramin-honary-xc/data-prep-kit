@@ -342,11 +342,11 @@ class FileSetGUI(qt.QWidget):
         else:
             pass
         urls = self.file_selector(self, self.file_selector_message)
-        #print(f"selected urls = {urls}")
-        urls = urls[0]
+        print(f"{self.__class__.__name__}.open_files_handler({default_dir!r}) #(selected urls = {urls})")
+        #urls = urls[0]
         if len(urls) > 0:
-            self.main_view.add_target_image_paths(gather_QUrl_local_files(urls))
-            self.files_tab.reset_paths_list(self.target_image_paths)
+            self.fileset.merge_recursive(urls)
+            self.reset_paths_list()
         else:
             pass
 
