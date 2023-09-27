@@ -23,10 +23,11 @@ class InspectImagePreview(SimpleImagePreview):
         super(InspectImagePreview, self).__init__(parent)
         self.app_model = app_model
         self.rect_items = []
-        self.feature_pen = qgui.QPen(qgui.QColor(255, 0, 0, 255))
+        # TODO: take feature pen and crop pen colors from some global configuration
+        self.feature_pen = qgui.QPen(qgui.QColor(0, 255, 0, 255))
         self.feature_pen.setCosmetic(True)
         self.feature_pen.setWidth(3)
-        self.crop_pen = qgui.QPen(qgui.QColor(0, 255, 0, 255))
+        self.crop_pen = qgui.QPen(qgui.QColor(255, 0, 0, 255))
         self.crop_pen.setCosmetic(True)
         self.crop_pen.setWidth(3)
 
@@ -47,31 +48,18 @@ class InspectImagePreview(SimpleImagePreview):
         self.rect_items = []
 
     def place_rectangles(self):
+        print(f'{self.__class__.__name__}.place_rectangles()')
+        self.clear_rectangles()
         scene = self.get_scene()
         point_list = self.app_model.get_matched_points()
-        ref_rect = self.app_model.get_reference_rect()
-        if ref_rect is None:
-            self.main_view.error_message('Must first define a reference image in the "Search" tab.')
-        else:
-            (x0, y0, width, height) = ref_rect
-            # ---------- Place the feature regions first --------
-            pen = self.feature_pen
-            #print(f'InspectImagePreview.place_rectangles() #(add {len(rectangle_list)} items)')
-            for (x,y) in point_list:
-                scene.addRect(x, y, width, height, pen)
-            #----------- Place the crop rectangles next -------------
-            crop_regions = util.dict_keep_defined(self.app_model.get_crop_regions())
-            if len(crop_regions) > 0:
-                pen = self.crop_pen
-                for (label, (x,y,width,height)) in crop_regions.items():
-                    for (x_off,y_off) in point_list:
-                        scene.addRect(x+x_off, y+y_off, width, height, pen)
-            else:
-                # By default, if there are no crop regions, use the
-                # feature region as the singlular crop region, but in
-                # this method we are only drawing the visualization,
-                # so no need to do anything else here.
-                pass
+        pen = self.feature_pen
+        for (x, y, width, height) in self.app_model.iterate_feature_regions(point_list):
+            item = scene.addRect(x, y, width, height, pen)
+            self.rect_items.append(item)
+        pen = self.crop_pen
+        for (_label, (x, y, width, height)) in self.app_model.iterate_crop_regions(point_list):
+            item = scene.addRect(x, y, width, height, pen)
+            self.rect_items.append(item)
 
 #---------------------------------------------------------------------------------------------------
 
@@ -208,7 +196,7 @@ class RegionSelectionTool(CropRectTool, patm.SingleFeatureMultiCrop):
     def redraw_all_regions(self):
         """Copies the crop regions from the global state to this local GUI object."""
         self.clear_feature_region()
-        feature_region = self.app_model.get_reference_rect()
+        feature_region = self.app_model.get_feature_region()
         scene = self.get_scene()
         if feature_region:
             rect = qcore.QRectF(*feature_region)
@@ -222,7 +210,7 @@ class RegionSelectionTool(CropRectTool, patm.SingleFeatureMultiCrop):
         crop_regions = self.app_model.get_crop_regions()
         scene = self.get_scene()
         if (crop_regions is None) or (len(crop_regions) == 0):
-            self.crop_regions = None
+            self.crop_regions = {}
         else:
             self.crop_regions = {}
             for (label, (x, y, width, height)) in crop_regions.items():
@@ -802,7 +790,7 @@ class InspectTab(qt.QWidget):
         threshold = self.slider.get_percent()
         if threshold is not None:
             self.app_model.change_threshold(threshold)
-            if self.app_model.get_reference_rect() is not None:
+            if self.app_model.get_feature_region() is not None:
                 self.image_display.redraw()
             else:
                 pass
@@ -856,11 +844,10 @@ class InspectTab(qt.QWidget):
             self.app_model.set_results_dir(PurePath(output_dir))
             threshold = self.slider.get_percent()
             target_image = self.app_model.target.get_image()
-            crop_regions = self.app_model.get_crop_regions()
-            self.distance_map.write_all_cropped_images(
+            self.write_all_cropped_images(
                 target_image,
+                self.distance_map,
                 threshold,
-                crop_regions,
                 output_dir,
               )
         else:

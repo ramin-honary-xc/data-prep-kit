@@ -33,9 +33,9 @@ class RegionSize():
            (self.y_min > image_height) or \
            (self.x_max > image_width) or \
            (self.y_max > image_height):
-               return False
+               return None
         else:
-            return True
+            return (image_width, image_height)
 
     def crop_image(self, image, relative_rect=None):
         """Return a copy of the given image cropped to this object's
@@ -46,6 +46,9 @@ class RegionSize():
                 self.x_min : self.x_max \
               ]
         else:
+           shape = image.shape
+           image_height = shape[0]
+           image_width = shape[1]
            raise ValueError(
                "pattern crop not fully contained within pattern image",
                {"image_width": image_width,
