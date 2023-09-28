@@ -52,9 +52,19 @@ class DistanceMap():
         to decide how to encode the file, so for example "bmp" will
         construct a MS-Windows "Bitmap" encoded image file, "png" will
         construct a PNG encoded image file."""
+        #----------------------------------------
+        # Type checking
+        if not isinstance(target, CachedCVImageLoader):
+            raise ValueError(f'DistanceMap() argument "target" wrong type: {type(target)}')
+        else:
+            pass
+        if not isinstance(pattern, CachedCVImageLoader):
+            raise ValueError(f'DistanceMap() argument "reference" wrong type: {type(reference)}')
+        else:
+            pass
+        #----------------------------------------
         self.target = target
         self.reference = pattern
-        print(f'reference = {self.reference.get_path()!s}')
         reference_image = pattern.get_image()
         pat_shape = reference_image.shape
         self.reference_height = pat_shape[0]
@@ -478,6 +488,11 @@ class PatternMatcher(SingleFeatureMultiCrop):
         self.reference_image_path = config.pattern
         if self.reference_image_path:
             self.reference.load_image(self.reference_image_path)
+            self.feature_region = self.reference.get_crop_rect()
+        else:
+            pass
+        if config.crop_regions_json:
+            self.crop_regions = config.crop_regions_json
         else:
             pass
 
@@ -506,7 +521,7 @@ class PatternMatcher(SingleFeatureMultiCrop):
         the full the image. """
         self.reference_image_path = path
         if path:
-            self.reference.load_image(path)
+            self.reference.load_image(path=path, crop_rect=self.feature_region)
         else:
             pass
         SingleFeatureMultiCrop.set_feature_region(self, self.reference.get_crop_rect())
@@ -555,7 +570,7 @@ class PatternMatcher(SingleFeatureMultiCrop):
 
     def set_target_image_path(self, path):
         #print(f'PatternMatcher.set_target_image_path("{path}")')
-        self.target.load_image(path)
+        self.target.load_image(path=path)
 
     def get_target_fileset(self):
         return self.target_fileset
@@ -614,49 +629,53 @@ class PatternMatcher(SingleFeatureMultiCrop):
 
     def crop_matched_references(self, target_image_path):
         # Create results directory if it does not exist
+        print(f'{self.__class__.__name__}.crop_matched_references({target_image_path!r}) #(after clean-up self.crop_regions)')
         if not os.path.isdir(self.results_dir):
             os.mkdir(self.results_dir)
         else:
             pass
         target = CachedCVImageLoader()
-        target.load_image(target_image_path)
-        self.reference.load_image(self.reference_image_path)
+        target.load_image(path=target_image_path)
+        self.reference.load_image(
+            path=self.reference_image_path,
+            crop_rect=self.feature_region,
+          )
         distance_map = DistanceMap(target, self.reference)
         if self.save_distance_map is not None:
             # Save the convolution image:
             distance_map.save_distance_map(self.save_distance_map)
         else:
             pass
-        print(f'{self.__class__.__name__}.crop_matched_references() #(before clean-up self.crop_regions)')
-        self.print_state()
         self.crop_regions = util.dict_keep_defined(self.crop_regions)
-        print(f'{self.__class__.__name__}.crop_matched_references() #(after clean-up self.crop_regions)')
         self.print_state()
         self.write_all_cropped_images(
-            target.get_image(),
             distance_map,
             self.threshold,
             self.results_dir,
           )
 
-    def write_all_cropped_images(self, target_image, distance_map, threshold, results_dir):
-        print(
-            f'threshold = {threshold!s}\n'
-            f'target_image = {self.target_image_path!s}',
-          )
-        point_list = self.distance_map.find_matching_points(threshold=threshold)
+    def write_all_cropped_images(self, distance_map, threshold, results_dir):
+        target_image = distance_map.get_target()
         target_image_path = target_image.get_path()
         prefix = target_image_path.stem
+        print(f'{self.__class__.__name__}.write_all_cropped_images(target={target_image_path!r}, threshold={threshold!s}, results_dir={results_dir!r})')
+        point_list = distance_map.find_matching_points(threshold=threshold)
         print(f'PatternMatcher.write_all_cropped_images()')
-        for (label,(x_off, y_off, width, height)) in self.iterate_crop_regions(point_list):
+        for (label,(x,y,width,height)) in self.iterate_crop_regions(point_list):
             # Here we make use of the "iterate_crop_regions()" method
             # inherited from the "SingleFeatureMultiCrop" class.
-            out_dir = result_dir / PurePath(label) if label is not None else results_dir
-            reg = RegionSize(x+x_off, y+y_off, width, height)
-            reg.crop_write_image(target_image, out_dir, prefix)
+            out_dir = results_dir / PurePath(label) if label is not None else results_dir
+            reg = RegionSize(x, y, width, height)
+            reg.crop_write_image(
+                target_image.get_raw_image(),
+                out_dir,
+                file_prefix=prefix,
+                file_suffix=self.file_encoding,
+              )
 
-    def batch_crop_matched_references(self):
-        self.reference.load_image()
+    def batch_crop_matched_patterns(self):
+        self.reference.load_image(crop_rect=self.feature_region)
+        print(f'{self.__class__.__name__}.batch_crop_matched_references() #(will operate on {len(self.target_fileset)} image files)')
         for image in self.target_fileset:
             #print(
             #    f'image = {image!s}\n'

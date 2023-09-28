@@ -96,7 +96,7 @@ class RegionSize():
         """
         write_path = self.as_file_name(file_prefix, file_suffix)
         write_path = Path(results_dir / write_path)
-        print(f"RegionSize.crop_write_image() #(write file: {write_path})")
+        print(f"RegionSize.crop_write_image() #(write file: {write_path!r})")
         write_path.parent.mkdir(exist_ok=True, parents=True)
         cv.imwrite(str(write_path), self.crop_image(image))
 

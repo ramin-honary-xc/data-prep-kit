@@ -45,6 +45,9 @@ class FileSet():
               )
         self.merge(initset)
 
+    def __len__(self):
+        return len(self.fileset)
+
     def __iter__(self):
         return iter(self.fileset)
 

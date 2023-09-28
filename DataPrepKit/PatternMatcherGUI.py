@@ -145,6 +145,7 @@ class RegionSelectionTool(CropRectTool, patm.SingleFeatureMultiCrop):
         self.app_model = app_model
         self.set_feature_region_pen(CropRectTool._green_pen)
         self.set_crop_region_pen(CropRectTool._red_pen)
+        self.redraw_all_regions()
 
     ###############  Methods to configure the pen colors  ###############
 
@@ -199,9 +200,9 @@ class RegionSelectionTool(CropRectTool, patm.SingleFeatureMultiCrop):
         feature_region = self.app_model.get_feature_region()
         scene = self.get_scene()
         if feature_region:
-            rect = qcore.QRectF(*feature_region)
-            self.feature_region = scene.addRect(rect, self.feature_region_pen)
-            self.redraw_crop_regions(rect[0], rect[1])
+            qrectf = qcore.QRectF(*feature_region)
+            self.feature_region = scene.addRect(qrectf, self.feature_region_pen)
+            self.redraw_crop_regions(feature_region[0], feature_region[1])
         else:
             self.redraw_crop_regions(0, 0)
 
@@ -810,10 +811,7 @@ class InspectTab(qt.QWidget):
         image_display window."""
         self.distance_map = self.app_model.get_distance_map()
         target = self.distance_map.get_target()
-        if target is not None:
-            path = target.get_path()
-        else:
-            path = None
+        path = self.app_model.get_target_image_path()
         self.image_display.set_filepath(path)
         self.image_display.redraw()
         self.show_image_display()
@@ -843,9 +841,7 @@ class InspectTab(qt.QWidget):
             output_dir = self.modal_prompt_get_directory(str(output_dir))
             self.app_model.set_results_dir(PurePath(output_dir))
             threshold = self.slider.get_percent()
-            target_image = self.app_model.target.get_image()
-            self.write_all_cropped_images(
-                target_image,
+            self.app_model.write_all_cropped_images(
                 self.distance_map,
                 threshold,
                 output_dir,
@@ -857,7 +853,7 @@ class InspectTab(qt.QWidget):
         output_dir = self.app_model.get_config().output_dir
         output_dir = self.modal_prompt_get_directory(str(output_dir))
         self.app_model.set_results_dir(PurePath(output_dir))
-        self.app_model.batch_crop_matched_references()
+        self.app_model.batch_crop_matched_patterns()
 
     def search_next_image(self):
         (row, count) = self.current_file_index()
