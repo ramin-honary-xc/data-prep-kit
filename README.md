@@ -46,6 +46,34 @@ python -m venv env               # 1. Setup the environment state directory
 pip install -r requirements.txt  # 3. Install package requirements
 ```
 
+### Running the program
+
+After setting up  your Python environment with  the "activate" commad,
+your shell is now ready to run the scripts in this directory. The main
+script is `patmatkit.py` script, run it like this:
+
+```shell
+python3 ./patmatkit.py --gui
+```
+
+**Note** that the `--gui` argument is  required if you want to use the
+script with a GUI, the default beahvior is to run as a batch process.
+
+There is  also a  script for  visualizing differences  between cropped
+images and the reference image:
+
+```
+python3 ./imgdiffkit.py
+```
+
+There  is also  an **experimental**  cropping tool  that uses  the ORB
+algorithm to find  patterns, rather than an  ordinary convolution with
+the root-mean error:
+
+```
+python3 ./imgcropkit.py
+```
+
 ## About each of the tools in this kit
 
 ### `patmatkit.py`: a template matching tool
@@ -57,10 +85,11 @@ exactly, and  an interactive slider control  in the GUI allows  you to
 select the best similarity threshold  value to maximimze true positive
 matches and minimize false positive matches.
 
-The reference image is used as a convolution on each target image, and
-the [Normalized Square Difference](https://docs.opencv.org/4.x/d4/dc6/tutorial_py_template_matching.html)
-equation is used to decide how similar every point in the target image
-is to the reference image.
+The reference  image is used  as a  convolution kernel on  each target
+image, and the [Normalized Square Difference](https://docs.opencv.org/4.x/d4/dc6/tutorial_py_template_matching.html)
+equation (sometimes  the Root-Mean Error  function or RME) is  used to
+decide how similar every point in the target image is to the reference
+image.
 
 **By default**  this script runs as  a batch process with  no GUI. You
 must  run the  script with  the `--gui`  flag in  order to  launch the
@@ -138,6 +167,8 @@ value. Difference values are color-coded:
     visualization computed for each as described above.
 
 ### `imgcropkit.py`: a feature matching tool
+
+**WARNING:** experimental.
   
 Used for crop specific objects or recognizable features in larger
 images. This tool allows you to select a reference image to set the
