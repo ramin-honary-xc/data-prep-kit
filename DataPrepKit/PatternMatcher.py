@@ -666,12 +666,15 @@ class PatternMatcher(SingleFeatureMultiCrop):
             # inherited from the "SingleFeatureMultiCrop" class.
             out_dir = results_dir / PurePath(label) if label is not None else results_dir
             reg = RegionSize(x, y, width, height)
-            reg.crop_write_image(
-                target_image.get_raw_image(),
-                out_dir,
-                file_prefix=prefix,
-                file_suffix=self.file_encoding,
-              )
+            try:
+                reg.crop_write_image(
+                    target_image.get_raw_image(),
+                    out_dir,
+                    file_prefix=prefix,
+                    file_suffix=self.file_encoding,
+                  )
+            except Exception as e:
+                print(f'ERROR: {target_image_path!r} {e}')
 
     def batch_crop_matched_patterns(self):
         self.reference.load_image(crop_rect=self.feature_region)
