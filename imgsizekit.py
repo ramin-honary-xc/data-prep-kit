@@ -1,10 +1,10 @@
 #! /usr/bin/env python3
 
 import DataPrepKit.utilities as util
-import BatchResizeView from DataPrepKit.BatchResizeView
+from DataPrepKit.BatchResizeView import BatchResizeView
 from DataPrepKit.BatchResize import BatchResize
 from DataPrepKit.FileSet import image_file_suffix_set
-from cv2 import INTER_LINEAR
+from cv2 import INTER_LANCZOS4
 
 import argparse
 import sys
@@ -31,9 +31,9 @@ def main():
       )
 
     arper.add_argument(
-        '-w', '--width',
+        '-x', '--width',
         dest='width',
-        action='store'
+        action='store',
         type=int,
         help="""
           The result width of the image, whatever input is given,
@@ -42,25 +42,13 @@ def main():
       )
 
     arper.add_argument(
-        '-h', '--height',
+        '-y', '--height',
         dest='height',
-        action='store'
+        action='store',
         type=int,
         help="""
           The result height of the image, whatever input is given,
           it will be made to fit this exact height.
-          """
-      )
-
-    arper.add_argument(
-        '-s', '--size',
-        dest='size',
-        action='store',
-        default=util.width_height_from_string,
-        help="""
-          Another way to specify width and height is two integers separated by an "x",
-          for example "50x100" or "50X100". This will overwrite prior width/height
-          arguments specified by "-w" or "-h".
           """
       )
 
@@ -97,7 +85,7 @@ def main():
         '-o', '--output-dir',
         dest='output_dir',
         action='store',
-        default=PurePath('./matched-images'),
+        default=PurePath('./resized-images'),
         type=PurePath,
         help="""
           Specify the output directory into which multiple image files can be created.
@@ -108,7 +96,7 @@ def main():
         '-n', '--interpolation',
         dest='interpolate',
         action='store',
-        default=INTER_LINEAR,
+        default=INTER_LANCZOS4,
         type=util.interpolation_from_string,
         help=
           f'Specifies the scaling interpolation method to be used. See the OpenCV'

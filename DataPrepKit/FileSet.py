@@ -72,9 +72,9 @@ class FileSet():
     def merge(self, otherset):
         if otherset is None:
             pass
-        elif isinstance(list, otherset) or \
-             isinstance(set, otherset) or \
-             isinstance(frozenset, otherset):
+        elif isinstance(otherset, list) or \
+             isinstance(otherset, st) or \
+             isinstance(otherset, frozenset):
             for i, item in zip(range(len(otherset)), otherset):
                 self.__add(item, index=i)
         elif isinstance(FileSet, otherset):
