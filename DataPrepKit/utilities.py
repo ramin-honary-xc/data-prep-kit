@@ -13,7 +13,37 @@ def dict_keep_defined(d):
 
 
 ####################################################################################################
+
+interpolation_dict = {
+    'nearest': cv.INTER_NEAREST,
+    'linear': cv.INTER_LINEAR,
+    'cubic': cv.INTER_CUBIC,
+    'area': cv.INTER_AREA,
+    'lanczos4': cv.INTER_LANCZOS4,
+    'nearest-exact': cv.INTER_NEAREST_EXACT,
+    'linear-exact': cv.INTER_LINEAR_EXACT,
+    'max': cv.INTER_MAX,
+  }
+
+interpolation_set = set(interpolation_dict.keys())
+interpolation_default_symbol = 'linear'
+
+def interpolation_from_string(s):
+    if s in interpolation_dict:
+        return interpolation_dict[s]
+    else:
+        raise ValueError('invalid interpolation method symbol {s!r}')
+
+
+####################################################################################################
 # Parsing command line arguments
+
+def width_height_from_string(s):
+    args = re.split('[Xx,]', s)
+    if len(args) == 2:
+        return (args[0], args[1])
+    else:
+        raise ValueError('invalid width,height specification {s!r}')
 
 def threshold(val):
     val = float(val)
