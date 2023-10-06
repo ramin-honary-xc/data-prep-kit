@@ -1,4 +1,4 @@
-from DataPrepKit.FileSet import FileSet
+from DataPrepKit.FileSet import FileSet, image_file_suffix_set
 from pathlib import Path
 import cv2 as cv
 
@@ -41,12 +41,6 @@ class BatchResize():
             width if width is not None else cfg_w
         self.height = \
             height if height is not None else cfg_h
-        if self.width is None:
-            raise ValueError('scale "--width" ("-x") argument is not specified')
-        elif self.height is None:
-            raise ValueError('scale "--height" ("-y") argument is not specified')
-        else:
-            pass
         self.fileset = fileset
         if fileset is None:
             self.fileset = FileSet()
@@ -54,13 +48,50 @@ class BatchResize():
             pass
         self.fileset.merge(config.inputs)
 
-    def batch_resize_images(self):
-        for file in self.fileset:
-            self.resize_image_file(file)
+    def get_fileset(self):
+        return self.fileset
 
-    def resize_image_file(self, path):
+    def get_resize_width(self):
+        return self.width
+
+    def set_resize_width(self, width):
+        self.width  = width
+
+    def get_resize_height(self):
+        return self.height
+
+    def set_resize_height(self, height):
+        self.height = height
+
+    def get_file_encoding(self):
+        return self.encoding
+
+    def set_file_encoding(self, encoding):
+        encoding = encoding.lower()
+        if encoding in image_file_suffix_set:
+            self.encoding = encoding
+        else:
+            raise ValueError(f'unknown file encoding {encoding!r}')
+
+    def batch_resize_images(self):
+        """Run resize on all files in "self.fileset"."""
+        # Create a local copy of width and height in case these values
+        # are changed in the GUI before the batch operation completes.
+        width  = self.width
+        height = self.height
+        for file in self.fileset:
+            self.resize_image_file(file, size=(width,height,))
+
+    def resize_image_file(self, path, size=None):
         """Resize a single image file given the parameters defined at
         initialization time."""
+        (width, height) = (self.width, self.height) if size is None else size
+        if width is None:
+            raise ValueError('scale "--width" ("-x") argument is not specified')
+        elif height is None:
+            raise ValueError('scale "--height" ("-y") argument is not specified')
+        else:
+            pass
         path = Path(path)
         if not path.is_file():
             print(f'ERROR: not a regular file {path!r}')

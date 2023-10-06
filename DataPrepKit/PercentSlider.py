@@ -4,7 +4,7 @@ import PyQt5.QtWidgets as qt
 
 #---------------------------------------------------------------------------------------------------
 
-class PercentSlider(qt.QGroupBox):
+class PercentSlider(qt.QWidget):
     """This is a simple Qt Widget composed of 3 other widgets: a Label, a
     LineEdit text box, and a Slider. Dragging the slider changes the
     percentage value shown in the LineEdit box, changing the value in
@@ -14,11 +14,11 @@ class PercentSlider(qt.QGroupBox):
     """
 
     def __init__(self, label, init_value, callback):
-        super().__init__(label)
+        super().__init__()
         self.init_value = init_value
         self.percent = init_value
         self.callback = callback
-        #self.label = qt.QLabel(label)
+        self.label = qt.QLabel(label)
         self.slider = qt.QSlider(1, self)
         self.slider.setMinimum(500)
         self.slider.setMaximum(1000)
@@ -40,7 +40,7 @@ class PercentSlider(qt.QGroupBox):
         #---------- The top bar is always visible ----------
         self.layout = qt.QHBoxLayout(self)
         self.layout.setObjectName("InspectTab layout")
-        #self.layout.addWidget(self.label)
+        self.layout.addWidget(self.label)
         self.layout.addWidget(self.textbox)
         self.layout.addWidget(self.slider)
         self.setLayout(self.layout)
