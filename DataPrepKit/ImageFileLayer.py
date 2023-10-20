@@ -58,6 +58,9 @@ class ImageFileLayer():
         self.filepath = filepath
         self.redraw()
 
+    def get_image_buffer(self):
+        return (self.filepath, self.pixmap)
+
     def set_image_buffer(self, filepath, image_buffer):
         """Sets the image buffer (which must be an instance of QImage) and the
         filepath without loading the image buffer from the filepath."""

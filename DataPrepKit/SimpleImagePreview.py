@@ -108,6 +108,9 @@ class SimpleImagePreview(ImageDisplay, DragDropHandler):
     def get_image_layer(self):
         return self._image_file_layer
 
+    def get_image_buffer(self):
+        return self._image_file_layer.get_image_buffer()
+
     def set_image_buffer(self, filepath, image_buffer):
         """Sets the image buffer (which must be an instance of QImage) and the
         filepath without loading the image buffer from the filepath."""

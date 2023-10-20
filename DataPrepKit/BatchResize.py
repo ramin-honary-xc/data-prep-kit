@@ -55,7 +55,7 @@ class BatchResize():
         return self.width
 
     def set_resize_width(self, width):
-        self.width  = width
+        self.width = width
 
     def get_resize_height(self):
         return self.height
@@ -79,12 +79,13 @@ class BatchResize():
         # are changed in the GUI before the batch operation completes.
         width  = self.width
         height = self.height
+        if self.output_dir:
+            path = Path(self.output_dir)
+            path.mkdir(parents=True, exist_ok=True)
         for file in self.fileset:
-            self.resize_image_file(file, size=(width,height,))
+            self.resize_image_file_and_save(file, size=(width,height,))
 
-    def resize_image_file(self, path, size=None):
-        """Resize a single image file given the parameters defined at
-        initialization time."""
+    def check_size_params(self, size=None):
         (width, height) = (self.width, self.height) if size is None else size
         if width is None:
             raise ValueError('scale "--width" ("-x") argument is not specified')
@@ -92,20 +93,50 @@ class BatchResize():
             raise ValueError('scale "--height" ("-y") argument is not specified')
         else:
             pass
+        return (width, height)
+
+    def resize_image_file_and_save(self, path, size=None):
+        """Resize a single image file given the parameters defined at
+        initialization time, or else with the given size
+        parameter. This function is to be called from scripts, so
+        usually avoids crashing on exceptions.
+        """
+        (width, height) = self.check_size_params(size)
         path = Path(path)
         if not path.is_file():
             print(f'ERROR: not a regular file {path!r}')
         else:
             try:
-                input_image = cv.imread(str(path))
-                output_image = cv.resize(
-                    input_image,
-                    (self.width, self.height),
-                    0, 0,
-                    self.interpolate
-                  )
                 write_path = Path(self.output_dir) / Path(f'{path.stem!s}.{self.encoding}')
-                cv.imwrite(str(write_path), output_image)
+                cv.imwrite(str(write_path), self.resize_image_buffer(cv.imread(str(path))))
                 print(f'{write_path!s}')
             except Exception as e:
                 print(f'ERROR: {e}')
+
+    def resize_image_file(self, path, size=None):
+        """Resize a single image file given the parameters defined at
+        initialization time, or else with the given size
+        parameter. This function is to be called from scripts, so
+        usually avoids crashing on exceptions. This function does not
+        write the resized image buffer, it merely returns it along
+        with the original image buffer.
+        """
+        (width, height) = self.check_size_params(size)
+        path = Path(path)
+        if not path.is_file():
+            print(f'ERROR: not a regular file {path!r}')
+        else:
+            try:
+                input_buffer = cv.imread(str(path))
+                return (input_buffer, self.resize_image_buffer(input_buffer))
+            except Exception as e:
+                print(f'ERROR: {e}')
+
+    def resize_image_buffer(self, input_image):
+        print(f'BatchResize.resize_image_buffer() #(image_buffer = {type(input_image)}, self.width = {self.width}, self.height = {self.height})')
+        return cv.resize(
+            input_image,
+            (round(self.width), round(self.height)),
+            0, 0,
+            self.interpolate
+          )
