@@ -48,30 +48,26 @@ pip install -r requirements.txt  # 3. Install package requirements
 
 ### Running the program
 
-After setting up  your Python environment with  the "activate" commad,
+After setting up your Python environment with the "activate" commad,
 your shell is now ready to run the scripts in this directory. The main
-script is `patmatkit.py` script, run it like this:
+scripts are `patmatkit.py`, `imgsizekit.py`, and `imgdiffkit.py`. Run
+any one of them like so:
 
 ```shell
-python3 ./patmatkit.py --gui
+python ./patmatkit.py --gui
+python ./imgsizekit.py --gui
+python ./imgdiffkit.py --gui
 ```
 
 **Note** that the `--gui` argument is  required if you want to use the
 script with a GUI, the default beahvior is to run as a batch process.
-
-There is  also a  script for  visualizing differences  between cropped
-images and the reference image:
-
-```
-python3 ./imgdiffkit.py
-```
 
 There  is also  an **experimental**  cropping tool  that uses  the ORB
 algorithm to find  patterns, rather than an  ordinary convolution with
 the root-mean error:
 
 ```
-python3 ./imgcropkit.py
+python ./imgcropkit.py
 ```
 
 ## About each of the tools in this kit
@@ -165,6 +161,10 @@ value. Difference values are color-coded:
 
     In the right-hand display you will see the difference image
     visualization computed for each as described above.
+
+### `imgsizekit.py`: a batch image resizing tool
+
+This program allows you to select batch-resize a list of images.
 
 ### `imgcropkit.py`: a feature matching tool
 
