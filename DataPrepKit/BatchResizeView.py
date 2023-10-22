@@ -2,10 +2,13 @@ from DataPrepKit.FileSetGUI import FileSetGUI, qt_modal_image_file_selection
 from DataPrepKit.EncodingMenu import EncodingMenu
 from DataPrepKit.SimpleImagePreview import SimpleImagePreview
 from DataPrepKit.GUIHelpers import numpy_array_to_QPixmap, QPixmap_to_numpy_array
+from DataPrepKit.ContextMenuItem import context_menu_item
 
 import PyQt5.QtWidgets as qt
 import PyQt5.QtGui as qgui
 import PyQt5.QtCore as qcore
+
+from pathlib import PurePath
 
 ####################################################################################################
 
@@ -111,6 +114,41 @@ class ImageFileView(FileSetGUI):
         self.resized_image_cached = None
         self.image_cached = None
         self.cached_path = None
+        # -------------------- Menu items --------------------
+        self.save_current_menu = context_menu_item(
+            "Save current image",
+            self.save_current_image_handler,
+            qgui.QKeySequence.Save
+          )
+        self.save_all_menu_item = context_menu_item(
+            "Save all resized images",
+            self.save_all_images_handler,
+            qgui.QKeySequence.SaveAs,
+          )
+        self.file_list_add_context_menu_item(self.save_current_menu)
+        self.image_display_add_context_menu_item(self.save_current_menu)
+        self.file_list_add_context_menu_item(self.save_all_menu_item)
+        self.image_display_add_context_menu_item(self.save_all_menu_item)
+
+    def save_current_image_handler(self):
+        if self.cached_path is None:
+            print(f'ImageFileiew.save_current_image_handler() #(failed: no selected image)')
+        else:
+            out_path = self.modal_prompt_save_file(
+                self.app_model.get_diff_image().get_path(),
+              )
+            cv.imwrite(str(out_path), QPixmap_to_numpy_array(self.resized_image_cached))
+
+    def save_all_images_handler(self):
+        app_model = self.main_view.get_app_model()
+        output_dir = \
+            qt.QFileDialog.getExistingDirectory(
+                self, "Write images to directory",
+                str(app_model.get_output_dir()),
+                qt.QFileDialog.ShowDirsOnly,
+              )
+        app_model.set_output_dir(PurePath(output_dir))
+        app_model.batch_resize_images()
 
     def item_change_handler(self, path):
         #super().item_change_handler(path)

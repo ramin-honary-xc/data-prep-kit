@@ -73,7 +73,13 @@ class BatchResize():
         else:
             raise ValueError(f'unknown file encoding {encoding!r}')
 
-    def batch_resize_images(self):
+    def set_output_dir(self, output_dir):
+        self.output_dir = PurePath('./resized-images') if output_dir is None else output_dir
+
+    def get_output_dir(self):
+        return self.output_dir
+
+    def batch_resize_images(self, output_dir=None):
         """Run resize on all files in "self.fileset"."""
         # Create a local copy of width and height in case these values
         # are changed in the GUI before the batch operation completes.
@@ -82,6 +88,8 @@ class BatchResize():
         if self.output_dir:
             path = Path(self.output_dir)
             path.mkdir(parents=True, exist_ok=True)
+        else:
+            self.output_dir = Path('./results')
         for file in self.fileset:
             self.resize_image_file_and_save(file, size=(width,height,))
 
