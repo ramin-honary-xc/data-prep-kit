@@ -1,4 +1,5 @@
 from copy import deepcopy
+import os
 from pathlib import (PurePath, Path)
 
 import cv2 as cv
@@ -148,7 +149,7 @@ class ImageWithORB():
     def force_run_orb(self, orb_config):
         #print(f'ImageWithORB.force_run_orb() #(set self.orb_config {str(self.orb_config)})')
         self.orb_config = deepcopy(orb_config)
-        path = str(self.filepath)
+        path = os.fspath(self.filepath)
         pixmap = cv.imread(path, cv.IMREAD_GRAYSCALE)
         if pixmap is not None:
             # Set the init_crop_rect
@@ -189,7 +190,7 @@ class ImageWithORB():
 
     def crop_and_save(self, output_dir):
         if self.crop_rect is not None:
-            pixmap = cv.imread(str(self.filepath))
+            pixmap = cv.imread(os.fspath(self.filepath))
             if pixmap is not None:
                 path = PurePath(output_dir) / self.filepath.name
                 (x_min, y_min, width, height) = self.crop_rect
@@ -201,7 +202,7 @@ class ImageWithORB():
                 #    f'ImageWithORB.crop_and_save("{str(path)}") -> '
                 #    f'x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max})' \
                 #  )
-                cv.imwrite(str(path), pixmap[ y_min:y_max , x_min:x_max ])
+                cv.imwrite(os.fspath(path), pixmap[ y_min:y_max , x_min:x_max ])
             else:
                 raise ValueError( \
                     f'ImageWithORB("{str(self.filepath)}") failed to load file path as image' \

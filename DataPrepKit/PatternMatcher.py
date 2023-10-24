@@ -162,7 +162,7 @@ class DistanceMap():
         """Write the distance map that was computed at the time this object
         was constructed to a grayscale PNG image file.
         """
-        cv.imwrite(str(file_path), util.float_to_uint32(self.distance_map))
+        cv.imwrite(os.fspath(file_path), util.float_to_uint32(self.distance_map))
 
     def find_matching_points(self, threshold=0.95):
         """Given a 'distance_map' that has been computed by the

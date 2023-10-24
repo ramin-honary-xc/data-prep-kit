@@ -8,6 +8,7 @@ import PyQt5.QtWidgets as qt
 import PyQt5.QtGui as qgui
 import PyQt5.QtCore as qcore
 
+import os
 from pathlib import PurePath
 
 ####################################################################################################
@@ -137,7 +138,7 @@ class ImageFileView(FileSetGUI):
             out_path = self.modal_prompt_save_file(
                 self.app_model.get_diff_image().get_path(),
               )
-            cv.imwrite(str(out_path), QPixmap_to_numpy_array(self.resized_image_cached))
+            cv.imwrite(os.fspath(out_path), QPixmap_to_numpy_array(self.resized_image_cached))
 
     def save_all_images_handler(self):
         app_model = self.main_view.get_app_model()
@@ -194,15 +195,19 @@ class ImageFileView(FileSetGUI):
             else:
                 pass
             # # Uncomment this code as a last resort in the event that
-            # # QPixmap_to_numpy_array is not working
-            #imgbufs = app_model.resize_image_file(self.cached_path)
-            #if imgbufs:
-            #    (_original, resized) = imgbufs
-            #    print(f'ImageFileView._show_resize_view() #(imgbufs -> (original={type(original)}, resized={type(resized)}))')
-            #    #self.image_cached = numpy_array_to_QPixmap(original)
-            #    self.resized_image_cached = numpy_array_to_QPixmap(resized)
-            #else:
-            #    print('ImageFileView._show_resized_view() #(app_model.resize_image_file() returned None)')
+            # # QPixmap_to_numpy_array is not working. This code
+            # # creates the cached resized image by reloading the
+            # # original image from disk every time, rather than using
+            # # the image buffer that is already in memory.
+            #
+            # imgbufs = app_model.resize_image_file(self.cached_path)
+            # if imgbufs:
+            #     (_original, resized) = imgbufs
+            #     print(f'ImageFileView._show_resize_view() #(imgbufs -> (original={type(original)}, resized={type(resized)}))')
+            #     #self.image_cached = numpy_array_to_QPixmap(original)
+            #     self.resized_image_cached = numpy_array_to_QPixmap(resized)
+            # else:
+            #     print('ImageFileView._show_resized_view() #(app_model.resize_image_file() returned None)')
         else:
             pass
         print(f'ImageFileView._show_resized_view() #(resized_image_cache is of type {type(self.resized_image_cached)})')

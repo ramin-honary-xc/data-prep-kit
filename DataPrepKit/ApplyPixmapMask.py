@@ -2,6 +2,7 @@ import cv2 as cv
 import numpy as np
 from pathlib import Path
 import gc
+import os
 
 def checkImageFileType(path):
     return (
@@ -19,14 +20,14 @@ def applyPixmapMask(sourcePath, maskImg, saveAs=None):
         saveAs = sourcePath.parent / Path('./masked_' + str(sourcePath.name))
     else:
         saveAs = saveAs / Path('./masked_' + str(sourcePath.name))
-    sourceImg = cv.imread(str(sourcePath))
+    sourceImg = cv.imread(os.fspath(sourcePath))
     if sourceImg is None:
         print(f'failed to load image path: {sourcePath!s}')
     else:
          sourceImg = sourceImg * np.float32(1.0 / 255.0)
          result = np.uint8(cv.multiply(sourceImg, maskImg) * np.float32(255.0))
          saveAs.parent.mkdir(parents=True, exist_ok=True)
-         cv.imwrite(str(saveAs), result)
+         cv.imwrite(os.fspath(saveAs), result)
 
 def applyMaskRecursive(dirPath, maskImg):
     for sourcePath in Path(dirPath).iterdir():
@@ -45,7 +46,7 @@ def applyAllFiles(dirPath, maskPath):
         raise Exception(f'mask file not found: {maskPath!s}')
     else:
         pass
-    maskImg  = cv.imread(str(maskPath))
+    maskImg  = cv.imread(os.fspath(maskPath))
     if maskImg is None:
         raise Exception(f'failed to load mask image: {maskPath!s}')
     else:

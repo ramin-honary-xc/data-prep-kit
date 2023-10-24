@@ -1,5 +1,9 @@
 from DataPrepKit.FileSet import FileSet, image_file_suffix_set
+
+import gc
 from pathlib import Path
+import os
+
 import cv2 as cv
 
 class BatchResize():
@@ -92,6 +96,7 @@ class BatchResize():
             self.output_dir = Path('./results')
         for file in self.fileset:
             self.resize_image_file_and_save(file, size=(width,height,))
+            gc.collect()
 
     def check_size_params(self, size=None):
         (width, height) = (self.width, self.height) if size is None else size
@@ -116,7 +121,10 @@ class BatchResize():
         else:
             try:
                 write_path = Path(self.output_dir) / Path(f'{path.stem!s}.{self.encoding}')
-                cv.imwrite(str(write_path), self.resize_image_buffer(cv.imread(str(path))))
+                cv.imwrite(
+                    os.fspath(write_path),
+                    self.resize_image_buffer(cv.imread(os.fspath(path))),
+                  )
                 print(f'{write_path!s}')
             except Exception as e:
                 print(f'ERROR: {e}')
@@ -135,12 +143,15 @@ class BatchResize():
             print(f'ERROR: not a regular file {path!r}')
         else:
             try:
-                input_buffer = cv.imread(str(path))
+                input_buffer = cv.imread(os.fspath(path))
                 return (input_buffer, self.resize_image_buffer(input_buffer))
             except Exception as e:
                 print(f'ERROR: {e}')
 
     def resize_image_buffer(self, input_image):
+        """Resize a given image buffer using the configuration settings for
+        this object, which are usually set on the command line or in
+        the GUI."""
         print(f'BatchResize.resize_image_buffer() #(image_buffer = {type(input_image)}, self.width = {self.width}, self.height = {self.height})')
         return cv.resize(
             input_image,

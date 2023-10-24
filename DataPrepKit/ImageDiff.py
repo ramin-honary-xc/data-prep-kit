@@ -4,7 +4,9 @@ from DataPrepKit.CachedCVImageLoader import CachedCVImageLoader
 import DataPrepKit.utilities as util
 import DataPrepKit.Consts as const
 
+import os
 from pathlib import PurePath
+
 import csv
 import cv2 as cv
 import numpy as np
@@ -199,7 +201,7 @@ class ImageDiff():
             raise ValueError(f'No image buffer. Cannot save image "{filepath!s}"')
         else:
             pass
-        cv.imwrite(str(filepath), image_buffer)
+        cv.imwrite(os.fspath(filepath), image_buffer)
 
     def save_all(self, output_dir=None):
         """This method will compute the difference between the reference and
@@ -238,5 +240,5 @@ class ImageDiff():
                     (image_buffer, similarity) = \
                         diff_images(ref_image, input_image, self.color_map)
                     out_path = rename_path_to_diff(path, output_dir)
-                    cv.imwrite(str(out_path), image_buffer)
+                    cv.imwrite(os.fspath(out_path), image_buffer)
                     csvwriter.writerow([similarity, out_path.name])

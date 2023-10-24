@@ -1,6 +1,8 @@
 from pathlib import Path, PurePath
 import cv2 as cv
 
+import os
+
 #---------------------------------------------------------------------------------------------------
 
 class RegionSize():
@@ -98,7 +100,7 @@ class RegionSize():
         write_path = Path(results_dir / write_path)
         print(f"RegionSize.crop_write_image() #(write file: {write_path!r})")
         write_path.parent.mkdir(exist_ok=True, parents=True)
-        cv.imwrite(str(write_path), self.crop_image(image))
+        cv.imwrite(os.fspath(write_path), self.crop_image(image))
 
     def get_point_and_size(self):
         """Return a 4-tuple (x,y, width,height)"""

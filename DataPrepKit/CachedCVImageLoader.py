@@ -2,6 +2,8 @@ from DataPrepKit.RegionSize import RegionSize
 
 import cv2 as cv
 
+import os
+
 #---------------------------------------------------------------------------------------------------
 
 class CachedCVImageLoader():
@@ -27,7 +29,7 @@ class CachedCVImageLoader():
             pass
 
     def force_load_image(self, path):
-        self.image = cv.imread(str(path))
+        self.image = cv.imread(os.fspath(path))
         if self.image is None:
             self.path = None
             raise ValueError(
