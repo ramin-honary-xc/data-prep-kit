@@ -1,5 +1,5 @@
 import DataPrepKit.utilities     as util
-import DataPrepKit.ImageCropper  as imcrop
+import DataPrepKit.ORBMatcher    as orbm
 from DataPrepKit.CropRectTool    import CropRectTool
 from DataPrepKit.ImageFileLayer  import ImageFileLayer
 from DataPrepKit.PointCloudLayer import PointCloudLayer
@@ -393,7 +393,7 @@ class ConfigTab(qt.QWidget):
         super(ConfigTab, self).__init__(parent)
         self.app_view = parent
         self.app_model = app_model
-        self.orb_config = imcrop.ORBConfig()
+        self.orb_config = orbm.ORBConfig()
         self.orb_config_undo = []
         self.orb_config_redo = []
         self.notify = qt.QErrorMessage(self)
@@ -543,7 +543,7 @@ class ImageCropKit(qt.QTabWidget):
 
     def __init__(self, parent=None):
         super(ImageCropKit, self).__init__(parent)
-        self.app_model = imcrop.ImageCropper()
+        self.app_model = orbm.ImageCropper()
         #----------------------------------------
         # Setup the GUI
         self.setWindowTitle('Image Cropp Kit')

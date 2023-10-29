@@ -54,6 +54,25 @@ def main():
       )
 
     arper.add_argument(
+        '-A', '--algorithm',
+        dest='algorithm',
+        action='store',
+        default="ORB",
+        type=patm.algorithm_from_name,
+        help="""
+            Choose the matching algorithm: MSE or ORB. MSE, "Mean
+            Squared Error", treats the reference image as a
+            convolution kernel and applies the mean square error
+            between it and the input image, selects with a single
+            threshold (simple effective, but does not work on rotated
+            items).  ORB, "Oriented-FAST Rotated BRIEF", selects
+            matches by comparing clusters of feature points (works
+            regardless of scaling or rotation, but might be harder to
+            get good results).
+          """,
+      )
+
+    arper.add_argument(
         '--no-gui',
         dest='gui',
         action='store_false',
@@ -66,7 +85,7 @@ def main():
         '-t', '--threshold',
         dest='threshold',
         action='store',
-        default='95',
+        default='92',
         type=util.threshold,
         help="""
           The minimum percentage of similarity reqiured between a pattern and a
@@ -93,7 +112,7 @@ def main():
         type=util.crop_region_json,
         help="""
           Without specifying this option, the image file used as the "--pattern"
-          argument will specify the pattern to seek in each target image, and
+          argument will specify the pattern to seek in each input image, and
           will also determine how big of an image to crop. However it is
           possible to specify a list of crop regions relative to the pattern
           image using this argument. The argument must be a string of valid
@@ -134,7 +153,7 @@ def main():
         action='store_true',
         default=False,
         help="""
-          Candidate matching points within a target that are similar may match the
+          Candidate matching points within a input that are similar may match the
           pattern image such that the crop region arount one candidate point overlaps
           with the crop region around a nearby candidate point. By default, when
           overlapping crop regions are found, the candidate point with the higher

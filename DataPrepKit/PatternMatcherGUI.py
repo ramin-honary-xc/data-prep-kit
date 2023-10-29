@@ -1,5 +1,6 @@
 import DataPrepKit.utilities as util
 import DataPrepKit.PatternMatcher as patm
+import DataPrepKit.ORBMatcher as orbm
 from DataPrepKit.PercentSlider import PercentSlider
 from DataPrepKit.FileSetGUI import FileSetGUI, qt_modal_image_file_selection
 from DataPrepKit.ContextMenuItem import context_menu_item
@@ -850,6 +851,196 @@ class InspectTab(qt.QWidget):
 
 #---------------------------------------------------------------------------------------------------
 
+class AlgorithmSelector(qt.QTabWidget):
+    """This is the final tab, here you can select the pattern matching
+    algorithm to be used. Only RME an ORB are supported as of right
+    now. The ORB algorithm has many tuning parameters that can be set
+    in this tab as well.
+    """
+
+    def __init__(self, app_model, main_view=None):
+        super().__init__(main_view)
+        self.app_model = app_model
+        self.app_view = main_view
+        self.app_model = app_model
+        self.orb_config = orbm.ORBConfig()
+        self.orb_config_undo = []
+        self.orb_config_redo = []
+        self.notify = qt.QErrorMessage(self)
+        ##-------------------- The text fields --------------------
+        self.rme_checkbox = qt.QCheckBox('Root-Mean Error (RME) ')
+        self.orb_config_view = qt.QGroupBox('Oriented Rotated BRIEF (ORB) ')
+        self.orb_config_view.setCheckable(True)
+        #self.orb_config_view = qt.QWidget(self)
+        self.nFeatures = qt.QLineEdit(str(self.orb_config.get_nFeatures()))
+        self.nFeatures.editingFinished.connect(self.check_nFeatures)
+        self.scaleFactor = qt.QLineEdit(str(self.orb_config.get_scaleFactor()))
+        self.scaleFactor.editingFinished.connect(self.check_scaleFactor)
+        self.nLevels = qt.QLineEdit(str(self.orb_config.get_nLevels()))
+        self.nLevels.editingFinished.connect(self.check_nLevels)
+        self.edgeThreshold = qt.QLineEdit(str(self.orb_config.get_edgeThreshold()))
+        self.edgeThreshold.editingFinished.connect(self.check_edgeThreshold)
+        #self.firstLevel = qt.QLineEdit(str(self.orb_config.get_firstLevel()))
+        self.WTA_K = qt.QLineEdit(str(self.orb_config.get_WTA_K()))
+        self.WTA_K.editingFinished.connect(self.check_WTA_K)
+        self.patchSize = qt.QLineEdit(str(self.orb_config.get_patchSize()))
+        self.patchSize.editingFinished.connect(self.check_patchSize)
+        self.fastThreshold = qt.QLineEdit(str(self.orb_config.get_fastThreshold()))
+        self.fastThreshold.editingFinished.connect(self.check_fastThreshold)
+        ## -------------------- the form layout --------------------
+        self.form_layout = qt.QFormLayout(self.orb_config_view)
+        self.form_layout.setFieldGrowthPolicy(qt.QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        self.form_layout.setLabelAlignment(qcore.Qt.AlignmentFlag.AlignRight)
+        self.form_layout.setFormAlignment(qcore.Qt.AlignmentFlag.AlignLeft)
+        self.form_layout.addRow('Number of Features (>20, <20000)', self.nFeatures)
+        self.form_layout.addRow('Number of Levels (>1, <64)', self.nLevels)
+        self.form_layout.addRow('Scale Factor (>1.0, <2.0)', self.scaleFactor)
+        self.form_layout.addRow('Edge Threshold (>2, <1024)', self.edgeThreshold)
+        self.form_layout.addRow('Patch Size (>2, <1024)', self.patchSize)
+        self.form_layout.addRow('WTA Factor (>2, <4)', self.WTA_K)
+        self.form_layout.addRow('FAST Threshold (>2, <100)', self.fastThreshold)
+        ## -------------------- Control Buttons --------------------
+        self.buttons = qt.QWidget(self)
+        self.button_layout = qt.QHBoxLayout(self.buttons)
+        self.defaults_button = qt.QPushButton('Defaults')
+        self.defaults_button.clicked.connect(self.reset_defaults_action)
+        self.redo_button = qt.QPushButton('Redo')
+        self.redo_button.clicked.connect(self.redo_action)
+        self.undo_button = qt.QPushButton('Undo')
+        self.undo_button.clicked.connect(self.undo_action)
+        self.apply_button = qt.QPushButton('Apply')
+        self.apply_button.clicked.connect(self.apply_changes_action)
+        self.button_layout.addWidget(self.defaults_button)
+        self.button_layout.addWidget(self.redo_button)
+        self.button_layout.addWidget(self.undo_button)
+        self.button_layout.addWidget(self.apply_button)
+        self.after_update()
+        ## -------------------- Layout --------------------
+        self.rme_checkbox.stateChanged.connect(self.rme_checkbox_state_changed)
+        self.orb_config_view.toggled.connect(self.orb_config_view_check_state_changed)
+        self.whole_layout = qt.QVBoxLayout(self)
+        self.whole_layout.addWidget(self.rme_checkbox)
+        self.whole_layout.addWidget(self.orb_config_view)
+        self.whole_layout.addWidget(self.buttons)
+        self.whole_layout.addStretch()
+
+    def set_algorithm_ORB(self):
+        # This function exists because Qt5 does not allow you to add a
+        # QGroupBox to a QButtonGroup.
+        self.rme_checkbox.setCheckState(qcore.Qt.Unchecked)
+        self.orb_config_view.setChecked(True)
+        self.app_model.set_algorithm('ORB')
+
+    def set_algorithm_RME(self):
+        # This function exists because Qt5 does not allow you to add a
+        # QGroupBox to a QButtonGroup.
+        self.rme_checkbox.setCheckState(qcore.Qt.Checked)
+        self.orb_config_view.setChecked(False)
+        self.app_model.set_algorithm('RME')
+
+    def orb_config_view_check_state_changed(self, state):
+        # This function exists because Qt5 does not allow you to add a
+        # QGroupBox to a QButtonGroup.
+        if state:
+            self.set_algorithm_ORB()
+        else:
+            self.set_algorithm_RME()
+
+    def rme_checkbox_state_changed(self, state):
+        # This function exists because Qt5 does not allow you to add a
+        # QGroupBox to a QButtonGroup.
+        if state == qcore.Qt.Checked:
+            self.set_algorithm_RME()
+        else:
+            self.set_algorithm_ORB()
+
+    def update_field(self, field, fromStr, setter):
+        """This function takes a qt.QLineEdit 'field', a function to convert
+        it's text to a value to config parameter data, and a 'setter'
+        function that sets the value taken from the field. It is
+        expected that the 'setter' can raise a ValueError exception if
+        the value given cannot be set. This function catches the
+        exception and notifies the end user.
+        """
+        try:
+            setter(fromStr(field.text()))
+        except ValueError as e:
+            self.notify.showMessage(e.args[0])
+
+    def check_nFeatures(self):
+        self.update_field(self.nFeatures, int, self.orb_config.set_nFeatures)
+
+    def check_scaleFactor(self):
+        self.update_field(self.scaleFactor, float, self.orb_config.set_scaleFactor)
+
+    def check_nLevels(self):
+        self.update_field(self.nLevels, int, self.orb_config.set_nLevels)
+
+    def check_edgeThreshold(self):
+        self.update_field(self.edgeThreshold, int, self.orb_config.set_edgeThreshold)
+
+    def check_WTA_K(self):
+        self.update_field(self.WTA_K, int, self.orb_config.set_WTA_K)
+
+    def check_patchSize(self):
+        self.update_field(self.patchSize, int, self.orb_config.set_patchSize)
+
+    def check_fastThreshold(self):
+        self.update_field(self.fastThreshold, int, self.orb_config.set_fastThreshold)
+
+    def after_update(self):
+        self.redo_button.setEnabled(len(self.orb_config_redo) != 0)
+        self.undo_button.setEnabled(len(self.orb_config_undo) != 0)
+
+    def apply_changes_action(self):
+        self.check_nFeatures()
+        self.check_scaleFactor()
+        self.check_nLevels()
+        self.check_edgeThreshold()
+        self.check_WTA_K()
+        self.check_patchSize()
+        self.check_fastThreshold()
+        self.push_do(self.orb_config_undo)
+        print(f'ConfigTab.apply_changes_action({str(self.orb_config)})')
+        self.app_model.set_orb_config(self.orb_config)
+        self.after_update()
+        ref_orb_image = self.app_model.get_reference_image()
+        if ref_orb_image is not None:
+            self.app_view.redraw()
+            self.app_view.change_to_reference_tab()
+        else:
+            self.app_view.change_to_files_tab()
+
+    def reset_defaults_action(self):
+        print(f'ConfigTab.reset_defaults_action()')
+        self.push_do(self.orb_config_undo)
+        self.orb_config = ORBConfig()
+
+    def push_do(self, stack):
+        """Pass 'self.orb_config_undo' or 'self.orb_config_redo' as the 'stack' argument."""
+        if (len(stack) <= 0) or (stack[-1] != self.orb_config):
+            stack.append(self.orb_config)
+        else:
+            pass
+
+    def shift_do(self, forward, reverse):
+        if len(forward) > 0:
+            print(f'ConfigTab.shift_do() #(len(forward) -> {len(forward)}, len(reverse) -> {len(reverse)})')
+            self.push_do(reverse)
+            self.orb_config = deepcopy(forward[-1])
+            del forward[-1]
+            self.apply_changes_action()
+        else:
+            print(f'ConfigTab.shift_do() #(cannot undo/redo, reached end of stack)')
+
+    def undo_action(self):
+        self.shift_do(self.orb_config_undo, self.orb_config_redo)
+
+    def redo_action(self):
+        self.shift_do(self.orb_config_redo, self.orb_config_undo)
+
+#---------------------------------------------------------------------------------------------------
+
 class PatternMatcherView(qt.QTabWidget):
     """The Qt Widget containing the GUI for the whole pattern matching program.
     """
@@ -867,9 +1058,11 @@ class PatternMatcherView(qt.QTabWidget):
         self.files_tab.default_image_display_widget()
         self.pattern_tab = PatternSetupTab(app_model, self)
         self.inspect_tab = InspectTab(app_model, self)
-        self.addTab(self.files_tab, "Search")
+        self.algorithm_tab = AlgorithmSelector(app_model, self)
+        self.addTab(self.files_tab, "Input")
         self.addTab(self.pattern_tab, "Pattern")
         self.addTab(self.inspect_tab, "Inspect")
+        self.addTab(self.algorithm_tab, "Settings")
         self.currentChanged.connect(self.change_tab_handler)
 
     def error_message(self, message):
