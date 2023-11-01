@@ -1,7 +1,7 @@
 import DataPrepKit.FileSet as fs
 from DataPrepKit.CachedCVImageLoader import CachedCVImageLoader
 from DataPrepKit.RegionSize import RegionSize
-from DataPrepKit.SingleFeatureMultiCrop import SingleFeatureMultiCrop
+from DataPrepKit.SingleFeatureMultiCrop import SingleFeatureMultiCrop, check_algorithm_name
 import DataPrepKit.utilities as util
 
 import math
@@ -15,30 +15,6 @@ import numpy as np
 
 ####################################################################################################
 # The pattern matcing program
-
-def gather_QUrl_local_files(qurl_list):
-    """This function converts a list of URL values of type QUrl into a
-    list of PurePaths. It is useful for constructing 'FileListItem's
-    from the result of a file dialog selection.
-    """
-    urls = []
-    for url in qurl_list:
-        if url.isLocalFile():
-            urls.append(PurePath(url.toLocalFile()))
-    return urls
-
-def algorithm_from_name(name):
-    if isinstance(name, str):
-        if name == 'RME':
-            return 'RME' #TODO: return a class instance
-        if name == 'ORB':
-            return 'ORB' #TODO: return a class instance
-        else:
-            raise ValueError(f'unepxected algorithm "{algorithm}", must be one of "ORB" or "RME"')
-    else: #TODO: check if name isinstance() of an already created algorithm class
-        pass
-
-#---------------------------------------------------------------------------------------------------
 
 class DistanceMap():
     """Construct DistanceMap() by providing a target image and a pattern
@@ -232,10 +208,7 @@ class DistanceMap():
 
 #---------------------------------------------------------------------------------------------------
 
-
-#---------------------------------------------------------------------------------------------------
-
-class PatternMatcher(SingleFeatureMultiCrop):
+class RMEMatcher(SingleFeatureMultiCrop):
     """The main app model contains the buffer for the reference image, and the memoized search
     results for every image that has been compared against the reference image for a particular
     threshold value."""
@@ -280,7 +253,7 @@ class PatternMatcher(SingleFeatureMultiCrop):
             self.crop_regions = config.crop_regions_json
         else:
             pass
-        self.algorithm = algorithm_from_name(self.config.algorithm)
+        self.algorithm = check_algorithm_name(self.config.algorithm)
 
     def get_file_encoding(self):
         return self.file_encoding
@@ -342,7 +315,7 @@ class PatternMatcher(SingleFeatureMultiCrop):
             else:
                 pass
         else:
-            raise ValueError(f'PatternMatcher.set_feature_region() must take a 4-tuple', rect)
+            raise ValueError(f'RMEMatcher.set_feature_region() must take a 4-tuple', rect)
         SingleFeatureMultiCrop.set_feature_region(self, rect)
 
     def set_results_dir(self, results_dir):
@@ -355,7 +328,7 @@ class PatternMatcher(SingleFeatureMultiCrop):
         return self.target.get_path()
 
     def set_target_image_path(self, path):
-        #print(f'PatternMatcher.set_target_image_path("{path}")')
+        #print(f'RMEMatcher.set_target_image_path("{path}")')
         self.target.load_image(path=path)
 
     def get_target_fileset(self):
@@ -370,15 +343,11 @@ class PatternMatcher(SingleFeatureMultiCrop):
             pass
 
     def add_target_fileset(self, path_list):
-        #print(f'PatternMatcher.add_target_fileset("{path_list}")')
+        #print(f'RMEMatcher.add_target_fileset("{path_list}")')
         self.target_fileset.merge_recursive(path_list)
 
     def remove_image_path(self, path):
         self.target_fileset.delete(path)
-
-    def set_algorithm(self, algorithm):
-        print(f'PatternMatcher.set_algrithm({algorithm})')
-        self.algorithm = algorithm_from_name(self.config.algorithm)
 
     def get_distance_map(self):
         return self.distance_map
@@ -391,9 +360,9 @@ class PatternMatcher(SingleFeatureMultiCrop):
         patimg = self.reference.get_image()
         targimg = self.target.get_image()
         if patimg is None:
-            print(f'PatternMatcher.match_on_file() #(self.reference.get_image() returned None)')
+            print(f'RMEMatcher.match_on_file() #(self.reference.get_image() returned None)')
         elif targimg is None:
-            print(f'PatternMatcher.match_on_file() #(self.target.get_image() returned None)')
+            print(f'RMEMatcher.match_on_file() #(self.target.get_image() returned None)')
         else:
             target_image_path = self.target.get_path()
             self.distance_map = DistanceMap(self.target, self.reference)
@@ -407,9 +376,9 @@ class PatternMatcher(SingleFeatureMultiCrop):
                      self.distance_map.find_matching_points(threshold)
                  self.threshold = threshold
              else:
-                 print(f'PatternMatcher.change_threshold({threshold}) #(thrshold is already set to this value)')
+                 print(f'RMEMatcher.change_threshold({threshold}) #(thrshold is already set to this value)')
         else:
-            print(f'PatternMatcher.change_threshold() #(called before DistanceMap was constructed)')
+            print(f'RMEMatcher.change_threshold() #(called before DistanceMap was constructed)')
 
     def get_matched_points(self):
         """This function returns the list of patterm matching regions that
@@ -450,7 +419,7 @@ class PatternMatcher(SingleFeatureMultiCrop):
         prefix = target_image_path.stem
         print(f'{self.__class__.__name__}.write_all_cropped_images(target={target_image_path!r}, threshold={threshold!s}, results_dir={results_dir!r})')
         point_list = distance_map.find_matching_points(threshold=threshold)
-        print(f'PatternMatcher.write_all_cropped_images()')
+        print(f'{self.__class__.__name__}.write_all_cropped_images()')
         print('  point_list')
         for (i, pt) in zip(range(0,len(point_list)), point_list):
             print(f'    {i}: {pt}')

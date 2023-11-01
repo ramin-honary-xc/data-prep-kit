@@ -1,7 +1,8 @@
 #! /usr/bin/env python3
 
 import DataPrepKit.utilities as util
-import DataPrepKit.PatternMatcher as patm
+import DataPrepKit.RMEMatcher as rme
+from DataPrepKit.SingleFeatureMultiCrop import check_algorithm_name
 import DataPrepKit.PatternMatcherGUI as gui
 from DataPrepKit.FileSet import image_file_suffix_set
 
@@ -58,7 +59,7 @@ def main():
         dest='algorithm',
         action='store',
         default="ORB",
-        type=patm.algorithm_from_name,
+        type=check_algorithm_name,
         help="""
             Choose the matching algorithm: MSE or ORB. MSE, "Mean
             Squared Error", treats the reference image as a
@@ -201,10 +202,9 @@ def main():
       )
 
     (config, remaining_argv) = arper.parse_known_args()
-    matcher = patm.PatternMatcher(config)
     if config.gui:
         app = qt.QApplication(remaining_argv)
-        appWindow = gui.PatternMatcherView(matcher)
+        appWindow = gui.PatternMatcherView(config)
         appWindow.show()
         sys.exit(app.exec_())
     else:
@@ -212,6 +212,7 @@ def main():
           (len(config.inputs) == 0):
             arper.print_usage()
         else:
+            matcher = algorithm_from_name(config.algorithm)
             matcher.batch_crop_matched_patterns()
 
 ####################################################################################################

@@ -1,5 +1,19 @@
 import sys
 
+def check_algorithm_name(name):
+    if isinstance(name, str):
+        name = name.upper()
+        if name == 'RME':
+            return 'RME'
+        elif name == 'ORB':
+            return 'ORB'
+        else:
+            raise ValueError(f'unepxected algorithm "{algorithm}", must be one of "ORB" or "RME"')
+    else:
+        raise ValueError(f'check_algorithm_name() expects a string', name)
+
+#---------------------------------------------------------------------------------------------------
+
 class SingleFeatureMultiCrop():
     """A model used by the pattern matcher for selecting a single
     "feature" region and multiple "crop" regions. This is because the
@@ -29,10 +43,10 @@ class SingleFeatureMultiCrop():
     Note that the type of the actual region rectangles are never
     checked, so you can store anything into objects of this class. But
     this alllows the parts of the view that inherit this class, and
-    the actual 'PatternMatcher' model which inherits this class, to
-    each use whatever rectangle data types are most convenient. The
-    API to access these rectangles is consistent across both the model
-    and the view. """
+    the actual 'RMEMatcher' or 'ORBMatcher' model which inherits this
+    class, to each use whatever rectangle data types are most
+    convenient. The API to access these rectangles is consistent
+    across both the model and the view. """
 
     def __init__(self):
         self.feature_region = None

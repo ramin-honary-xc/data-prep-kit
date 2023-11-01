@@ -1,4 +1,4 @@
-from DataPrepKit.PatternMatcher import SingleFeatureMultiCrop
+from DataPrepKit.SingleFeatureMultiCrop import SingleFeatureMultiCrop
 
 import PyQt5.QtCore as qcore
 import PyQt5.QtGui as qgui

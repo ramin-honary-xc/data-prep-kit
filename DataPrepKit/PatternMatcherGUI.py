@@ -1,6 +1,6 @@
 import DataPrepKit.utilities as util
-import DataPrepKit.PatternMatcher as patm
-import DataPrepKit.ORBMatcher as orbm
+import DataPrepKit.RMEMatcher as rme
+import DataPrepKit.ORBMatcher as orb
 from DataPrepKit.PercentSlider import PercentSlider
 from DataPrepKit.FileSetGUI import FileSetGUI, qt_modal_image_file_selection
 from DataPrepKit.ContextMenuItem import context_menu_item
@@ -120,12 +120,12 @@ class FilesTab(FileSetGUI):
 
 #---------------------------------------------------------------------------------------------------
 
-class RegionSelectionTool(CropRectTool, patm.SingleFeatureMultiCrop):
+class RegionSelectionTool(CropRectTool, rme.SingleFeatureMultiCrop):
     """This is a version of "CropRectTool" configured to define the
     rectangular regions within "SingleFeatureMultiCrop" model.
 
     This tool instantiates "SingleFeatureMultiCrop", as does the
-    "PatternMatcher" app model, many of the methods of
+    "RMEMatcher" app model, many of the methods of
     "SingleFeatureMultiCrop" are overridden to update the internal
     state of this tool, which contains objects that are drawn in the
     "QGraphicsScene", and simultaneously calls the exact same
@@ -143,7 +143,7 @@ class RegionSelectionTool(CropRectTool, patm.SingleFeatureMultiCrop):
 
     def __init__(self, app_model, scene):
         super().__init__(scene)
-        patm.SingleFeatureMultiCrop.__init__(self)
+        rme.SingleFeatureMultiCrop.__init__(self)
         self.app_model = app_model
         self.set_feature_region_pen(CropRectTool._green_pen)
         self.set_crop_region_pen(CropRectTool._red_pen)
@@ -175,7 +175,7 @@ class RegionSelectionTool(CropRectTool, patm.SingleFeatureMultiCrop):
     ###############  Methods for redrawing everything  ###############
 
     # Use these if for whatever reason the CropRectTool of the
-    # 'PatternMatcher' app model and the parent # 'SingleFeatureMultiCrop'
+    # 'RMEMatcher' app model and the parent # 'SingleFeatureMultiCrop'
     # of this class somehow become out-of-sync.
 
     def clear_feature_region(self):
@@ -252,7 +252,7 @@ class RegionSelectionTool(CropRectTool, patm.SingleFeatureMultiCrop):
 
     def set_region_selection(self, label):
         print(f'{self.__class__.__name__}.set_region_selection({label!r})')
-        patm.SingleFeatureMultiCrop.set_region_selection(self, label)
+        rme.SingleFeatureMultiCrop.set_region_selection(self, label)
         self.app_model.set_region_selection(label)
         CropRectTool.set_draw_pen(
             self,
@@ -924,35 +924,21 @@ class AlgorithmSelector(qt.QTabWidget):
         self.whole_layout.addWidget(self.buttons)
         self.whole_layout.addStretch()
 
-    def set_algorithm_ORB(self):
-        # This function exists because Qt5 does not allow you to add a
-        # QGroupBox to a QButtonGroup.
-        self.rme_checkbox.setCheckState(qcore.Qt.Unchecked)
-        self.orb_config_view.setChecked(True)
-        self.app_model.set_algorithm('ORB')
-
-    def set_algorithm_RME(self):
-        # This function exists because Qt5 does not allow you to add a
-        # QGroupBox to a QButtonGroup.
-        self.rme_checkbox.setCheckState(qcore.Qt.Checked)
-        self.orb_config_view.setChecked(False)
-        self.app_model.set_algorithm('RME')
-
     def orb_config_view_check_state_changed(self, state):
         # This function exists because Qt5 does not allow you to add a
         # QGroupBox to a QButtonGroup.
         if state:
-            self.set_algorithm_ORB()
+            self.main_view.set_algorithm_ORB()
         else:
-            self.set_algorithm_RME()
+            self.main_view.set_algorithm_RME()
 
     def rme_checkbox_state_changed(self, state):
         # This function exists because Qt5 does not allow you to add a
         # QGroupBox to a QButtonGroup.
         if state == qcore.Qt.Checked:
-            self.set_algorithm_RME()
+            self.main_view.set_algorithm_RME()
         else:
-            self.set_algorithm_ORB()
+            self.main_view.set_algorithm_ORB()
 
     def update_field(self, field, fromStr, setter):
         """This function takes a qt.QLineEdit 'field', a function to convert
@@ -1045,20 +1031,32 @@ class PatternMatcherView(qt.QTabWidget):
     """The Qt Widget containing the GUI for the whole pattern matching program.
     """
 
-    def __init__(self, app_model, main_view=None):
+    def __init__(self, config, main_view=None):
         super().__init__(main_view)
-        self.app_model = app_model
+        self.orb_matcher = None
+        self.rme_matcher = None
+        self.config = config
+        self.app_model = None
+        print(f'PatternMatcherView.__init__() #(init handler for algorithm {config.algorithm!r})')
+        if config.algorithm == 'RME':
+            self.rme_matcher = rme.RMEMatcher(config)
+            self.app_model = self.rme_matcher
+        elif config.algorithm == 'ORB':
+            self.orb_matcher = orb.ORBMatcher(config)
+            self.app_model = self.orb_matcher
+        else:
+            raise ValueError(f'no handler for algorithm {config.algorithm!r}')
         #----------------------------------------
         # Setup the GUI
         self.notify = qt.QErrorMessage(self)
         self.setWindowTitle("Image Pattern Matching Kit")
         self.resize(1280, 720)
         self.setTabPosition(qt.QTabWidget.North)
-        self.files_tab = FilesTab(app_model, self)
+        self.files_tab = FilesTab(self.app_model, self)
         self.files_tab.default_image_display_widget()
-        self.pattern_tab = PatternSetupTab(app_model, self)
-        self.inspect_tab = InspectTab(app_model, self)
-        self.algorithm_tab = AlgorithmSelector(app_model, self)
+        self.pattern_tab = PatternSetupTab(self.app_model, self)
+        self.inspect_tab = InspectTab(self.app_model, self)
+        self.algorithm_tab = AlgorithmSelector(self.app_model, self)
         self.addTab(self.files_tab, "Input")
         self.addTab(self.pattern_tab, "Pattern")
         self.addTab(self.inspect_tab, "Inspect")
@@ -1087,3 +1085,16 @@ class PatternMatcherView(qt.QTabWidget):
         self.pattern_tab.update_reference_pixmap()
         self.show_pattern_tab()
 
+    def set_algorithm_ORB(self):
+        if not self.orb_matcher:
+            self.orb_matcher = orb.ORBMatcher(self.config)
+        else:
+            pass
+        self.app_model = self.orb_matcher
+
+    def set_algorithm_RME(self):
+        if not self.rme_matcher:
+            self.rme_matcher = rme.RMEMatcher(self.config)
+        else:
+            pass
+        self.app_model = orb.ORBMatcher(self.config)

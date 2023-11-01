@@ -342,12 +342,13 @@ class ORBConfig():
 
 #---------------------------------------------------------------------------------------------------
 
-class ImageCropper():
+class ORBMatcher():
     """This class creates objects that represents the state of the whole
     application.
     """
 
-    def __init__(self):
+    def __init__(self, config=None):
+        self.config = config
         self.orb_config = ORBConfig()
         self.image_list = []
         self.reference_image = None
@@ -358,17 +359,17 @@ class ImageCropper():
 
     def set_selected_image(self, selected_image):
         if isinstance(selected_image, ImageWithORB):
-            #print(f'ImageCropper.set_selected_image("{str(selected_image.get_filepath())}")')
+            #print(f'ORBMatcher.set_selected_image("{str(selected_image.get_filepath())}")')
             self.selected_image = selected_image
             if self.reference_image is not None:
                 self.selected_image.set_orb_config(self.orb_config)
                 self.selected_image.set_relative_crop_rect(self.reference_image)
             else:
-                #print(f'ImageCropper.set_selected_image() #(no reference image, not updating crop rect)')
+                #print(f'ORBMatcher.set_selected_image() #(no reference image, not updating crop rect)')
                 pass
         else:
             raise ValueError(
-                f'ImageCropper.set_selected_image() '
+                f'ORBMatcher.set_selected_image() '
                 f'#(called with argument of type {str(type(selected_image))})'
               )
 
@@ -390,14 +391,14 @@ class ImageCropper():
             self.image_list.append(items)
         else:
             raise ValueError(
-                f'ImageCropper.add_image_list() expects ImageWithORB or list of ImageWithORB'
+                f'ORBMatcher.add_image_list() expects ImageWithORB or list of ImageWithORB'
               )
 
     def get_orb_config(self):
         return self.orb_config
 
     def set_orb_config(self, orb_config):
-        #print(f'ImageCropper.set_orb_config({orb_config})')
+        #print(f'ORBMatcher.set_orb_config({orb_config})')
         if (orb_config is not None) and (not isinstance(orb_config, ORBConfig)):
             raise ValueError(
                 f'MainAppMode.set_orb_config() called with value of type {str(type(orb_config))}',
@@ -407,7 +408,7 @@ class ImageCropper():
             self.reference_image.set_orb_config(orb_config)
         else:
             pass
-        #print(f'ImageCropper.set_orb_config() #(set self.orb_config = {orb_config})')
+        #print(f'ORBMatcher.set_orb_config() #(set self.orb_config = {orb_config})')
         self.orb_config = deepcopy(orb_config)
 
     def get_crop_rect(self):
@@ -425,7 +426,7 @@ class ImageCropper():
             if self.selected_image is not None:
                 self.selected_image.set_relative_crop_rect(self.reference_image)
         else:
-            print(f'ImageCropper.set_crop_rect() #(cannot set crop_rect, no reference image)')
+            print(f'ORBMatcher.set_crop_rect() #(cannot set crop_rect, no reference image)')
 
     def get_reference_image(self):
         return self.reference_image
@@ -435,7 +436,7 @@ class ImageCropper():
         will call reset_all_crop_rects()
         """
         if item is self.reference_image:
-            print(f'ImageCropper.set_reference_image("{str(item.get_filepath())}") #(already using this item as the reference image)')
+            print(f'ORBMatcher.set_reference_image("{str(item.get_filepath())}") #(already using this item as the reference image)')
             return
         elif isinstance(item, PurePath):
             self.reference_image = ImageWithORB(item)
@@ -445,10 +446,10 @@ class ImageCropper():
             self.reference_image = item
         else:
             raise ValueError( \
-                f'ImageCropper.set_reference_image() expects filepath or '
+                f'ORBMatcher.set_reference_image() expects filepath or '
                 f'ImageWithORB, was instead passed argument of type {type(item)}' \
               )
-        print(f'ImageCropper.set_reference_image("{str(item.get_filepath())}")')
+        print(f'ORBMatcher.set_reference_image("{str(item.get_filepath())}")')
         # Now reset the crop_rect and orb_config of all items in the image_list
         #----------------------------------------
         # Set the ORB config for the reference image, this may trigger
