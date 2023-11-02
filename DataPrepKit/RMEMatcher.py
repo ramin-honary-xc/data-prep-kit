@@ -214,79 +214,9 @@ class RMEMatcher(SingleFeatureMultiCrop):
     threshold value."""
 
     def __init__(self, config=None):
-        super().__init__()
+        super().__init__(config)
         self.distance_map = None
-        self.config = None
-        self.results_dir = None
-        self.set_target_fileset(None)
-        self.results_dir = None
-        self.save_distance_map = None
-        self.threshold = 0.78
-        self.target = CachedCVImageLoader()
-        self.target_matched_points = []
-        self.file_encoding = 'png'
-        self.reference = CachedCVImageLoader()
-        if config:
-            self.set_config(config)
-        else:
-            pass
-
-    def get_config(self):
-        return self.config
-
-    def set_config(self, config):
-        self.config = config
-        self.set_target_fileset(config.inputs)
-        self.set_reference_image_path(config.pattern)
-        self.results_dir = config.output_dir
-        self.threshold = config.threshold
-        self.save_distance_map = config.save_map
-        self.set_file_encoding(config.encoding)
-        # Load the reference right away, if it is not None
-        self.reference_image_path = config.pattern
-        if self.reference_image_path:
-            self.reference.load_image(self.reference_image_path)
-            self.feature_region = self.reference.get_crop_rect()
-        else:
-            pass
-        if config.crop_regions_json:
-            self.crop_regions = config.crop_regions_json
-        else:
-            pass
-        self.algorithm = check_algorithm_name(self.config.algorithm)
-
-    def get_file_encoding(self):
-        return self.file_encoding
-
-    def set_file_encoding(self, encoding):
-        encoding = encoding.lower()
-        if encoding not in fs.image_file_suffix_set:
-            raise ValueError(f'unknown image file encoding symbol "{self.file_encoding}"')
-        else:
-            self.file_encoding = encoding
-
-    def get_reference(self):
-        return self.reference
-
-    def get_reference_image_path(self):
-        return self.reference.get_path()
-
-    def set_reference_image_path(self, path):
-        """This function sets the reference image path and also attempts to
-        load the image from this path. Also the feature region is set
-        to the value returned by
-        "CachedCVImageLoader.get_crop_rect()", which is, when it is
-        first loaded, always the rectangular region that circumscribes
-        the full the image. """
-        self.reference_image_path = path
-        if path:
-            self.reference.load_image(path=path, crop_rect=self.feature_region)
-        else:
-            pass
-        SingleFeatureMultiCrop.set_feature_region(self, self.reference.get_crop_rect())
-
-    def set_reference_pixmap(self, reference_path, pixmap):
-        self.reference.set_image(reference_path, pixmap)
+        self.threshold = 0.92
 
     def get_feature_region(self):
         """Overloads the "SingleFeatureMultiCrop.get_feature_region"
@@ -317,37 +247,6 @@ class RMEMatcher(SingleFeatureMultiCrop):
         else:
             raise ValueError(f'RMEMatcher.set_feature_region() must take a 4-tuple', rect)
         SingleFeatureMultiCrop.set_feature_region(self, rect)
-
-    def set_results_dir(self, results_dir):
-        self.results_dir = results_dir
-
-    def get_target(self):
-        return self.target
-
-    def get_target_image_path(self):
-        return self.target.get_path()
-
-    def set_target_image_path(self, path):
-        #print(f'RMEMatcher.set_target_image_path("{path}")')
-        self.target.load_image(path=path)
-
-    def get_target_fileset(self):
-        return self.target_fileset
-
-    def set_target_fileset(self, path_list):
-        self.target_fileset = \
-            fs.FileSet(filter=fs.filter_image_files_by_ext)
-        if path_list:
-            self.target_fileset.merge_recursive(path_list)
-        else:
-            pass
-
-    def add_target_fileset(self, path_list):
-        #print(f'RMEMatcher.add_target_fileset("{path_list}")')
-        self.target_fileset.merge_recursive(path_list)
-
-    def remove_image_path(self, path):
-        self.target_fileset.delete(path)
 
     def get_distance_map(self):
         return self.distance_map

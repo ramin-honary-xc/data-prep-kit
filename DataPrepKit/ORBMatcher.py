@@ -1,3 +1,5 @@
+from DataPrepKit.SingleFeatureMultiCrop import SingleFeatureMultiCrop
+
 from copy import deepcopy
 import os
 from pathlib import (PurePath, Path)
@@ -342,15 +344,18 @@ class ORBConfig():
 
 #---------------------------------------------------------------------------------------------------
 
-class ORBMatcher():
+class ORBMatcher(SingleFeatureMultiCrop):
     """This class creates objects that represents the state of the whole
     application.
     """
 
     def __init__(self, config=None):
-        self.config = config
+        super().__init__(config)
+        if config:
+            self.set_config(config)
+        else:
+            self.config = None
         self.orb_config = ORBConfig()
-        self.image_list = []
         self.reference_image = None
         self.selected_image = None
         

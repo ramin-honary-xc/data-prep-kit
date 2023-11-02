@@ -863,7 +863,7 @@ class AlgorithmSelector(qt.QTabWidget):
         self.app_model = app_model
         self.app_view = main_view
         self.app_model = app_model
-        self.orb_config = orbm.ORBConfig()
+        self.orb_config = orb.ORBConfig()
         self.orb_config_undo = []
         self.orb_config_redo = []
         self.notify = qt.QErrorMessage(self)
