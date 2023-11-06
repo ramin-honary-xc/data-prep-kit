@@ -208,14 +208,15 @@ class DistanceMap():
 
 #---------------------------------------------------------------------------------------------------
 
-class RMEMatcher(SingleFeatureMultiCrop):
+class RMEMatcher():
     """The main app model contains the buffer for the reference image, and the memoized search
     results for every image that has been compared against the reference image for a particular
     threshold value."""
 
-    def __init__(self, config=None):
-        super().__init__(config)
+    def __init__(self, main_view, config=None):
+        self.main_view = main_view
         self.distance_map = None
+        self.target_matched_points = None
         self.threshold = 0.92
 
     def get_feature_region(self):
@@ -256,16 +257,17 @@ class RMEMatcher(SingleFeatureMultiCrop):
         list in the "FilesTab". It starts running the pattern matching algorithm
         and changes the display of the GUI over to the "InspectTab".
         """
-        patimg = self.reference.get_image()
-        targimg = self.target.get_image()
+        app_model = self.main_view.get_app_model()
+        patimg = app_model.reference.get_image()
+        targimg = app_model.target.get_image()
         if patimg is None:
             print(f'RMEMatcher.match_on_file() #(self.reference.get_image() returned None)')
         elif targimg is None:
             print(f'RMEMatcher.match_on_file() #(self.target.get_image() returned None)')
         else:
             #target_image_path = self.target.get_path()
-            self.distance_map = DistanceMap(self.target, self.reference)
-            self.target_matched_points = \
+            self.distance_map = DistanceMap(app_model.target, app_model.reference)
+            app_model.target_matched_points = \
                 self.distance_map.find_matching_points(self.threshold)
 
     def change_threshold(self, threshold):

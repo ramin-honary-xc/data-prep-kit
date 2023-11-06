@@ -9,6 +9,7 @@ from DataPrepKit.ReferenceImagePreviewGUI import ReferenceImagePreview
 from DataPrepKit.CropRectTool import CropRectTool
 from DataPrepKit.FileSet import image_file_suffix_set
 from DataPrepKit.EncodingMenu import EncodingMenu
+from DataPrepKit.SingleFeatureMultiCrop import SingleFeatureMultiCrop
 
 from pathlib import PurePath
 
@@ -102,9 +103,9 @@ class FilesTab(FileSetGUI):
         app_model = self.main_view.get_app_model()
         app_model.set_target_image_path(path)
         app_model.match_on_file()
-        distance_map = app_model.get_distance_map()
-        if distance_map:
-            self.main_view.show_distance_map()
+        matched_points = app_model.get_matched_points()
+        if matched_points:
+            #self.main_view.show_distance_map()
             self.main_view.show_inspect_tab()
         else:
             self.main_view.show_pattern_tab()
@@ -120,7 +121,7 @@ class FilesTab(FileSetGUI):
 
 #---------------------------------------------------------------------------------------------------
 
-class RegionSelectionTool(CropRectTool, rme.SingleFeatureMultiCrop):
+class RegionSelectionTool(CropRectTool):
     """This is a version of "CropRectTool" configured to define the
     rectangular regions within "SingleFeatureMultiCrop" model.
 
@@ -141,10 +142,10 @@ class RegionSelectionTool(CropRectTool, rme.SingleFeatureMultiCrop):
 
     """
 
-    def __init__(self, app_model, scene):
+    def __init__(self, main_view, scene):
         super().__init__(scene)
-        rme.SingleFeatureMultiCrop.__init__(self)
-        self.app_model = app_model
+        #rme.SingleFeatureMultiCrop.__init__(self)
+        self.main_view = main_view
         self.set_feature_region_pen(CropRectTool._green_pen)
         self.set_crop_region_pen(CropRectTool._red_pen)
         self.redraw_all_regions()
@@ -180,7 +181,8 @@ class RegionSelectionTool(CropRectTool, rme.SingleFeatureMultiCrop):
 
     def clear_feature_region(self):
         scene = self.get_scene()
-        if self.feature_region:
+        app_model = self.main_view.get_app_model()
+        if app_model.feature_region:
             scene.removeItem(self.featureRegion)
             self.feature_region = None
         else:
@@ -188,7 +190,8 @@ class RegionSelectionTool(CropRectTool, rme.SingleFeatureMultiCrop):
 
     def clear_crop_regions(self):
         scene = self.get_scene()
-        if self.crop_regions is None or len(self.crop_regions) == 0:
+        app_model = self.main_view.get_app_model()
+        if app_model.crop_regions is None or len(app_model.crop_regions) == 0:
             pass
         else:
             for (label, rect) in self.crop_regions.items():
@@ -199,7 +202,8 @@ class RegionSelectionTool(CropRectTool, rme.SingleFeatureMultiCrop):
     def redraw_all_regions(self):
         """Copies the crop regions from the global state to this local GUI object."""
         self.clear_feature_region()
-        feature_region = self.app_model.get_feature_region()
+        app_model = self.main_view.get_app_model()
+        feature_region = app_model.get_feature_region()
         scene = self.get_scene()
         if feature_region:
             qrectf = qcore.QRectF(*feature_region)
@@ -210,7 +214,8 @@ class RegionSelectionTool(CropRectTool, rme.SingleFeatureMultiCrop):
 
     def redraw_crop_regions(self, x_off, y_off):
         self.clear_crop_regions()
-        crop_regions = self.app_model.get_crop_regions()
+        app_model = self.main_view.get_app_model()
+        crop_regions = app_model.get_crop_regions()
         scene = self.get_scene()
         if (crop_regions is None) or (len(crop_regions) == 0):
             self.crop_regions = {}
@@ -238,22 +243,24 @@ class RegionSelectionTool(CropRectTool, rme.SingleFeatureMultiCrop):
         and the if there is a currently selected rectangular region,
         it should be deleted so it can be re-drawn. """
         scene = self.get_scene()
-        if self.crop_region_selection is None:
+        app_model = self.main_view.get_app_model()
+        if app_model.crop_region_selection is None:
             if self.feature_region is not None:
+                print(f'feature_region = {app_model.feature_region}')
                 scene.removeItem(self.feature_region)
-                self.feature_region = None
+                app_model.feature_region = None
             else:
                 pass
-        elif self.crop_region_selection in self.crop_regions:
-            scene.removeItem(self.crop_regions[self.crop_region_selection])
+        elif app_model.crop_region_selection in self.crop_regions:
+            scene.removeItem(app_model.crop_regions[self.crop_region_selection])
             del self.crop_regions[self.crop_region_selection]
         else:
             pass
 
     def set_region_selection(self, label):
         print(f'{self.__class__.__name__}.set_region_selection({label!r})')
-        rme.SingleFeatureMultiCrop.set_region_selection(self, label)
-        self.app_model.set_region_selection(label)
+        app_model = self.main_view.get_app_model()
+        app_model.set_region_selection(label)
         CropRectTool.set_draw_pen(
             self,
             self.get_feature_region_pen() if label is None else \
@@ -284,7 +291,8 @@ class RegionSelectionTool(CropRectTool, rme.SingleFeatureMultiCrop):
 
     def set_feature_region(self, rect):
         print(f'{self.__class__.__name__}.set_feature_region({rect!r})')
-        self.app_model.set_feature_region(rect)
+        app_model = self.main_view.get_app_model()
+        app_model.set_feature_region(rect)
         qrectf = qcore.QRectF(*rect)
         if self.feature_region is not None:
             # Update the state of self.feature_region
@@ -306,7 +314,8 @@ class RegionSelectionTool(CropRectTool, rme.SingleFeatureMultiCrop):
         If the 'self.crop_region_selection' is None, the given 'rect'
         argument is used to set the 'self. """
         print(f'{self.__class__.__name__}.set_crop_region_selection({rect!r}) #(self.crop_region_selection = {self.crop_region_selection})')
-        self.app_model.set_crop_region_selection(rect)
+        app_model = self.main_view.get_app_model()
+        app_model.set_crop_region_selection(rect)
         scene = self.get_scene()
         #----------------------------------------
         if self.crop_region_selection is None:
@@ -314,7 +323,7 @@ class RegionSelectionTool(CropRectTool, rme.SingleFeatureMultiCrop):
             self.set_feature_region(rect)
         else:
             # If the selected crop region exists, update it.
-            self.app_model.set_crop_region_selection(rect)
+            app_model.set_crop_region_selection(rect)
             qrectf = qcore.QRectF(*rect)
             if (self.crop_region_selection not in self.crop_regions) or \
               (self.crop_regions is None):
@@ -337,9 +346,9 @@ class RegionSelectionTool(CropRectTool, rme.SingleFeatureMultiCrop):
 
 class PatternPreview(ReferenceImagePreview):
 
-    def __init__(self, app_model, main_view):
-        super().__init__(app_model, main_view)
-        self.crop_rect_tool = RegionSelectionTool(app_model, self.get_scene()) #(, self.crop_rect_updated)
+    def __init__(self, main_view):
+        super().__init__(main_view)
+        self.crop_rect_tool = RegionSelectionTool(main_view, self.get_scene()) #(, self.crop_rect_updated)
         self.set_mouse_mode(self.crop_rect_tool)
         self.setSizePolicy(
             qt.QSizePolicy(
@@ -513,8 +522,10 @@ class ActiveSelectorModel(qcore.QStringListModel):
 class ActiveSelector(qt.QListView):
     """The list of rectangular regions that are selected from the reference image."""
 
-    def __init__(self, app_model, parent_view):
+    def __init__(self, main_view, parent_view):
         super().__init__(parent_view)
+        self.main_view = main_view
+        app_model = self.main_view.get_app_model()
         self.setObjectName("Active Selector")
         self.setSizePolicy(
             qt.QSizePolicy(qt.QSizePolicy.Preferred, qt.QSizePolicy.Preferred),
@@ -586,16 +597,15 @@ class ActiveSelector(qt.QListView):
 
 class PatternSetupTab(qt.QWidget):
 
-    def __init__(self, app_model, main_view):
+    def __init__(self, main_view):
         screenWidth = qgui.QGuiApplication.primaryScreen().virtualSize().width()
         super().__init__(main_view)
         self.setObjectName("PatternSetupTab")
         self.setAcceptDrops(True)
-        self.app_model    = app_model
         self.main_view    = main_view
         self.layout       = qt.QHBoxLayout(self)
-        self.preview_view = PatternPreview(app_model, self)
-        self.active_selector = ActiveSelector(app_model, self)
+        self.preview_view = PatternPreview(main_view)
+        self.active_selector = ActiveSelector(main_view, self)
         self.splitter     = qt.QSplitter(qcore.Qt.Orientation.Horizontal, self)
         self.splitter.setObjectName("PatternTab splitter")
         self.splitter.insertWidget(0, self.active_selector)
@@ -641,11 +651,13 @@ class PatternSetupTab(qt.QWidget):
 
     def set_reference_image_path(self, path):
         #print(f'FilesTab.use_current_item_as_pattern() #("{path}")')
-        self.app_model.set_reference_image_path(path)
+        app_model = self.main_view.get_app_model()
+        app_model.set_reference_image_path(path)
         self.update_reference_pixmap()
 
     def open_pattern_file_handler(self):
-        target_dir = self.app_model.get_config().pattern
+        app_model = self.main_view.get_app_model()
+        target_dir = app_model.get_config().pattern
         urls = qt_modal_image_file_selection(
             self,
             default_dir=target_dir,
@@ -676,10 +688,11 @@ class PatternSetupTab(qt.QWidget):
 class InspectTabControl(qt.QWidget):
     """The upper control bar for the Inspect tab"""
 
-    def __init__(self, app_model, inspect_tab):
+    def __init__(self, main_view, inspect_tab):
         super().__init__(inspect_tab)
         self.setObjectName('InspectTab controls')
-        self.app_model = app_model
+        self.main_view = main_view
+        app_model = self.main_view.get_app_model()
         self.inspect_tab = inspect_tab
         self.setSizePolicy(
             qt.QSizePolicy(qt.QSizePolicy.Preferred, qt.QSizePolicy.Minimum)
@@ -693,7 +706,7 @@ class InspectTabControl(qt.QWidget):
             inspect_tab.slider_handler,
           )
         # ---------- setup popup-menu ----------
-        self.encoding_menu = EncodingMenu('Encoding:', self.app_model, parent=self)
+        self.encoding_menu = EncodingMenu('Encoding:', app_model, parent=self)
         # ---------- lay out the widgets ----------
         self.layout.addWidget(self.encoding_menu)
         self.layout.addWidget(self.slider)
@@ -715,12 +728,12 @@ class InspectTab(qt.QWidget):
         # the target and pattern are both selected.
         self.layout = qt.QVBoxLayout(self)
         self.layout.setObjectName('InspectTab layout')
-        self.control_widget = InspectTabControl(app_model, self)
+        self.control_widget = InspectTabControl(main_view, self)
         self.slider = self.control_widget.slider
         self.layout.addWidget(self.control_widget)
         self.message_box = MessageBox("Please select SEARCH target image and PATTERN image.")
         self.layout.addWidget(self.message_box)
-        self.image_display = InspectImagePreview(app_model, self)
+        self.image_display = InspectImagePreview(main_view, self)
         image_display_size_policy = self.image_display.sizePolicy()
         image_display_size_policy.setRetainSizeWhenHidden(True)
         self.image_display.setSizePolicy(image_display_size_policy)
@@ -775,17 +788,17 @@ class InspectTab(qt.QWidget):
         self.message_box.hide()
         self.image_display.show()
 
-    def show_distance_map(self):
-        """Draws the target image and any matching pattern rectangles into the
-        image_display window."""
-        app_model = self.main_view.get_app_model()
-        self.distance_map = app_model.get_distance_map()
-        target = self.distance_map.get_target()
-        path = app_model.get_target_image_path()
-        self.image_display.set_filepath(path)
-        self.image_display.redraw()
-        self.show_image_display()
-        self.do_save_selected.setEnabled(True)
+    # def show_distance_map(self):
+    #     """Draws the target image and any matching pattern rectangles into the
+    #     image_display window."""
+    #     app_model = self.main_view.get_app_model()
+    #     self.distance_map = app_model.get_distance_map()
+    #     target = self.distance_map.get_target()
+    #     path = app_model.get_target_image_path()
+    #     self.image_display.set_filepath(path)
+    #     self.image_display.redraw()
+    #     self.show_image_display()
+    #     self.do_save_selected.setEnabled(True)
 
     def modal_prompt_get_directory(self, init_dir):
         output_dir = \
@@ -862,11 +875,10 @@ class AlgorithmSelector(qt.QTabWidget):
     in this tab as well.
     """
 
-    def __init__(self, app_model, main_view=None):
+    def __init__(self, main_view):
         super().__init__(main_view)
-        self.app_model = app_model
         self.main_view = main_view
-        self.app_model = app_model
+        app_model = self.main_view.get_app_model()
         self.orb_config = orb.ORBConfig()
         self.orb_config_undo = []
         self.orb_config_redo = []
@@ -987,6 +999,7 @@ class AlgorithmSelector(qt.QTabWidget):
         self.undo_button.setEnabled(len(self.orb_config_undo) != 0)
 
     def apply_changes_action(self):
+        app_model = self.main_view.get_app_model()
         self.check_nFeatures()
         self.check_scaleFactor()
         self.check_nLevels()
@@ -996,9 +1009,9 @@ class AlgorithmSelector(qt.QTabWidget):
         self.check_fastThreshold()
         self.push_do(self.orb_config_undo)
         print(f'ConfigTab.apply_changes_action({str(self.orb_config)})')
-        self.app_model.set_orb_config(self.orb_config)
+        app_model.set_orb_config(self.orb_config)
         self.after_update()
-        ref_orb_image = self.app_model.get_reference_image()
+        ref_orb_image = app_model.get_reference_image()
         if ref_orb_image is not None:
             self.main_view.redraw()
             self.main_view.change_to_reference_tab()
@@ -1039,21 +1052,23 @@ class PatternMatcherView(qt.QTabWidget):
     """The Qt Widget containing the GUI for the whole pattern matching program.
     """
 
-    def __init__(self, config, main_view=None):
-        super().__init__(main_view)
+    def __init__(self, config, parent_view=None):
+        super().__init__(parent_view)
         self.orb_matcher = None
         self.rme_matcher = None
         self.config = config
         self.app_model = None
         print(f'PatternMatcherView.__init__() #(init handler for algorithm {config.algorithm!r})')
+        algorithm = None
         if config.algorithm == 'RME':
-            self.rme_matcher = rme.RMEMatcher(config)
-            self.app_model = self.rme_matcher
+            self.rme_matcher = rme.RMEMatcher(self)
+            algorithm = self.rme_matcher
         elif config.algorithm == 'ORB':
-            self.orb_matcher = orb.ORBMatcher(config)
-            self.app_model = self.orb_matcher
+            self.orb_matcher = orb.ORBMatcher(self)
+            algorithm = self.orb_matcher
         else:
             raise ValueError(f'no handler for algorithm {config.algorithm!r}')
+        self.app_model = SingleFeatureMultiCrop(algorithm, config)
         #----------------------------------------
         # Setup the GUI
         self.notify = qt.QErrorMessage(self)
@@ -1062,9 +1077,9 @@ class PatternMatcherView(qt.QTabWidget):
         self.setTabPosition(qt.QTabWidget.North)
         self.files_tab = FilesTab(self)
         self.files_tab.default_image_display_widget()
-        self.pattern_tab = PatternSetupTab(self.app_model, self)
+        self.pattern_tab = PatternSetupTab(self)
         self.inspect_tab = InspectTab(self)
-        self.algorithm_tab = AlgorithmSelector(self.app_model, self)
+        self.algorithm_tab = AlgorithmSelector(self)
         self.addTab(self.files_tab, "Input")
         self.addTab(self.pattern_tab, "Pattern")
         self.addTab(self.inspect_tab, "Inspect")
@@ -1089,8 +1104,8 @@ class PatternMatcherView(qt.QTabWidget):
     def show_pattern_tab(self):
         self.setCurrentWidget(self.pattern_tab)
 
-    def show_distance_map(self):
-        self.inspect_tab.show_distance_map()
+    # def show_distance_map(self):
+    #     self.inspect_tab.show_distance_map()
 
     def update_reference_pixmap(self):
         self.pattern_tab.update_reference_pixmap()

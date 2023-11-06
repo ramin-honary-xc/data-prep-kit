@@ -337,17 +337,13 @@ class ORBConfig():
 
 #---------------------------------------------------------------------------------------------------
 
-class ORBMatcher(SingleFeatureMultiCrop):
+class ORBMatcher():
     """This class creates objects that represents the state of the whole
     application.
     """
 
-    def __init__(self, config=None):
-        super().__init__(config)
-        if config:
-            self.set_config(config)
-        else:
-            self.config = None
+    def __init__(self, app_model, config=None):
+        self.app_model = app_model
         self.orb_config = ORBConfig()
         self.reference_image = None
         self.selected_image = None
@@ -386,7 +382,7 @@ class ORBMatcher(SingleFeatureMultiCrop):
         list in the "FilesTab". It starts running the pattern matching algorithm
         and changes the display of the GUI over to the "InspectTab".
         """
-        patimg = self.reference.get_image()
+        patimg = self.app_model.reference.get_image()
         targimg = self.target.get_image()
         if patimg is None:
             print(f'RMEMatcher.match_on_file() #(self.reference.get_image() returned None)')

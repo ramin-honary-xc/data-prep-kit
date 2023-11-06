@@ -23,9 +23,8 @@ class ReferenceImagePreview(SimpleImagePreview):
 
     """
 
-    def __init__(self, app_model, main_view):
+    def __init__(self, main_view):
         super().__init__()
-        self.app_model = app_model
         self.main_view = main_view
         self.enable_drop_handlers(True)
         self.setSizePolicy(
@@ -37,6 +36,7 @@ class ReferenceImagePreview(SimpleImagePreview):
         self.update_reference_pixmap()
 
     def drop_url_handler(self, urls):
+        app_model = self.main_view.get_app_model()
         if len(urls) > 0:
             path = urls[0]
             if len(urls) > 1:
@@ -44,7 +44,7 @@ class ReferenceImagePreview(SimpleImagePreview):
             else:
                 pass
             if isinstance(path, PurePath):
-                self.app_model.set_reference_image_path(path)
+                app_model.set_reference_image_path(path)
                 self.set_filepath(path)
             else:
                 print(f'WARNING: ignoring drag dropped non-local-file path: "{path}"')
@@ -52,15 +52,16 @@ class ReferenceImagePreview(SimpleImagePreview):
             print(f'WARNING: PatternPreview.drop_url_handler() #(received empty list)')
 
     def drop_text_handler(self, text):
+        app_model = self.main_view.get_app_model()
         files = util.split_linebreaks(text)
         if len(files) > 0:
             path = PurePath(files[0])
             if path.exists():
-                self.app_model.set_reference_image_path(path)
+                app_model.set_reference_image_path(path)
         else:
             print(f'WARNING: drag dropped text contains no file paths, ignoring')
 
     def update_reference_pixmap(self):
-        pattern = self.app_model.get_reference()
+        app_model = self.main_view.get_app_model()
+        pattern = app_model.get_reference()
         self.set_filepath(pattern.get_path())
-

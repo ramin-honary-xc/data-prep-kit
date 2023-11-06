@@ -31,7 +31,7 @@ def main():
           you do not enable GUI mode, this program operates in "batch mode", creating the
           output directory and images without user intervention.
           """,
-      )
+        )
 
     arper.add_argument(
         '-v', '--verbose',
@@ -58,7 +58,7 @@ def main():
         '-A', '--algorithm',
         dest='algorithm',
         action='store',
-        default="ORB",
+        default="RME",
         type=check_algorithm_name,
         help="""
             Choose the matching algorithm: MSE or ORB. MSE, "Mean

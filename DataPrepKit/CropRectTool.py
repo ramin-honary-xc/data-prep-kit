@@ -52,7 +52,7 @@ class CropRectTool():
     """
 
     def __init__(self, scene): #(, on change)
-        super().__init__()
+        #super().__init__()
         self.scene = scene
         self.start_point = None
         self.end_point = None

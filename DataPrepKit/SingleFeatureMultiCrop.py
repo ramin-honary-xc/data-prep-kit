@@ -17,40 +17,15 @@ def check_algorithm_name(name):
 #---------------------------------------------------------------------------------------------------
 
 class SingleFeatureMultiCrop():
-    """A model used by the pattern matcher for selecting a single
-    "feature" region and multiple "crop" regions. This is because the
-    patter matcher can only perform a single convolution, and thus is
-    only able to work with one feature selection image. But once
-    features are discovered, any number of croppings can be cut from
-    the image. This is unlike the ORB algorithm which can use any
-    number of feature regions to determine a more precise subset of
-    candidate feature points are used for finding the pattern.
+    """This object is used to configure all of the parameters for the
+    pattern matching computation. You can configure the computation by
+    reading command line arguments, by reading JSON files, or by
+    reading the state of the GUI. The GUI itself is a visualization of
+    the configuration (the set of all parameters) for the pattern
+    matching algorithm.
+    """
 
-    State variables of this class include:
-
-    - "feature_region" -- the region used to find patterns in target
-      images. If set to "None" the whole reference is used as the pattern
-
-    - "crop_regions" -- a dictionary with names as keys and rectangles
-      as values. The rectangles will be used to crop-out portions of
-      target images relative to the "feature_region". The names (keys
-      of the dictionaries) not only uniquely identify each crop
-      region, they also are used to create directories in the
-      filesystem to hold the image files created from cropping them
-      out of the target image.
-
-    - "crop_region_selection" -- one of the "crop_regions" keys can be
-      selected as an item to be modified.
-
-    Note that the type of the actual region rectangles are never
-    checked, so you can store anything into objects of this class. But
-    this alllows the parts of the view that inherit this class, and
-    the actual 'RMEMatcher' or 'ORBMatcher' model which inherits this
-    class, to each use whatever rectangle data types are most
-    convenient. The API to access these rectangles is consistent
-    across both the model and the view. """
-
-    def __init__(self, config=None):
+    def __init__(self, algorithm, config=None):
         self.feature_region = None
         self.crop_regions = {}
         self.crop_region_selection = None
@@ -66,7 +41,8 @@ class SingleFeatureMultiCrop():
             self.set_config(config)
         else:
             self.config = None
-
+        self.algorithm = algorithm
+ 
     def get_config(self):
         return self.config
 
@@ -329,6 +305,14 @@ class SingleFeatureMultiCrop():
                 y_off = y - y0
                 for (label, (crop_x, crop_y, width, height)) in crop_rect_iter:
                     yield (label, (crop_x+x_off, crop_y+y_off, width, height,),)
+
+    ############  Calling into altogirhms  ############
+
+    def match_on_file(self):
+        self.algorithm.match_on_file()
+
+    def get_matched_points(self):
+        return self.algorithm.get_matched_points()
 
     ###############  Debugging methods  ###############
 
