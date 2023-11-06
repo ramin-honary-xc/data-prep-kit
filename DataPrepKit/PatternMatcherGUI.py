@@ -75,13 +75,12 @@ class MessageBox(qt.QWidget):
 
 class FilesTab(FileSetGUI):
 
-    def __init__(self, app_model, main_view):
+    def __init__(self, main_view):
         super(FilesTab, self).__init__(
             main_view,
-            fileset=app_model.get_target_fileset(),
+            fileset=main_view.get_app_model().get_target_fileset(),
             action_label='Search within this image',
           )
-        self.app_model = app_model
         ## Action: Use as pattern
         self.use_as_pattern = context_menu_item(
             "Use as pattern",
@@ -100,9 +99,10 @@ class FilesTab(FileSetGUI):
           )
 
     def activation_handler(self, path):
-        self.app_model.set_target_image_path(path)
-        self.app_model.match_on_file()
-        distance_map = self.app_model.get_distance_map()
+        app_model = self.main_view.get_app_model()
+        app_model.set_target_image_path(path)
+        app_model.match_on_file()
+        distance_map = app_model.get_distance_map()
         if distance_map:
             self.main_view.show_distance_map()
             self.main_view.show_inspect_tab()
@@ -115,7 +115,7 @@ class FilesTab(FileSetGUI):
     def use_current_item_as_reference(self):
         path = self.current_item_path()
         print(f'FilesTab.use_current_item_as_reference() #("{path}")')
-        self.app_model.set_reference_image_path(path)
+        self.main_view.get_app_model().set_reference_image_path(path)
         self.main_view.update_reference_pixmap()
 
 #---------------------------------------------------------------------------------------------------
@@ -704,10 +704,10 @@ class InspectTab(qt.QWidget):
     has been run, and outlines the matched areas of the image with a
     red rectangle."""
 
-    def __init__(self, app_model, main_view):
+    def __init__(self, main_view):
         super().__init__(main_view)
-        self.app_model = app_model
         self.main_view = main_view
+        app_model = self.main_view.get_app_model()
         self.distance_map = None
         self.setObjectName("InspectTab")
         # The layout of this widget is a top bar with a threshold slider and a graphics view or
@@ -720,7 +720,7 @@ class InspectTab(qt.QWidget):
         self.layout.addWidget(self.control_widget)
         self.message_box = MessageBox("Please select SEARCH target image and PATTERN image.")
         self.layout.addWidget(self.message_box)
-        self.image_display = InspectImagePreview(self.app_model, self)
+        self.image_display = InspectImagePreview(app_model, self)
         image_display_size_policy = self.image_display.sizePolicy()
         image_display_size_policy.setRetainSizeWhenHidden(True)
         self.image_display.setSizePolicy(image_display_size_policy)
@@ -758,8 +758,9 @@ class InspectTab(qt.QWidget):
     def slider_handler(self, new_value):
         threshold = self.slider.get_percent()
         if threshold is not None:
-            self.app_model.change_threshold(threshold)
-            if self.app_model.get_feature_region() is not None:
+            app_model = self.main_view.get_app_model()
+            app_model.change_threshold(threshold)
+            if app_model.get_feature_region() is not None:
                 self.image_display.redraw()
             else:
                 pass
@@ -777,9 +778,10 @@ class InspectTab(qt.QWidget):
     def show_distance_map(self):
         """Draws the target image and any matching pattern rectangles into the
         image_display window."""
-        self.distance_map = self.app_model.get_distance_map()
+        app_model = self.main_view.get_app_model()
+        self.distance_map = app_model.get_distance_map()
         target = self.distance_map.get_target()
-        path = self.app_model.get_target_image_path()
+        path = app_model.get_target_image_path()
         self.image_display.set_filepath(path)
         self.image_display.redraw()
         self.show_image_display()
@@ -805,11 +807,12 @@ class InspectTab(qt.QWidget):
 
     def save_selected(self):
         if self.distance_map is not None:
-            output_dir = self.app_model.get_config().output_dir
+            app_model = self.main_view.get_app_model()
+            output_dir = app_model.get_config().output_dir
             output_dir = self.modal_prompt_get_directory(str(output_dir))
-            self.app_model.set_results_dir(PurePath(output_dir))
+            app_model.set_results_dir(PurePath(output_dir))
             threshold = self.slider.get_percent()
-            self.app_model.write_all_cropped_images(
+            app_model.write_all_cropped_images(
                 self.distance_map,
                 threshold,
                 output_dir,
@@ -818,10 +821,11 @@ class InspectTab(qt.QWidget):
             print('WARNING: InspectTab.save_selected() called before distance_map was set')
 
     def save_selected_all(self):
-        output_dir = self.app_model.get_config().output_dir
+        app_model = self.main_view.get_app_model()
+        output_dir = app_model.get_config().output_dir
         output_dir = self.modal_prompt_get_directory(str(output_dir))
-        self.app_model.set_results_dir(PurePath(output_dir))
-        self.app_model.batch_crop_matched_patterns()
+        app_model.set_results_dir(PurePath(output_dir))
+        app_model.batch_crop_matched_patterns()
 
     def search_next_image(self):
         (row, count) = self.current_file_index()
@@ -861,7 +865,7 @@ class AlgorithmSelector(qt.QTabWidget):
     def __init__(self, app_model, main_view=None):
         super().__init__(main_view)
         self.app_model = app_model
-        self.app_view = main_view
+        self.main_view = main_view
         self.app_model = app_model
         self.orb_config = orb.ORBConfig()
         self.orb_config_undo = []
@@ -928,16 +932,20 @@ class AlgorithmSelector(qt.QTabWidget):
         # This function exists because Qt5 does not allow you to add a
         # QGroupBox to a QButtonGroup.
         if state:
+            self.rme_checkbox.setCheckState(qcore.Qt.Unchecked)
             self.main_view.set_algorithm_ORB()
         else:
+            self.rme_checkbox.setCheckState(qcore.Qt.Checked)
             self.main_view.set_algorithm_RME()
 
     def rme_checkbox_state_changed(self, state):
         # This function exists because Qt5 does not allow you to add a
         # QGroupBox to a QButtonGroup.
         if state == qcore.Qt.Checked:
+            self.orb_config_view.setChecked(False)
             self.main_view.set_algorithm_RME()
         else:
+            self.orb_config_view.setChecked(True)
             self.main_view.set_algorithm_ORB()
 
     def update_field(self, field, fromStr, setter):
@@ -992,10 +1000,10 @@ class AlgorithmSelector(qt.QTabWidget):
         self.after_update()
         ref_orb_image = self.app_model.get_reference_image()
         if ref_orb_image is not None:
-            self.app_view.redraw()
-            self.app_view.change_to_reference_tab()
+            self.main_view.redraw()
+            self.main_view.change_to_reference_tab()
         else:
-            self.app_view.change_to_files_tab()
+            self.main_view.change_to_files_tab()
 
     def reset_defaults_action(self):
         print(f'ConfigTab.reset_defaults_action()')
@@ -1052,10 +1060,10 @@ class PatternMatcherView(qt.QTabWidget):
         self.setWindowTitle("Image Pattern Matching Kit")
         self.resize(1280, 720)
         self.setTabPosition(qt.QTabWidget.North)
-        self.files_tab = FilesTab(self.app_model, self)
+        self.files_tab = FilesTab(self)
         self.files_tab.default_image_display_widget()
         self.pattern_tab = PatternSetupTab(self.app_model, self)
-        self.inspect_tab = InspectTab(self.app_model, self)
+        self.inspect_tab = InspectTab(self)
         self.algorithm_tab = AlgorithmSelector(self.app_model, self)
         self.addTab(self.files_tab, "Input")
         self.addTab(self.pattern_tab, "Pattern")
@@ -1065,6 +1073,9 @@ class PatternMatcherView(qt.QTabWidget):
 
     def error_message(self, message):
         self.notify.showMessage(message)
+
+    def get_app_model(self):
+        return self.app_model
 
     def change_tab_handler(self, index):
         """Does the work of actually changing the GUI display to the "InspectTab".
@@ -1087,14 +1098,18 @@ class PatternMatcherView(qt.QTabWidget):
 
     def set_algorithm_ORB(self):
         if not self.orb_matcher:
+            print(f'{self.__class__.__name__}.set_algorithm_ORB() #(new ORBMatcher)')
             self.orb_matcher = orb.ORBMatcher(self.config)
         else:
             pass
+        print(f'{self.__class__.__name__}.set_algorithm_ORB() #(app_model is an ORBMatcher)')
         self.app_model = self.orb_matcher
 
     def set_algorithm_RME(self):
         if not self.rme_matcher:
+            print(f'{self.__class__.__name__}.set_algorithm_RME() #(new RMEMatcher)')
             self.rme_matcher = rme.RMEMatcher(self.config)
         else:
             pass
-        self.app_model = orb.ORBMatcher(self.config)
+        print(f'{self.__class__.__name__}.set_algorithm_RME() #(app_model is an RMEMatcher)')
+        self.app_model = self.rme_matcher

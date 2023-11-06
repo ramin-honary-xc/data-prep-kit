@@ -263,7 +263,7 @@ class RMEMatcher(SingleFeatureMultiCrop):
         elif targimg is None:
             print(f'RMEMatcher.match_on_file() #(self.target.get_image() returned None)')
         else:
-            target_image_path = self.target.get_path()
+            #target_image_path = self.target.get_path()
             self.distance_map = DistanceMap(self.target, self.reference)
             self.target_matched_points = \
                 self.distance_map.find_matching_points(self.threshold)

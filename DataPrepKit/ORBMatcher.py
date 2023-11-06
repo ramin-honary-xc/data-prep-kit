@@ -65,17 +65,11 @@ class ImageWithORB():
     def get_keypoints(self):
         return self.keypoints
 
-    def get_midpoint(self):
-        return self.midpoint
-
     def get_ORB(self):
         return self.ORB
 
     def get_descriptors(self):
         return self.descriptors
-
-    def get_midpoint(self):
-        return self.midpoint
 
     def get_crop_rect(self):
         """The crop rect is a 4-tuple (x, y, width, height)"""
@@ -94,7 +88,6 @@ class ImageWithORB():
             raise ValueError(f'ImageWithORB.set_crop_rect() expects 4-tuple value', rect)
         else:
             self.crop_rect = rect
-
     def set_relative_crop_rect(self, ref):
         """Compute the crop_rect for this item relative to a given reference item."""
         if ref is self:
@@ -358,46 +351,6 @@ class ORBMatcher(SingleFeatureMultiCrop):
         self.orb_config = ORBConfig()
         self.reference_image = None
         self.selected_image = None
-        
-    def get_selected_image(self):
-        return self.selected_image
-
-    def set_selected_image(self, selected_image):
-        if isinstance(selected_image, ImageWithORB):
-            #print(f'ORBMatcher.set_selected_image("{str(selected_image.get_filepath())}")')
-            self.selected_image = selected_image
-            if self.reference_image is not None:
-                self.selected_image.set_orb_config(self.orb_config)
-                self.selected_image.set_relative_crop_rect(self.reference_image)
-            else:
-                #print(f'ORBMatcher.set_selected_image() #(no reference image, not updating crop rect)')
-                pass
-        else:
-            raise ValueError(
-                f'ORBMatcher.set_selected_image() '
-                f'#(called with argument of type {str(type(selected_image))})'
-              )
-
-    def get_image_list(self):
-        return self.image_list
-
-    def add_image_list(self, items):
-        """Takes a list of file paths or strings, converts them to
-        ImageWithORB values, and appends them to the image_list."""
-        if isinstance(items, list):
-            self.image_list = \
-                list(
-                    dict.fromkeys(
-                        self.image_list + \
-                        [ImageWithORB(str(item)) for item in items]
-                      )
-                  )
-        elif isinstance(items, ImageWithORB):
-            self.image_list.append(items)
-        else:
-            raise ValueError(
-                f'ORBMatcher.add_image_list() expects ImageWithORB or list of ImageWithORB'
-              )
 
     def get_orb_config(self):
         return self.orb_config
@@ -416,60 +369,6 @@ class ORBMatcher(SingleFeatureMultiCrop):
         #print(f'ORBMatcher.set_orb_config() #(set self.orb_config = {orb_config})')
         self.orb_config = deepcopy(orb_config)
 
-    def get_crop_rect(self):
-        """this field is of type (x_pix_offset, y_pix_offset, pix_width, pix_height) or None
-        """
-        print(f'MainAppMode.get_crop_rect() #(type(self.reference_image) = {type(self.reference_image)})')
-        if self.reference_image is not None:
-            return self.reference_image.get_crop_rect()
-        else:
-            return None
-
-    def set_crop_rect(self, crop_rect):
-        if self.reference_image is not None:
-            self.reference_image.set_crop_rect(crop_rect)
-            if self.selected_image is not None:
-                self.selected_image.set_relative_crop_rect(self.reference_image)
-        else:
-            print(f'ORBMatcher.set_crop_rect() #(cannot set crop_rect, no reference image)')
-
-    def get_reference_image(self):
-        return self.reference_image
-
-    def set_reference_image(self, item):
-        """Takes a ImageWithORB item and makes it the reference image. This
-        will call reset_all_crop_rects()
-        """
-        if item is self.reference_image:
-            print(f'ORBMatcher.set_reference_image("{str(item.get_filepath())}") #(already using this item as the reference image)')
-            return
-        elif isinstance(item, PurePath):
-            self.reference_image = ImageWithORB(item)
-        elif isinstance(item, str):
-            self.reference_image = ImageWithORB(item)
-        elif isinstance(item, ImageWithORB):
-            self.reference_image = item
-        else:
-            raise ValueError( \
-                f'ORBMatcher.set_reference_image() expects filepath or '
-                f'ImageWithORB, was instead passed argument of type {type(item)}' \
-              )
-        print(f'ORBMatcher.set_reference_image("{str(item.get_filepath())}")')
-        # Now reset the crop_rect and orb_config of all items in the image_list
-        #----------------------------------------
-        # Set the ORB config for the reference image, this may trigger
-        # a new ORB calculation if the config has changed since it was
-        # last calculated for this image.
-        self.reference_image.set_orb_config(self.orb_config)
-        #----------------------------------------
-        # Also update the orb_config and crop_rect of the selected
-        # image.
-        self.selected_image.set_orb_config(self.orb_config)
-        self.selected_image.set_relative_crop_rect(self.reference_image)
-
-    def get_reference_image_filepath(self):
-        return self.reference_image_filepath
-
     def get_keypoints(self):
         if self.reference_image is not None:
             return self.reference_image.get_keypoints()
@@ -482,7 +381,19 @@ class ORBMatcher(SingleFeatureMultiCrop):
         else:
             return self.reference_image.get_descriptor()
 
-    def crop_and_save_all(self, output_dir):
-        Path(output_dir).mkdir(exist_ok=True)
-        for item in self.image_list:
-            item.crop_and_save(output_dir)
+    def match_on_file(self):
+        """This function is triggered when you double-click on an item in the image
+        list in the "FilesTab". It starts running the pattern matching algorithm
+        and changes the display of the GUI over to the "InspectTab".
+        """
+        patimg = self.reference.get_image()
+        targimg = self.target.get_image()
+        if patimg is None:
+            print(f'RMEMatcher.match_on_file() #(self.reference.get_image() returned None)')
+        elif targimg is None:
+            print(f'RMEMatcher.match_on_file() #(self.target.get_image() returned None)')
+        else:
+            self.distance_map = DistanceMap(self.target, self.reference)
+            self.target_matched_points = \
+                self.distance_map.find_matching_points(self.threshold)
+

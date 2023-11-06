@@ -51,6 +51,8 @@ class RegionSize():
            shape = image.shape
            image_height = shape[0]
            image_width = shape[1]
+           x = relative_rect['x'] if relative_rect else 0
+           y = relative_rect['y'] if relative_rect else 0
            raise ValueError(
                "pattern crop not fully contained within pattern image",
                {"image_width": image_width,
