@@ -2,9 +2,9 @@
 
 import DataPrepKit.utilities as util
 import DataPrepKit.RMEMatcher as rme
-from DataPrepKit.SingleFeatureMultiCrop import check_algorithm_name
+from DataPrepKit.SingleFeatureMultiCrop import SingleFeatureMultiCrop, algorithm_name
 import DataPrepKit.PatternMatcherGUI as gui
-from DataPrepKit.FileSet import image_file_suffix_set
+from DataPrepKit.FileSet import image_file_suffix_set, image_file_format_suffix
 
 import argparse
 import sys
@@ -58,8 +58,8 @@ def main():
         '-A', '--algorithm',
         dest='algorithm',
         action='store',
-        default="RME",
-        type=check_algorithm_name,
+        default="ORB",
+        type=algorithm_name,
         help="""
             Choose the matching algorithm: MSE or ORB. MSE, "Mean
             Squared Error", treats the reference image as a
@@ -181,6 +181,7 @@ def main():
         dest='encoding',
         action='store',
         default='png',
+        type=image_file_format_suffix,
         help=\
           f'A file extension symbol (without a dot) indicating how to encode\n'
           f'the output image files. The set of valid file encodings and their\n'
@@ -201,19 +202,15 @@ def main():
           """,
       )
 
-    (config, remaining_argv) = arper.parse_known_args()
-    if config.gui:
+    (cli_config, remaining_argv) = arper.parse_known_args()
+    app_model = SingleFeatureMultiCrop(cli_config)
+    if cli_config.gui:
         app = qt.QApplication(remaining_argv)
-        appWindow = gui.PatternMatcherView(config)
+        appWindow = gui.PatternMatcherView(app_model)
         appWindow.show()
         sys.exit(app.exec_())
     else:
-        if config.pattern is None or \
-          (len(config.inputs) == 0):
-            arper.print_usage()
-        else:
-            matcher = algorithm_from_name(config.algorithm)
-            matcher.batch_crop_matched_patterns()
+        app_model.batch_crop_matched_patterns()
 
 ####################################################################################################
 

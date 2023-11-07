@@ -22,6 +22,13 @@ def filter_image_files_by_ext(filepath):
         pass
     return (ext in image_file_suffix_set)
 
+def image_file_format_suffix(suffix):
+    suffix = suffix.lower()
+    if (suffix.lower() in image_file_suffix_set):
+        return suffix
+    else:
+        raise ValueError(f'unknown file format suffix', suffix)
+
 class FileSet():
     """A FileSet is a class of mutable objects responsible for keeping
     track of a subset of the files on the local filesystem. A FileSet

@@ -11,6 +11,8 @@ from DataPrepKit.FileSet import image_file_suffix_set
 from DataPrepKit.EncodingMenu import EncodingMenu
 from DataPrepKit.SingleFeatureMultiCrop import SingleFeatureMultiCrop
 
+import DataPrepKit.GUIHelpers as dpk
+
 from pathlib import PurePath
 
 import PyQt5.QtCore as qcore
@@ -22,17 +24,13 @@ import PyQt5.QtWidgets as qt
 
 class InspectImagePreview(SimpleImagePreview):
 
-    def __init__(self, app_model, parent):
+    def __init__(self, main_view, parent):
         super(InspectImagePreview, self).__init__(parent)
-        self.app_model = app_model
+        self.main_view = main_view
         self.rect_items = []
-        # TODO: take feature pen and crop pen colors from some global configuration
-        self.feature_pen = qgui.QPen(qgui.QColor(0, 255, 0, 255))
-        self.feature_pen.setCosmetic(True)
-        self.feature_pen.setWidth(3)
-        self.crop_pen = qgui.QPen(qgui.QColor(255, 0, 0, 255))
-        self.crop_pen.setCosmetic(True)
-        self.crop_pen.setWidth(3)
+
+    def post_init(self):
+        pass
 
     def clear(self):
         self.clear_rectangles()
@@ -54,13 +52,14 @@ class InspectImagePreview(SimpleImagePreview):
         print(f'{self.__class__.__name__}.place_rectangles()')
         self.clear_rectangles()
         scene = self.get_scene()
-        point_list = self.app_model.get_matched_points()
-        pen = self.feature_pen
-        for (x, y, width, height) in self.app_model.iterate_feature_regions(point_list):
+        app_model = self.main_view.get_app_model()
+        point_list = app_model.get_matched_points()
+        pen = self.main_view.get_feature_region_pen()
+        for (x, y, width, height) in app_model.iterate_feature_regions(point_list):
             item = scene.addRect(x, y, width, height, pen)
             self.rect_items.append(item)
-        pen = self.crop_pen
-        for (_label, (x, y, width, height)) in self.app_model.iterate_crop_regions(point_list):
+        pen = self.main_view.get_crop_region_pen()
+        for (_label, (x, y, width, height)) in app_model.iterate_crop_regions(point_list):
             item = scene.addRect(x, y, width, height, pen)
             self.rect_items.append(item)
 
@@ -99,19 +98,32 @@ class FilesTab(FileSetGUI):
               ),
           )
 
+    def post_init(self):
+        pass
+
     def activation_handler(self, path):
+        print(f'{self.__class__.__name__}.activation_handler({path!r})')
         app_model = self.main_view.get_app_model()
-        app_model.set_target_image_path(path)
-        app_model.match_on_file()
-        matched_points = app_model.get_matched_points()
-        if matched_points:
-            #self.main_view.show_distance_map()
-            self.main_view.show_inspect_tab()
-        else:
+        no_error = False
+        try:
+            app_model.set_target_image_path(path)
+            app_model.match_on_file()
+            no_error = True
+        except ValueError as err:
             self.main_view.show_pattern_tab()
-            self.main_view.error_message(
-                "A pattern image must be set for matching on the selected image.",
-              )
+            self.main_view.error_message(str(err))
+        if no_error:
+            matched_points = app_model.get_matched_points()
+            if matched_points:
+                self.main_view.update_inspect_tab()
+                self.main_view.show_inspect_tab()
+            else:
+                self.main_view.show_pattern_tab()
+                self.main_view.error_message(
+                    "A pattern image must be set for matching on the selected image.",
+                  )
+        else:
+            pass
 
     def use_current_item_as_reference(self):
         path = self.current_item_path()
@@ -142,88 +154,31 @@ class RegionSelectionTool(CropRectTool):
 
     """
 
-    def __init__(self, main_view, scene):
-        super().__init__(scene)
+    def __init__(self, main_view, preview_view):
+        super().__init__(preview_view.get_scene())
         #rme.SingleFeatureMultiCrop.__init__(self)
         self.main_view = main_view
-        self.set_feature_region_pen(CropRectTool._green_pen)
-        self.set_crop_region_pen(CropRectTool._red_pen)
+
+    def post_init(self):
         self.redraw_all_regions()
-
-    ###############  Methods to configure the pen colors  ###############
-
-    # Consider using the default colors defined as static slots of the
-    # CropRectTool, such as "CropRectTool._red_pen" "CropRectTool._green_pen".
-
-    def get_feature_region_pen(self):
-        return self.feature_region_pen
-
-    def set_feature_region_pen(self, pen):
-        if not isinstance(pen, qgui.QPen):
-            raise ValueError('received argument that is not a QPen')
-        else:
-            self.feature_region_pen = pen
-
-    def get_crop_region_pen(self):
-        return self.crop_region_pen
-
-    def set_crop_region_pen(self, pen):
-        if not isinstance(pen, qgui.QPen):
-            raise ValueError('received argument that is not a QPen')
-        else:
-            self.crop_region_pen = pen
 
     ###############  Methods for redrawing everything  ###############
 
-    # Use these if for whatever reason the CropRectTool of the
-    # 'RMEMatcher' app model and the parent # 'SingleFeatureMultiCrop'
-    # of this class somehow become out-of-sync.
-
     def clear_feature_region(self):
-        scene = self.get_scene()
-        app_model = self.main_view.get_app_model()
-        if app_model.feature_region:
-            scene.removeItem(self.featureRegion)
-            self.feature_region = None
-        else:
-            pass
+        pattern_setup = self.main_view.get_pattern_setup()
+        pattern_setup.clear_feature_regions()
 
     def clear_crop_regions(self):
-        scene = self.get_scene()
-        app_model = self.main_view.get_app_model()
-        if app_model.crop_regions is None or len(app_model.crop_regions) == 0:
-            pass
-        else:
-            for (label, rect) in self.crop_regions.items():
-                scene.removeItem(rect)
-                del self.crop_regions[label]
-            self.crop_regions = {}
+        pattern_setup = self.main_view.get_pattern_setup()
+        pattern_setup.clear_crop_regions(self)
 
     def redraw_all_regions(self):
-        """Copies the crop regions from the global state to this local GUI object."""
-        self.clear_feature_region()
-        app_model = self.main_view.get_app_model()
-        feature_region = app_model.get_feature_region()
-        scene = self.get_scene()
-        if feature_region:
-            qrectf = qcore.QRectF(*feature_region)
-            self.feature_region = scene.addRect(qrectf, self.feature_region_pen)
-            self.redraw_crop_regions(feature_region[0], feature_region[1])
-        else:
-            self.redraw_crop_regions(0, 0)
+        pattern_setup = self.main_view.get_pattern_setup()
+        pattern_setup.redraw_all_regions()
 
     def redraw_crop_regions(self, x_off, y_off):
-        self.clear_crop_regions()
-        app_model = self.main_view.get_app_model()
-        crop_regions = app_model.get_crop_regions()
-        scene = self.get_scene()
-        if (crop_regions is None) or (len(crop_regions) == 0):
-            self.crop_regions = {}
-        else:
-            self.crop_regions = {}
-            for (label, (x, y, width, height)) in crop_regions.items():
-                rect = qcore.QRectF(x+x_off, y+y_off, width, height)
-                self.crop_regions[label] = scene.addRect(rect, self.crop_region_pen)
+        pattern_setup = self.main_view.get_pattern_setup()
+        pattern_setup.redraw_crop_regions(x_off, y_off)
 
     ###############  Overrides  ###############
 
@@ -234,113 +189,21 @@ class RegionSelectionTool(CropRectTool):
         "self.crop_region_selection" state variable to decide which
         rectangular region receives the update."""
         print(f'{self.__class__.__name__}.draw_rect_updated({rect!r})')
-        self.set_crop_region_selection(rect)
-        #self.clear_crop_rect()
+        pattern_setup = self.main_view.get_pattern_setup()
+        region = pattern_setup.get_selected_region_rect()
+        region.redraw_rect(rect)
 
     def draw_rect_cleared(self):
         """This method receives events from the CropRectTool parent class
         every time an end user begins drawing a rectangular region,
         and the if there is a currently selected rectangular region,
         it should be deleted so it can be re-drawn. """
-        scene = self.get_scene()
-        app_model = self.main_view.get_app_model()
-        if app_model.crop_region_selection is None:
-            if self.feature_region is not None:
-                print(f'feature_region = {app_model.feature_region}')
-                scene.removeItem(self.feature_region)
-                app_model.feature_region = None
-            else:
-                pass
-        elif app_model.crop_region_selection in self.crop_regions:
-            scene.removeItem(app_model.crop_regions[self.crop_region_selection])
-            del self.crop_regions[self.crop_region_selection]
+        pattern_setup = self.main_view.get_pattern_setup()
+        region = pattern_setup.get_selected_region_rect()
+        if region:
+            region.clear_rect()
         else:
             pass
-
-    def set_region_selection(self, label):
-        print(f'{self.__class__.__name__}.set_region_selection({label!r})')
-        app_model = self.main_view.get_app_model()
-        app_model.set_region_selection(label)
-        CropRectTool.set_draw_pen(
-            self,
-            self.get_feature_region_pen() if label is None else \
-              self.get_crop_region_pen(),
-          )
-
-    def add_crop_region(self, label, rect):
-        """Creates a new crop region, if the crop region already exists it is deleted."""
-        print(f'{self.__class__.__name__}.add_crop_region({label!r}, {rect!r})')
-        scene = self.get_scene()
-        #----------------------------------------
-        if label is None:
-            raise ValueError('label is None')
-        elif label in self.crop_regions:
-            return False
-            #rect_item = self.crop_regions[label]
-            #scene.removeItem(rect_item)
-        elif rect is not None:
-            qrectf = qcore.QRectF(*rect)
-            self.crop_regions[label] = scene.addRect(qrectf, self.crop_region_pen)
-            return True
-        else:
-            self.crop_regions[label] = None
-            return True
-
-    def get_feature_region(self, rect):
-        return (self.feature_region.rect() if self.feature_region is not None else None)
-
-    def set_feature_region(self, rect):
-        print(f'{self.__class__.__name__}.set_feature_region({rect!r})')
-        app_model = self.main_view.get_app_model()
-        app_model.set_feature_region(rect)
-        qrectf = qcore.QRectF(*rect)
-        if self.feature_region is not None:
-            # Update the state of self.feature_region
-            self.feature_region.setRect(qrectf)
-        else:
-            scene = self.get_scene()
-            self.feature_region = scene.addRect(qrectf, self.feature_region_pen)
-        print(f'{self.__class__.__name__}.set_crop_region_selection({rect}) #(updated feature region)')
-
-    def get_crop_region_selection(self, label, rect):
-        qrectf = super(SingleFeatureMultiCrop, self).get_crop_region_selection()
-        return (qrectf.x(), qrectf.y(), qrectf.width(), qrectf.height(),)
-
-    def set_crop_region_selection(self, rect):
-        """This method takes 4-tuple rectangle (x,y,width,height).
-        Uses the 'self.crop_region_selection' (set by 'self.set_region_selection()')
-        to create a new entry in the 'self.crop_regions' dictionary.
-        If the dictionary contains no such label, a new entry is created.
-        If the 'self.crop_region_selection' is None, the given 'rect'
-        argument is used to set the 'self. """
-        print(f'{self.__class__.__name__}.set_crop_region_selection({rect!r}) #(self.crop_region_selection = {self.crop_region_selection})')
-        app_model = self.main_view.get_app_model()
-        app_model.set_crop_region_selection(rect)
-        scene = self.get_scene()
-        #----------------------------------------
-        if self.crop_region_selection is None:
-            # Selection is None, act on feature rect
-            self.set_feature_region(rect)
-        else:
-            # If the selected crop region exists, update it.
-            app_model.set_crop_region_selection(rect)
-            qrectf = qcore.QRectF(*rect)
-            if (self.crop_region_selection not in self.crop_regions) or \
-              (self.crop_regions is None):
-                self.crop_regions[self.crop_region_selection] = \
-                    scene.addRect(qrectf, self.crop_region_pen)
-            else:
-                self.crop_regions[self.crop_region_selection].setRect(qrectf)
-            print(
-                f'{self.__class__.__name__}.set_crop_region_selection({rect}) '
-                f'#(updated crop region "{self.crop_region_selection}"))'
-              )
-
-    ###############  Debugging methods  ###############
-
-    def rect_to_str(self, rect):
-        return repr(rect.rect() if rect is not None else None)
-
 
 #---------------------------------------------------------------------------------------------------
 
@@ -348,7 +211,7 @@ class PatternPreview(ReferenceImagePreview):
 
     def __init__(self, main_view):
         super().__init__(main_view)
-        self.crop_rect_tool = RegionSelectionTool(main_view, self.get_scene()) #(, self.crop_rect_updated)
+        self.crop_rect_tool = RegionSelectionTool(main_view, self)
         self.set_mouse_mode(self.crop_rect_tool)
         self.setSizePolicy(
             qt.QSizePolicy(
@@ -357,21 +220,25 @@ class PatternPreview(ReferenceImagePreview):
               ),
           )
 
+    def post_init(self):
+        self.crop_rect_tool.post_init()
+
     def get_crop_rect_tool(self):
         return self.crop_rect_tool
 
-    def set_selected_crop_rect(self, name):
-        if name == ActiveSelectorModel.features_title:
-            name = None
-        else:
-            pass
-        self.crop_rect_tool.set_region_selection(name)
+    #def get_selected_crop_rect(self):
+    #    return self.crop_rect_tool.get_region_selection()
+    #
+    #def set_selected_crop_rect(self, name):
+    #    if name == ActiveSelectorModel.features_title:
+    #        name = None
+    #    else:
+    #        pass
+    #    self.crop_rect_tool.set_region_selection(name)
 
-    def get_selected_crop_rect(self):
-        return self.crop_rect_tool.get_region_selection()
-
-    def rename_crop_region(self, old_name, new_name):
-        self.crop_rect_tool.rename_crop_region(old_name, new_name)
+    def draw_rect(self, qrectf, pen):
+        scene = self.get_scene()
+        scene.addRect(qrectf, pen)
 
     def clear(self):
         self.crop_rect_tool.clear()
@@ -384,8 +251,14 @@ class PatternPreview(ReferenceImagePreview):
 #---------------------------------------------------------------------------------------------------
 
 class ActiveSelectorModel(qcore.QStringListModel):
-    """An abstract model wrapper around the crop regions and feature
-    region so it can be presented to the end user as a QListWidget."""
+    """This class exists only to provide a QListView widget with the
+    special behavior that the first element in the list cannot be
+    removed as it is the feature region. All updates to this model are
+    performed by other methods which handle the task of actually
+    updating the model, so this model actually is JUST for use by the
+    view and does nothing to interact with the real model. """
+
+    ######################  Static members  ########################
 
     features_title = '#Features'
 
@@ -394,13 +267,17 @@ class ActiveSelectorModel(qcore.QStringListModel):
         list_model += names
         return list_model
 
+    #########################  Methods  ############################
+
     def __init__(self, parent_view, names):
         list_model = ActiveSelectorModel.reset_data_with(names)
         super().__init__(list_model)
         self.list_model = list_model
         self.parent_view = parent_view
-        self.crop_rect_tool = self.parent_view.get_preview_view().get_crop_rect_tool()
         self.active_selector_count = 0
+
+    def post_init(self):
+        pass
 
     def reset_data(self, names):
         self.list_model = ActiveSelectorModel.reset_data_with(names)
@@ -422,7 +299,7 @@ class ActiveSelectorModel(qcore.QStringListModel):
         row = qi.row()
         if (role == qcore.Qt.ItemDataRole.DisplayRole) or \
           (role == qcore.Qt.ItemDataRole.EditRole):
-            #print(f'ActiveSelectorModel.data({row}, {role})')
+            #print(f'{self.__class__.__name__}.data({row}, {role})')
             if row == 0:
                 return ActiveSelectorModel.features_title
             elif row < len(self.list_model):
@@ -433,41 +310,35 @@ class ActiveSelectorModel(qcore.QStringListModel):
             return None
 
     def setData(self, qi, new_name, role):
-        print(f'ActiveSelectorModel.setData({qi.row()}, {new_name!r}, {role})')
+        print(f'{self.__class__.__name__}.setData({qi.row()}, {new_name!r}, {role})')
         if role == qcore.Qt.ItemDataRole.EditRole:
             i = qi.row()
             if (i == 0) or (new_name == ActiveSelectorModel.features_title):
                 # Zeroth index is protected, cannot be edited or deleted.
-                print(f'ActiveSelectorModel.setData({i}, "{new_name}", {role}) #(refuse to edit index {i} = {old_name!r})')
+                print(f'{self.__class__.__name__}.setData({i}, "{new_name}", {role}) #(refuse to edit index {i} = {old_name!r})')
                 return False
             elif (i < 0) or (i >= len(self.list_model)):
-                # If we get an out-of-bounds index, this is row that
-                # doesn't exist yet and needs to be created.
-                if self.crop_rect_tool.add_crop_region(new_name, None):
-                    index = self.parent_view.currentIndex()
-                    if index is None:
-                        self.list_model.append(new_name)
-                    else:
-                        i = max(1, index.row() + 1)
-                        self.list_model.insert(i, new_name)
-                    print(f'ActiveSelectorModel.setData({i}, {new_name!r}, {role}) #(list_model = {self.list_model}, crop_regions = {self.crop_rect_tool.get_crop_regions()})')
-                    return True
-                else:
-                    print(f'ActiveSelectorModel.setData({i}, {new_name!r}, {role}) #(name already exists)')
-                    self.report_duplicate_name(new_name)
-                    return False
+                # Out-of-bounds index occurs when elements are added
+                # to the list.  No need to call parent classes, the
+                # action which triggers this will update itself, this
+                # function is only called to update the view.
+                print(f'{self.__class__.__name__}.setData({i}, {new_name!r}, {role}) #(append to list model {new_name!r})')
+                self.list_model.append(new_name)
+                return True
             else:
-                # If the row is in bounds, it is modifying an existing entry.
+                # If any other index is given, an edit
+                # occurred. Rename the index.
+                print(f'{self.__class__.__name__}.setData({i}, {new_name!r}, {role}) #(change list model index {i} to {new_name!r}')
                 old_name = self.list_model[i]
-                if self.crop_rect_tool.rename_crop_region(old_name, new_name):
+                if self.rename_crop_region(old_name, new_name):
+                    print(f'{self.__class__.__name__}.setData({i}, {new_name!r}, {role}) #(successfully renamed {old_name!r} to {new_name!r}')
                     self.list_model[i] = new_name
-                    print(f'ActiveSelectorModel.setData({i}, {new_name!r}, {role}) #(list_model = {self.list_model}, crop_regions = {self.crop_rect_tool.get_crop_regions()})')
-                    return True
+                    return qcore.QStringListModel.setData(self, qi, new_name, role)
+                    #return True
                 else:
-                    print(f'ActiveSelectorModel.setData({i}, {new_name!r}, {role}) #(failed to rename {old_name!r})')
                     return False
         else:
-            print(f'ActiveSelectorModel.setData({i}, "{new_name!r}", {role}) #(meaningless role {role})')
+            print(f'{self.__class__.__name__}.setData({i}, "{new_name!r}", {role}) #(meaningless role {role})')
             return False
 
     def get_index(self, index):
@@ -484,43 +355,50 @@ class ActiveSelectorModel(qcore.QStringListModel):
             raise ValueError(f'index of wrong type: {type(index)}')
 
     def new_name_for_crop_region(self):
-        self.active_selector_count += 1
-        return f'crop_{self.active_selector_count:0>2}'
+        """Create a new name with a number when adding a crop region to this
+        list."""
+        while True:
+            self.active_selector_count += 1
+            new_name = f'crop_{self.active_selector_count:0>2}'
+            if new_name in self.list_model:
+                continue
+            else:
+                return new_name
 
     def rename_crop_region(self, old_name, new_name):
-        if self.crop_rect_tool.rename_crop_region(old_name, new_name):
+        if self.parent_view.rename_crop_region(old_name, new_name):
             return True
         else:
-            self.report_duplicate_name(self, new_name)
             return False
 
-    def report_duplicate_name(self, name):
-        self.parent_view.error_message(f'Crop region named {name!r} already exists.')
-
-    def new_crop_region(self):
-        i = len(self.list_model)
-        print(f'ActiveSelectorModel.new_crop_region() #(index = {i})')
-        qi = self.index(i, 0)
+    def new_crop_region(self): #TODO: check if this is even used, remove it if it is
+        print(f'{self.__class__.__name__}.new_crop_region()')
         name = self.new_name_for_crop_region()
-        if self.insertRow(i):
-            self.setData(qi, name, qcore.Qt.ItemDataRole.EditRole)
-            print(f'ActiveSelectioModel.new_crop_region() #(self.list_model = {self.list_model})')
-            self.crop_rect_tool.add_crop_region(name, None)
-            return qi
-        else:
-            print(f'ActiveSelectorModel.new_crop_region() #(failed to insert row)')
-            return None
+        index = len(self.list_model)
+        self.list_model.append(name)
+        qcore.QStringListModel.insertRows(self, index, 1)
+        return (index, name)
 
-    def delete_crop_region(self, i):
-        if 0 <= i and i < len(self.list_model):
-            self.removeRow(i)
-            del self.list_model[i]
+    def delete_crop_region(self, qi):
+        if qi is not None:
+            index = qi.row()
+            if index == 0:
+                print(f'{self.__class__.__name__}.delete_crop_region({index}) #(return (0, None))')
+                return (0, None)
+            else:
+                qcore.QStringListModel.removeRow(self, index)
+                name = self.list_model[index]
+                print(f'{self.__class__.__name__}.delete_crop_region({index}) #(return ({index}, {name}))')
+                del self.list_model[index]
+                return (index, name)
         else:
-            pass
+            print(f'{self.__class__.__name__}.delete_crop_region(None) #(return (-1, None))')
+            return (-1, None)
 
 
 class ActiveSelector(qt.QListView):
-    """The list of rectangular regions that are selected from the reference image."""
+    """The list of rectangular regions that are selected from the
+    reference image."""
 
     def __init__(self, main_view, parent_view):
         super().__init__(parent_view)
@@ -556,6 +434,13 @@ class ActiveSelector(qt.QListView):
         ##----------
         self.setContextMenuPolicy(qcore.Qt.ContextMenuPolicy.ActionsContextMenu)
 
+    #def selectionChanged(self, selected, deselected):
+    #    print(f'{self.__class__.__name__}.selectionChanged()')
+    #    qt.QListView.selectionChanged(self, selected, deselected)
+
+    def post_init(self):
+        self.active_selector.post_init()
+
     def error_message(self, message):
         self.parent_view.error_message(message)
 
@@ -563,22 +448,21 @@ class ActiveSelector(qt.QListView):
         return self.parent_view.get_preview_view()
 
     def new_crop_region(self):
-        qi = self.active_selector.new_crop_region()
-        if qi is not None:
-            self.setCurrentIndex(qi)
-            self.edit(qi)
-        else:
-            pass
+        print(f'{self.__class__.__name__}.new_crop_region()')
+        (index, name) = self.active_selector.new_crop_region()
+        model = self.model()
+        qi = model.index(index)
+        qt.QAbstractItemView.setCurrentIndex(self, qi)
+        qt.QAbstractItemView.edit(self, qi)
+        return (index, name)
 
     def delete_crop_region(self):
         qi = self.currentIndex()
-        if qi is not None:
-            self.active_selector.delete_crop_region(qi.row())
-        else:
-            pass
+        return self.active_selector.delete_crop_region(qi)
 
     def rename_crop_region(self, old_name, new_name):
-        self.parent_view.rename_crop_region(old_name, new_name)
+        print(f'{self.__class__.__name__}.rename_crop_region({old_name!r}, {new_name!r})')
+        return self.parent_view.rename_crop_region(old_name, new_name)
 
     def reset_selector_items(self, crop_regions=None):
         self.active_selector.reset_data(
@@ -586,16 +470,77 @@ class ActiveSelector(qt.QListView):
           )
 
     def select_region_item(self, index):
-        print(f'ActiveSelector.select_region_item({index.row()})')
+        print(f'{self.__class__.__name__}.select_region_item({index.row()})')
         name = self.active_selector.get_index(index.row())
+        print(f'{self.__class__.__name__}.select_region_item({index.row()}) #(selected item {name!r})')
         if name == ActiveSelectorModel.features_title:
             name = None
         else:
             pass
-        self.parent_view.set_selected_crop_rect(name)
+        self.parent_view.set_region_selector(name)
 
+
+class RegionContainer():
+    """This class is a container for a QGraphicsRectItem drawn into the
+    pattern setup scene. It is setup so changes made in the scene are
+    reflected in the app_model. On instance of this class is created
+    for every rectangle (feature rectangle, or crop rectangle) defined
+    in the app_model pattern matching configuration. When initialzed,
+    nothing is drawn, to the scene. Use 'redraw_rect' to draw to the
+    scene. """
+
+    def __init__(self, label, app_model, scene, pen):
+        self.label = label
+        self.app_model = app_model
+        self.scene = scene
+        self.pen = pen
+        self.graphics_rect = None
+
+    def get_rect(self):
+        if self.graphics_rect:
+            return  dpk.QGraphicsRectItem_to_tuple(self.graphics_rect)
+        else:
+            return None
+
+    def get_pen(self):
+        return self.pen
+
+    def set_pen(self, pen):
+        self.pen = pen
+        self.redraw_rect(self.get_rect())
+
+    def set_label(self, label):
+        self.label = label
+
+    def clear_rect(self):
+        """Remove the graphics item contained within this container, and from
+        the scene as well, but not from the app_model. This function
+        should be called when redrawing. """
+        self.scene.removeItem(self.graphics_rect)
+        self.graphics_rect = None
+
+    def redraw_rect(self, rect):
+        """Call clear_rect() and also create a new rect using the old pen value."""
+        self.clear_rect()
+        if rect:
+            self.graphics_rect = self.scene.addRect(
+                qcore.QRectF(*rect),
+                self.pen,
+              )
+            self.app_model.set_crop_region(self.label, rect)
+        else:
+            pass
 
 class PatternSetupTab(qt.QWidget):
+
+    """This tab sets up the reference/pattern argument used by the pattern
+    matching algorithm. It contains views for creating, updating, and
+    deleting rectangular regions within the pattern image. The state
+    of the view in this class are mapped to the feature and crop
+    regions in the SingleFeatureMultiCrop configuration used by the
+    pattern matching algorithm. The state of the view can also be
+    constructed from the feature and crop regions configuration in the
+    SingleFeatureMultiCrop class. """
 
     def __init__(self, main_view):
         screenWidth = qgui.QGuiApplication.primaryScreen().virtualSize().width()
@@ -606,6 +551,7 @@ class PatternSetupTab(qt.QWidget):
         self.layout       = qt.QHBoxLayout(self)
         self.preview_view = PatternPreview(main_view)
         self.active_selector = ActiveSelector(main_view, self)
+        self.active_selector.clicked.connect(self.selector_clicked_handler)
         self.splitter     = qt.QSplitter(qcore.Qt.Orientation.Horizontal, self)
         self.splitter.setObjectName("PatternTab splitter")
         self.splitter.insertWidget(0, self.active_selector)
@@ -622,7 +568,7 @@ class PatternSetupTab(qt.QWidget):
         ## Action: add new crop region
         self.do_add_selector_item = context_menu_item(
             'New crop region',
-            self.add_selector_item_action,
+            self.new_selector_item_action,
             '+'
           )
         self.active_selector.addAction(self.do_add_selector_item)
@@ -633,18 +579,86 @@ class PatternSetupTab(qt.QWidget):
             '-'
           )
         self.active_selector.addAction(self.do_delete_selector_item)
+        #----------
+        # Stuff related to displaying the crop regions
+        self.selected_region_label = ActiveSelectorModel.features_title
+        self.feature_region = RegionContainer(
+            None,
+            self.main_view.get_app_model(),
+            self.preview_view.get_scene(),
+            self.main_view.get_feature_region_pen(),
+          )
+        self.crop_regions = {}
+
+    def selector_clicked_handler(self, qi):
+        self.active_selector.select_region_item(qi)
+
+    def get_feature_region(self):
+        return self.feature_region
+
+    def post_init(self):
+        self.preview_view.post_init()
+        self.active_selector.post_init()
 
     def error_message(self, message):
         self.main_view.error_message(message)
 
+    def set_selected_region_label(self, name):
+        print(f'{self.__class__.__name__}.set_selected_region_label({name!r})')
+        self.selected_region_label = name
+
     def get_preview_view(self):
         return self.preview_view
 
-    def add_selector_item_action(self):
-        self.active_selector.new_crop_region()
+    def new_selector_item_action(self):
+        """The event handler to create a new selector item."""
+        (index, name) = self.active_selector.new_crop_region()
+        app_model = self.main_view.get_app_model()
+        if app_model.new_crop_region(name, None):
+            scene = self.preview_view.get_scene()
+            self.crop_regions[name] = RegionContainer(
+                name,
+                app_model,
+                scene,
+                self.main_view.get_crop_region_pen(),
+              )
+            return name
+        else:
+            self.active_selector.reset_selector_items()
+            return None
+
+    def rename_crop_region(self, old_name, new_name):
+        print(f'{self.__class__.__name__}.rename_crop_region({old_name!r}, {new_name!r})')
+        app_model = self.main_view.get_app_model()
+        result = app_model.rename_crop_region(old_name, new_name)
+        if not result:
+            self.report_duplicate_name(new_name)
+            return False
+        else:
+            container = self.crop_regions[old_name]
+            del self.crop_regions[old_name]
+            self.crop_regions[new_name] = container
+            container.set_label(new_name)
+            return True
+
+    def report_duplicate_name(self, name):
+        self.main_view.error_message(f'Crop region named {name!r} already exists.')
 
     def delete_selector_item_action(self):
-        self.active_selector.delete_crop_region()
+        """The event handler to delete a selector item."""
+        (index, name) = self.active_selector.delete_crop_region()
+        app_model = self.main_view.get_app_model()
+        if (index == 0) or (not name):
+            self.feature_region.clear_rect()
+            app_model.delete_crop_region(None)
+        else:
+            app_model.delete_crop_region(name)
+            if name in self.crop_regions:
+                container = self.crop_regions[name]
+                container.clear_rect()
+                del self.crop_regions[name]
+            else:
+                pass
 
     def update_reference_pixmap(self):
         self.preview_view.update_reference_pixmap()
@@ -672,16 +686,97 @@ class PatternSetupTab(qt.QWidget):
         else:
             print(f'PatternSetupTab.open_pattern_file_handler() #(file selection dialog returned empty list)')
 
-    def add_crop_region(self, rect, label):
-        self.active_selector.addItem(qt.QListWidgetItem('Crop'))
-        
-    def set_selected_crop_rect(self, label):
-        self.preview_view.set_selected_crop_rect(label)
+    #####################  Working with regions  #####################
 
-    def rename_crop_region(self, old_name, new_name):
-        """Updates the "self.preview_view", which mirrors, but is a different
-        object from, the "self.app_model.crop_regions" dictionary. """
-        self.preview_view.rename_crop_region(old_name, new_name)
+    def redraw_all_regions(self):
+        scene = self.preview_view.get_scene()
+        app_model = self.main_view.get_app_model()
+        feature_region = app_model.get_feature_region()
+        if feature_region:
+            self.feature_region = RegionContainer(None, app_model, scene, pen)
+            self.feature_region.redraw_rect(feature_region)
+        else:
+            pass
+        pen = self.main_view.get_crop_region_pen()
+        for name,crop_region in app_model.get_crop_regions().items():
+            region = RegionContainer(name, app_model, scene, pen)
+            self.crop_regions[name] = region
+
+    def set_region_selection(self, label):
+        print(f'{self.__class__.__name__}.set_region_selection({label!r})')
+        if (not label) or \
+          (label == ActiveSelectorModel.features_title) or \
+          (label in self.crop_regions):
+            self.selected_region_label = label
+        else:
+            raise ValueError('no such region label exists', label)
+
+    def new_crop_region(self, label, rect):
+        """Creates a new crop region."""
+        print(f'{self.__class__.__name__}.new_crop_region({label!r}, {rect!r})')
+        #----------------------------------------
+        if not label:
+            raise ValueError('label is None')
+        elif label == ActiveSelectorModel.features_title:
+            raise ValueError(f'cannot create label with title "{ActiveSelectorModel.features_title}", reserved name')
+        elif label in self.crop_regions:
+            # Already exists
+            return False
+        else:
+            app_model = self.main_view.get_app_model()
+            scene = self.get_scene()
+            pen = self.main_view.get_crop_region_pen()
+            region = RegionContainer(label, app_model, scene, pen)
+            self.crop_regions[label] = region
+            if rect:
+                region.redraw_rect(rect)
+            else:
+                pass
+            return True
+
+    def delete_crop_region(self, label):
+        """Deletes a crop region, if the crop region already exists."""
+        print(f'{self.__class__.__name__}.new_crop_region({label!r})')
+        #----------------------------------------
+        if not label:
+            raise ValueError('label is None')
+        elif label == ActiveSelectorModel.features_title:
+            raise ValueError(f'cannot delete label with title "{ActiveSelectorModel.features_title}", reserved name')
+        elif label in self.crop_regions:
+            app_model = self.main_view.get_app_model()
+            del self.crop_regions[label]
+            app_model.delete_crop_region(label)
+        else:
+            raise ValueError(f'cannot delete label, does not exist', label)
+
+    def get_region_selector(self):
+        return self.selected_region_label
+
+    def set_region_selector(self, selected_region_label):
+        print(f'{self.__class__.__name__}.set_region_selector({selected_region_label!r})')
+        if (not selected_region_label) or \
+          (selected_region_label == ActiveSelectorModel.features_title) or \
+          (selected_region_label in self.crop_regions):
+            self.selected_region_label = selected_region_label
+        else:
+            raise ValueError('no such named region', selected_region_label)
+
+    def get_selected_region_rect(self):
+        """Returns the rectangle of the region that is currently selected. If
+        no crop regions are selected then the feature region is
+        returned by default, which itself defaults to the full size of
+        the reference image. The only time this function returns None
+        is if the reference image is not defined, or if the selection
+        was deleted without updating the region_selector. """
+        if (not self.selected_region_label) or \
+          (self.selected_region_label == ActiveSelectorModel.features_title):
+            return self.feature_region
+        else:
+            if (self.selected_region_label in self.crop_regions):
+                return self.crop_regions[self.selected_region_label]
+            else:
+                self.selected_region_label = None
+                return None
 
 #---------------------------------------------------------------------------------------------------
 
@@ -698,11 +793,10 @@ class InspectTabControl(qt.QWidget):
             qt.QSizePolicy(qt.QSizePolicy.Preferred, qt.QSizePolicy.Minimum)
           )
         self.layout = qt.QHBoxLayout(self)
-        config = app_model.get_config()
         # ---------- setup slider ----------
         self.slider = PercentSlider(
             "Threshold %",
-            config.threshold,
+            app_model.get_threshold(),
             inspect_tab.slider_handler,
           )
         # ---------- setup popup-menu ----------
@@ -710,6 +804,9 @@ class InspectTabControl(qt.QWidget):
         # ---------- lay out the widgets ----------
         self.layout.addWidget(self.encoding_menu)
         self.layout.addWidget(self.slider)
+
+    def post_init(self):
+        pass
 
 
 class InspectTab(qt.QWidget):
@@ -768,6 +865,10 @@ class InspectTab(qt.QWidget):
           )
         self.image_display.addAction(self.do_move_previous_image)
 
+    def post_init(self):
+        self.control_widget.post_init()
+        self.image_display.post_init()
+
     def slider_handler(self, new_value):
         threshold = self.slider.get_percent()
         if threshold is not None:
@@ -788,17 +889,15 @@ class InspectTab(qt.QWidget):
         self.message_box.hide()
         self.image_display.show()
 
-    # def show_distance_map(self):
-    #     """Draws the target image and any matching pattern rectangles into the
-    #     image_display window."""
-    #     app_model = self.main_view.get_app_model()
-    #     self.distance_map = app_model.get_distance_map()
-    #     target = self.distance_map.get_target()
-    #     path = app_model.get_target_image_path()
-    #     self.image_display.set_filepath(path)
-    #     self.image_display.redraw()
-    #     self.show_image_display()
-    #     self.do_save_selected.setEnabled(True)
+    def redraw_all_regions(self):
+        print(f'{self.__class__.__name__}.redraw_all_regions()')
+        app_model = self.main_view.get_app_model()
+        target = app_model.get_target()
+        path = target.get_path()
+        self.image_display.set_filepath(path)
+        self.image_display.redraw()
+        self.show_image_display()
+        self.do_save_selected.setEnabled(True)
 
     def modal_prompt_get_directory(self, init_dir):
         output_dir = \
@@ -819,25 +918,20 @@ class InspectTab(qt.QWidget):
         return (listwidget.currentRow(), listwidget.count())
 
     def save_selected(self):
-        if self.distance_map is not None:
-            app_model = self.main_view.get_app_model()
-            output_dir = app_model.get_config().output_dir
-            output_dir = self.modal_prompt_get_directory(str(output_dir))
-            app_model.set_results_dir(PurePath(output_dir))
-            threshold = self.slider.get_percent()
-            app_model.write_all_cropped_images(
-                self.distance_map,
-                threshold,
-                output_dir,
-              )
-        else:
-            print('WARNING: InspectTab.save_selected() called before distance_map was set')
+        app_model = self.main_view.get_app_model()
+        output_dir = app_model.get_output_dir()
+        output_dir = self.modal_prompt_get_directory(str(output_dir))
+        try:
+            app_model.set_output_dir(PurePath(output_dir))
+            app_model.save_selected()
+        except IOError as err:
+            self.main_view.error_message(str(err))
 
     def save_selected_all(self):
         app_model = self.main_view.get_app_model()
-        output_dir = app_model.get_config().output_dir
+        output_dir = app_model.get_cli_config().output_dir
         output_dir = self.modal_prompt_get_directory(str(output_dir))
-        app_model.set_results_dir(PurePath(output_dir))
+        app_model.set_output_dir(PurePath(output_dir))
         app_model.batch_crop_matched_patterns()
 
     def search_next_image(self):
@@ -887,6 +981,13 @@ class AlgorithmSelector(qt.QTabWidget):
         self.rme_checkbox = qt.QCheckBox('Root-Mean Error (RME) ')
         self.orb_config_view = qt.QGroupBox('Oriented Rotated BRIEF (ORB) ')
         self.orb_config_view.setCheckable(True)
+        algorithm = app_model.get_algorithm()
+        if isinstance(algorithm, rme.RMEMatcher):
+            self.set_algorithm_RME()
+        elif isinstance(algorithm, orb.ORBMatcher):
+            self.set_algorithm_ORB()
+        else:
+            raise ValueError('unknown matcher algorithm', algorithm)
         #self.orb_config_view = qt.QWidget(self)
         self.nFeatures = qt.QLineEdit(str(self.orb_config.get_nFeatures()))
         self.nFeatures.editingFinished.connect(self.check_nFeatures)
@@ -940,25 +1041,34 @@ class AlgorithmSelector(qt.QTabWidget):
         self.whole_layout.addWidget(self.buttons)
         self.whole_layout.addStretch()
 
+    def post_init(self):
+        pass
+
+    def set_algorithm_ORB(self):
+        self.rme_checkbox.setCheckState(qcore.Qt.Unchecked)
+        self.orb_config_view.setChecked(True)
+        self.main_view.set_algorithm_ORB()
+
+    def set_algorithm_RME(self):
+        self.rme_checkbox.setCheckState(qcore.Qt.Checked)
+        self.orb_config_view.setChecked(False)
+        self.main_view.set_algorithm_RME()
+
     def orb_config_view_check_state_changed(self, state):
         # This function exists because Qt5 does not allow you to add a
         # QGroupBox to a QButtonGroup.
         if state:
-            self.rme_checkbox.setCheckState(qcore.Qt.Unchecked)
-            self.main_view.set_algorithm_ORB()
+            self.set_algorithm_ORB()
         else:
-            self.rme_checkbox.setCheckState(qcore.Qt.Checked)
-            self.main_view.set_algorithm_RME()
+            self.set_algorithm_RME()
 
     def rme_checkbox_state_changed(self, state):
         # This function exists because Qt5 does not allow you to add a
         # QGroupBox to a QButtonGroup.
         if state == qcore.Qt.Checked:
-            self.orb_config_view.setChecked(False)
-            self.main_view.set_algorithm_RME()
+            self.set_algorithm_RME()
         else:
-            self.orb_config_view.setChecked(True)
-            self.main_view.set_algorithm_ORB()
+            self.set_algorithm_ORB()
 
     def update_field(self, field, fromStr, setter):
         """This function takes a qt.QLineEdit 'field', a function to convert
@@ -1052,23 +1162,12 @@ class PatternMatcherView(qt.QTabWidget):
     """The Qt Widget containing the GUI for the whole pattern matching program.
     """
 
-    def __init__(self, config, parent_view=None):
+    def __init__(self, app_model, parent_view=None):
         super().__init__(parent_view)
+        self.app_model = app_model
         self.orb_matcher = None
         self.rme_matcher = None
-        self.config = config
-        self.app_model = None
-        print(f'PatternMatcherView.__init__() #(init handler for algorithm {config.algorithm!r})')
-        algorithm = None
-        if config.algorithm == 'RME':
-            self.rme_matcher = rme.RMEMatcher(self)
-            algorithm = self.rme_matcher
-        elif config.algorithm == 'ORB':
-            self.orb_matcher = orb.ORBMatcher(self)
-            algorithm = self.orb_matcher
-        else:
-            raise ValueError(f'no handler for algorithm {config.algorithm!r}')
-        self.app_model = SingleFeatureMultiCrop(algorithm, config)
+        self.init_pen_colors()
         #----------------------------------------
         # Setup the GUI
         self.notify = qt.QErrorMessage(self)
@@ -1085,12 +1184,30 @@ class PatternMatcherView(qt.QTabWidget):
         self.addTab(self.inspect_tab, "Inspect")
         self.addTab(self.algorithm_tab, "Settings")
         self.currentChanged.connect(self.change_tab_handler)
+        self.post_init()
+
+    def init_pen_colors(self):
+        self.feature_region_pen = qgui.QPen(qgui.QColor(0, 255, 0, 255))
+        self.feature_region_pen.setCosmetic(True)
+        self.feature_region_pen.setWidth(3)
+        self.crop_region_pen = qgui.QPen(qgui.QColor(255, 0, 0, 255))
+        self.crop_region_pen.setCosmetic(True)
+        self.crop_region_pen.setWidth(3)
+
+    def post_init(self):
+        self.files_tab.post_init()
+        self.pattern_tab.post_init()
+        self.inspect_tab.post_init()
+        self.algorithm_tab.post_init()
 
     def error_message(self, message):
         self.notify.showMessage(message)
 
     def get_app_model(self):
         return self.app_model
+
+    def get_pattern_setup(self):
+        return self.pattern_tab
 
     def change_tab_handler(self, index):
         """Does the work of actually changing the GUI display to the "InspectTab".
@@ -1107,24 +1224,38 @@ class PatternMatcherView(qt.QTabWidget):
     # def show_distance_map(self):
     #     self.inspect_tab.show_distance_map()
 
+    def update_inspect_tab(self):
+        self.inspect_tab.redraw_all_regions()
+
     def update_reference_pixmap(self):
         self.pattern_tab.update_reference_pixmap()
         self.show_pattern_tab()
 
-    def set_algorithm_ORB(self):
-        if not self.orb_matcher:
-            print(f'{self.__class__.__name__}.set_algorithm_ORB() #(new ORBMatcher)')
-            self.orb_matcher = orb.ORBMatcher(self.config)
-        else:
-            pass
-        print(f'{self.__class__.__name__}.set_algorithm_ORB() #(app_model is an ORBMatcher)')
-        self.app_model = self.orb_matcher
-
     def set_algorithm_RME(self):
-        if not self.rme_matcher:
-            print(f'{self.__class__.__name__}.set_algorithm_RME() #(new RMEMatcher)')
-            self.rme_matcher = rme.RMEMatcher(self.config)
+        self.app_model.set_algorithm('RME')
+
+    def set_algorithm_ORB(self):
+        self.app_model.set_algorithm('ORB')
+
+    ###############  Methods to configure the pen colors  ###############
+
+    # Consider using the default colors defined as static slots of the
+    # CropRectTool, such as "CropRectTool._red_pen" "CropRectTool._green_pen".
+
+    def get_feature_region_pen(self):
+        return self.feature_region_pen
+
+    def set_feature_region_pen(self, pen):
+        if not isinstance(pen, qgui.QPen):
+            raise ValueError('received argument that is not a QPen')
         else:
-            pass
-        print(f'{self.__class__.__name__}.set_algorithm_RME() #(app_model is an RMEMatcher)')
-        self.app_model = self.rme_matcher
+            self.feature_region_pen = pen
+
+    def get_crop_region_pen(self):
+        return self.crop_region_pen
+
+    def set_crop_region_pen(self, pen):
+        if not isinstance(pen, qgui.QPen):
+            raise ValueError('received argument that is not a QPen')
+        else:
+            self.crop_region_pen = pen

@@ -1,7 +1,6 @@
 import DataPrepKit.FileSet as fs
 from DataPrepKit.CachedCVImageLoader import CachedCVImageLoader
 from DataPrepKit.RegionSize import RegionSize
-from DataPrepKit.SingleFeatureMultiCrop import SingleFeatureMultiCrop, check_algorithm_name
 import DataPrepKit.utilities as util
 
 import math
@@ -140,6 +139,11 @@ class DistanceMap():
         # The 'find_matching_points()' method will memoize it's results.
         self.memoized_regions = {}
 
+    def same_inputs(self, reference, target):
+        return \
+            str(self.reference.get_path()) == str(reference.get_path()) and \
+            str(self.target.get_path()) == str(target.get_path())
+
     def get_target(self):
         return self.target
 
@@ -209,69 +213,40 @@ class DistanceMap():
 #---------------------------------------------------------------------------------------------------
 
 class RMEMatcher():
-    """The main app model contains the buffer for the reference image, and the memoized search
-    results for every image that has been compared against the reference image for a particular
-    threshold value."""
+    """Contains the state specific to the Root-Mean Error matching
+    algorithm used. An instance of this class takes a reference to the
+    SingleFeatureMultiCrop object that retains the shared state for
+    the user interface (both GUI and CLI) of this application. This
+    function also contains methods for actually executing a pattern
+    match operation and caching the results -- in this case the cache
+    is the DistanceMap generated. """
 
-    def __init__(self, main_view, config=None):
-        self.main_view = main_view
+    def __init__(self, config):
+        self.config = config
         self.distance_map = None
+        self.threshold = config.get_threshold()
         self.target_matched_points = None
-        self.threshold = 0.92
-
-    def get_feature_region(self):
-        """Overloads the "SingleFeatureMultiCrop.get_feature_region"
-        method. The "SingleFeatureMultiCrop" member variable
-        "feature_region" is still used in case the "self.reference"
-        has not been set yet. But if there is a "self.reference"
-        image, the reference image's crop region is used as the
-        feature region."""
-        if self.reference is None:
-            SingleFeatureMultiCrop.get_feature_region(self)
-        else:
-            return self.reference.get_crop_rect()
-
-    def set_feature_region(self, rect):
-        """Overloads the "SingleFeatureMultiCrop.set_feature_region"
-        method. The "SingleFeatureMultiCrop" member variable
-        "feature_region" is still used in case the "self.reference"
-        has not been set yet. But if there is a "self.reference"
-        image, the reference image's crop region is used as the
-        feature region. """
-        if rect is None:
-            self.reference.set_crop_rect(None)
-        elif isinstance(rect, tuple) and (len(rect) == 4):
-            if self.reference is not None:
-                self.reference.set_crop_rect(rect)
-            else:
-                pass
-        else:
-            raise ValueError(f'RMEMatcher.set_feature_region() must take a 4-tuple', rect)
-        SingleFeatureMultiCrop.set_feature_region(self, rect)
-
-    def get_distance_map(self):
-        return self.distance_map
 
     def match_on_file(self):
-        """This function is triggered when you double-click on an item in the image
-        list in the "FilesTab". It starts running the pattern matching algorithm
-        and changes the display of the GUI over to the "InspectTab".
-        """
-        app_model = self.main_view.get_app_model()
-        patimg = app_model.reference.get_image()
-        targimg = app_model.target.get_image()
-        if patimg is None:
-            print(f'RMEMatcher.match_on_file() #(self.reference.get_image() returned None)')
-        elif targimg is None:
-            print(f'RMEMatcher.match_on_file() #(self.target.get_image() returned None)')
+        #target_image_path = self.target.get_path()
+        print(f'{self.__class__.__name__}.match_on_file()')
+        reference = self.config.get_reference()
+        target    = self.config.get_target()
+        suffix    = self.config.get_file_encoding()
+        threshold = self.config.get_threshold()
+        reference.assert_parameter('Pattern image')
+        target.assert_parameter('Input image')
+        if self.distance_map and self.distance_map.same_inputs(reference, target):
+            pass
         else:
-            #target_image_path = self.target.get_path()
-            self.distance_map = DistanceMap(app_model.target, app_model.reference)
-            app_model.target_matched_points = \
-                self.distance_map.find_matching_points(self.threshold)
+            self.distance_map = DistanceMap(target, reference, suffix)
+            self.target_matched_points = \
+                self.distance_map.find_matching_points(threshold)
+        return self.target_matched_points
 
     def change_threshold(self, threshold):
-        if self.distance_map is not None:
+        print(f'{self.__class__.__name__}.change_threshold({threshold})')
+        if self.distance_map:
              if self.threshold != threshold:
                  self.target_matched_points = \
                      self.distance_map.find_matching_points(threshold)
@@ -285,69 +260,19 @@ class RMEMatcher():
         """This function returns the list of patterm matching regions that
         were most recently computed by running the
         self.distance_map.find_matching_region() function."""
+        print(f'{self.__class__.__name__}.get_matched_points() #-> {self.target_matched_points}')
         return self.target_matched_points
 
-    def crop_matched_references(self, target_image_path):
-        # Create results directory if it does not exist
-        print(f'{self.__class__.__name__}.crop_matched_references({target_image_path!r}) #(after clean-up self.crop_regions)')
-        if not os.path.isdir(self.results_dir):
-            os.mkdir(self.results_dir)
-        else:
-            pass
-        target = CachedCVImageLoader()
-        target.load_image(path=target_image_path)
-        self.reference.load_image(
-            path=self.reference_image_path,
-            crop_rect=self.feature_region,
+    def save_calculations(self):
+        """This function is called to save the intermediate steps used to
+        comptue the pattern matching operation. In the case of the RME
+        matching algorithm, the distance map is saved to a file. """
+        interm_calc_path = PurePath(target_image_path)
+        interm_calc_path = PurePath(
+            interm_calc_path.parent / \
+            ( interm_calc_path.stem + \
+              '_diffmap' + \
+              interm_calc_path.suffix \
+            )
           )
-        distance_map = DistanceMap(target, self.reference)
-        if self.save_distance_map is not None:
-            # Save the convolution image:
-            distance_map.save_distance_map(self.save_distance_map)
-        else:
-            pass
-        self.crop_regions = util.dict_keep_defined(self.crop_regions)
-        self.print_state()
-        self.write_all_cropped_images(
-            distance_map,
-            self.threshold,
-            self.results_dir,
-          )
-
-    def write_all_cropped_images(self, distance_map, threshold, results_dir):
-        target_image = distance_map.get_target()
-        target_image_path = target_image.get_path()
-        prefix = target_image_path.stem
-        print(f'{self.__class__.__name__}.write_all_cropped_images(target={target_image_path!r}, threshold={threshold!s}, results_dir={results_dir!r})')
-        point_list = distance_map.find_matching_points(threshold=threshold)
-        print(f'{self.__class__.__name__}.write_all_cropped_images()')
-        print('  point_list')
-        for (i, pt) in zip(range(0,len(point_list)), point_list):
-            print(f'    {i}: {pt}')
-        # -----------------------------------------------------------------------
-        for (label,(x,y,width,height)) in self.iterate_crop_regions(point_list):
-            # Here we make use of the "iterate_crop_regions()" method
-            # inherited from the "SingleFeatureMultiCrop" class.
-            out_dir = results_dir / PurePath(label) if label is not None else results_dir
-            reg = RegionSize(x, y, width, height)
-            try:
-                reg.crop_write_image(
-                    target_image.get_raw_image(),
-                    out_dir,
-                    file_prefix=prefix,
-                    file_suffix=self.file_encoding,
-                  )
-            except Exception as e:
-                print(f'ERROR: {target_image_path!r} {e}')
-
-    def batch_crop_matched_patterns(self):
-        self.reference.load_image(crop_rect=self.feature_region)
-        print(f'{self.__class__.__name__}.batch_crop_matched_references() #(will operate on {len(self.target_fileset)} image files)')
-        for image in self.target_fileset:
-            #print(
-            #    f'image = {image!s}\n'
-            #    f'results_dir = {self.results_dir}\n'
-            #    f'threshold = {self.threshold}\n'
-            #    f'save_distance_map = {self.save_distance_map}',
-            #  )
-            self.crop_matched_references(image)
+        self.distance_map.save_distance_map(interm_calc_path)

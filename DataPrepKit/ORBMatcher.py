@@ -1,5 +1,3 @@
-from DataPrepKit.SingleFeatureMultiCrop import SingleFeatureMultiCrop
-
 from copy import deepcopy
 import os
 from pathlib import (PurePath, Path)

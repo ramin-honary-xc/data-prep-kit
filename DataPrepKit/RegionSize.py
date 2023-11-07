@@ -89,7 +89,7 @@ class RegionSize():
          3. takes a PurePath() 'results_dir'
 
          4. The 'file_suffix' must be an element of
-            'DataPrepKit.FileSet.image_file_suffix_set', a file prefix
+            'DataPrepKit.FileSet.image_file_suffix_set', a file suffix
             with no dot (e.g. "png", "bmp", "jpg") indicating the file
             encoding to use according to the OpenCV imwrite()
             function. It defaults to "png".
