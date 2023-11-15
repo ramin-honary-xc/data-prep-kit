@@ -1165,8 +1165,6 @@ class PatternMatcherView(qt.QTabWidget):
     def __init__(self, app_model, parent_view=None):
         super().__init__(parent_view)
         self.app_model = app_model
-        self.orb_matcher = None
-        self.rme_matcher = None
         self.init_pen_colors()
         #----------------------------------------
         # Setup the GUI

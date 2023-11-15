@@ -1,4 +1,7 @@
+from DataPrepKit.CachedCVImageLoader import CachedCVImageLoader
+
 from copy import deepcopy
+import math
 import os
 from pathlib import (PurePath, Path)
 
@@ -9,159 +12,79 @@ import traceback
 ####################################################################################################
 
 class ImageWithORB():
-    """This class defines an image object, provides an API to run ORB on
-    the image, and to associate the ORB keypoints with the image."""
+    """This class defines a reference image object associated with the key
+    points and descriptors computed by the ORB algorithm.
+    """
 
-    def __init__(self, filepath):
-        if isinstance(filepath, str):
-            filepath = PurePath(filepath)
-        elif not isinstance(filepath, PurePath):
-            raise ValueError( \
-                f'ImageWithORB.crop_and_save() method argument output_dir not a PurePath value'
-              )
-        else:
-            pass
-        self.filepath = filepath
-        self.orb_config = None
+    def __init__(self, image, orb_config=None):
+        self.orb_config = ORBConfig() if not orb_config else orb_config
         self.ORB = None
         self.keypoints = None
         self.descriptors = None
-        self.midpoint = None
-        self.init_crop_rect = None
-        self.crop_rect = None
-
-    def __hash__(self):
-        return hash(self.filepath)
-
-    def __getitem__(self, i):
-        return self.keypoints[i]
-
-    def __len__(self):
-        if self.keypoints is None:
-            return 0
+        if isinstance(image, PurePath) or isinstance(image, Path):
+            self.cached_image = CachedCVImageLoader(image)
+            self.cached_image.load_image()
+            self.image = self.cached_image.get_image()
+        elif isinstance(image, CachedCVImageLoader):
+            self.cached_image = image
+            self.cached_image.load_image()
+            self.image = image.get_image()
         else:
-            return len(self.keypoints)
+            self.cached_image = None
+            self.image = image
 
-    def __str__(self):
-        return str(self.filepath)
+    def get_image(self):
+        return self.image
 
-    def __eq__(self, a):
-        return \
-            (a is not None) and \
-            (self.filepath == a.filepath) and \
-            (self.orb_config == a.orb_config)
+    def get_cached_image(self):
+        return self.cached_image
 
-    def __ne__(self, a):
-        return not self.__eq__(a)
+    def get_filepath(self):
+        return (None if not self.cached_image else self.cached_image.get_path())
 
     def get_orb_config(self):
         return self.orb_config
 
-    def get_filepath(self):
-        return self.filepath
-
-    def get_keypoints(self):
-        return self.keypoints
+    def set_orb_config(self, orb_config):
+        #print(f'ImageWithORB.set_orb_config({orb_config})')
+        self.orb_config = deepcopy(orb_config)
 
     def get_ORB(self):
         return self.ORB
+
+    def get_keypoints(self):
+        return self.keypoints
 
     def get_descriptors(self):
         return self.descriptors
 
     def get_crop_rect(self):
-        """The crop rect is a 4-tuple (x, y, width, height)"""
-        return self.crop_rect
-
-    def set_crop_rect(self, rect):
-        """The crop rect must be a 4-tuple (x, y, width, height). This
-        function should be called when the end user draws a new crop
-        rectangle on the "Reference" image view. Use
-        "set_relative_crop_rect()" to compute the crop_rect relative to
-        the keypoints found by the ORB algoirhtm.
-        """
-        if rect is None:
-            self.crop_rect = None
-        elif (not isinstance(rect, tuple)) or (len(rect) != 4):
-            raise ValueError(f'ImageWithORB.set_crop_rect() expects 4-tuple value', rect)
+        if self.cached_image:
+            return self.cached_image.get_crop_rect()
         else:
-            self.crop_rect = rect
-    def set_relative_crop_rect(self, ref):
-        """Compute the crop_rect for this item relative to a given reference item."""
-        if ref is self:
-            #print(f'ImageWithORB.set_relative_crop_rect(ref) #(ref is self)')
-            pass
-        elif ref is None:
-            #print(f'ImageWithORB.set_relative_crop_rect(None)')
-            pass
-        elif not isinstance(ref, ImageWithORB):
-            raise ValueError(
-                'ImageWithORB.set_relative_crop_rect(ref): '
-                'argument "ref" must be of type ImageWithORB',
-                ref,
-              )
-        else:
-            pass
-        ##self.set_orb_config(ref.get_orb_config())
-        ref_rect = ref.get_crop_rect()
-        ref_midpoint = ref.get_midpoint()
-        #print(f'ImageWithORB.set_relative_crop_rect({ref_rect}) #(midpoint = {ref_midpoint})')
-        if (ref_rect is not None) and (ref_midpoint is not None):
-            (ref_x, ref_y, ref_width, ref_height) = ref_rect
-            (mid_x, mid_y) = ref_midpoint
-            if self.midpoint is not None:
-                (x, y) = self.midpoint
-                self.crop_rect = \
-                  ( ref_x - mid_x + x , \
-                    ref_y - mid_y + y, \
-                    ref_width, \
-                    ref_height, \
-                  )
-            else:
-                print(f'ImageWithORB.set_relative_crop_rect() #(failed to compute midpoint)')
-        else:
-            print(f'ImageWithORB.set_relative_crop_rect() #(crop_rect={ref_rect}, midpoint={ref_midpoint})')
+            return (0, 0, self.image.shape[1], self.image.shape[0])
 
-    def reset_crop_rect(self):
-        """If the "self.reference_image" is set, you can reset the crop rect to
-        the exact size of the "self.reference_image" by calling this function."""
-        self.crop_rect = self.init_crop_rect
-
-    def set_orb_config(self, orb_config):
-        #print(f'ImageWithORB.set_orb_config({orb_config})')
-        if orb_config is None:
-            self.orb_config = None
-        elif (self.ORB is None) or \
-             (self.orb_config is None) or \
-             (self.orb_config != orb_config):
-                self.force_run_orb(orb_config)
-        else:
-            #print(f'ImageWithORB.set_orb_config() #(ORB metadata already exists and is up-to-date)')
-            pass
-
-    def force_run_orb(self, orb_config):
+    def compute(self):
         #print(f'ImageWithORB.force_run_orb() #(set self.orb_config {str(self.orb_config)})')
-        self.orb_config = deepcopy(orb_config)
-        path = os.fspath(self.filepath)
-        pixmap = cv.imread(path, cv.IMREAD_GRAYSCALE)
-        if pixmap is not None:
+        if self.image is not None:
             # Set the init_crop_rect
-            height, width = pixmap.shape
+            height = self.image.shape[0]
+            width = self.image.shape[1]
             self.init_crop_rect = (0, 0, width, height)
             # Run the ORB algorithm
             #print(f'ImageWithORB.force_run_orb({str(orb_config)})')
             ORB = cv.ORB_create( \
-                nfeatures=orb_config.get_nFeatures(), \
-                scaleFactor=orb_config.get_scaleFactor(), \
-                nlevels=orb_config.get_nLevels(), \
-                edgeThreshold=orb_config.get_edgeThreshold(), \
-                firstLevel=orb_config.get_firstLevel(), \
-                WTA_K=orb_config.get_WTA_K(), \
-                scoreType=orb_config.get_scoreType(), \
-                patchSize=orb_config.get_patchSize(), \
-                fastThreshold=orb_config.get_fastThreshold(), \
+                nfeatures=self.orb_config.get_nFeatures(), \
+                scaleFactor=self.orb_config.get_scaleFactor(), \
+                nlevels=self.orb_config.get_nLevels(), \
+                edgeThreshold=self.orb_config.get_edgeThreshold(), \
+                firstLevel=self.orb_config.get_firstLevel(), \
+                WTA_K=self.orb_config.get_WTA_K(), \
+                scoreType=self.orb_config.get_scoreType(), \
+                patchSize=self.orb_config.get_patchSize(), \
+                fastThreshold=self.orb_config.get_fastThreshold(), \
               )
-            keypoints, descriptor = ORB.detectAndCompute(pixmap, None)
+            (keypoints, descriptor) = ORB.detectAndCompute(self.image, None)
             self.ORB = ORB
             self.keypoints = keypoints
             self.descriptor = descriptor
@@ -181,30 +104,103 @@ class ImageWithORB():
         else:
             print(f'ImageWithORB.force_run_orb() #(failed to load pixmap for path {path}')
 
-    def crop_and_save(self, output_dir):
-        if self.crop_rect is not None:
-            pixmap = cv.imread(os.fspath(self.filepath))
-            if pixmap is not None:
-                path = PurePath(output_dir) / self.filepath.name
-                (x_min, y_min, width, height) = self.crop_rect
-                x_max = round(x_min + width)
-                y_max = round(y_min + height)
-                x_min = round(x_min)
-                y_min = round(y_min)
-                #print(
-                #    f'ImageWithORB.crop_and_save("{str(path)}") -> '
-                #    f'x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max})' \
-                #  )
-                cv.imwrite(os.fspath(path), pixmap[ y_min:y_max , x_min:x_max ])
-            else:
-                raise ValueError( \
-                    f'ImageWithORB("{str(self.filepath)}") failed to load file path as image' \
-                  )
+#---------------------------------------------------------------------------------------------------
+
+class SegmentedImage():
+    """This class takes an image and segments it into squares in such a
+    way that allows a smaller reference image to be found within each
+    segment. The hypotenuse of the given RECT argument is used to
+    construct segments, but if the hypotenuse is larger than the width
+    or height of the target image, the minimum of the width, height,
+    and hypotenuse is chosen as the segment size.
+    """
+
+    def __init__(self, nparray2d, rect):
+        (_x, _y, seg_width, seg_height) = rect
+        shape = nparray2d.shape
+        img_height = shape[0]
+        img_width  = shape[1]
+        if (seg_height > img_height) and (seg_width > img_width):
+            raise ValueError(f'bad reference image, both width and height ({seg_width},{seg_height}) are larger than search target image ({img_width},{img_height})', (seg_width, seg_height), (img_width, img_height))
+        elif (seg_height > img_height):
+            raise ValueError(f'bad reference image, height is larger than search target image', seg_height, img_height)
+        elif (seg_width > img_width):
+            raise ValueError(f'bad reference image, width is larger than search target image', seg_width, img_width)
         else:
-            raise ValueError( \
-                f'ImageWithORB("{str(self.filepath)}").crop_and_save() failed,'
-                f' undefined "crop_rect" value' \
+            pass
+        hypotenuse = math.ceil(math.sqrt(seg_width*seg_width + seg_height*seg_height))
+        self.segment_width = hypotenuse if hypotenuse < img_width else img_width
+        self.segment_height = hypotenuse if hypotenuse < img_height else img_height
+        self.image = nparray2d
+        self.image_width = img_width
+        self.image_height = img_height
+        #print(f'segment_width = {self.segment_width}')
+        #print(f'segment_height = {self.segment_height}')
+        #print(f'image_width = {self.image_width}')
+        #print(f'image_height = {self.image_height}')
+        #print(f'hypotenuse = {hypotenuse}')
+        
+    def foreach_1D(img, seg):
+        top = img - seg
+        subseg = round(seg/6)
+        num_steps = math.ceil(top / subseg)
+        step = top / num_steps
+        i = 0.0
+        #print(f'---------- img={img}, seg={seg}, halfseg={halfseg}, step={step} top={top} ----------')
+        while (i < top):
+            i = math.floor(i)
+            yield (i, i+seg)
+            i += step
+
+    def foreach(self):
+        for (y_min,y_max) in SegmentedImage.foreach_1D(self.image_height, self.segment_height):
+            for (x_min,x_max) in SegmentedImage.foreach_1D(self.image_width, self.segment_width):
+                #print(f'x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max}')
+                yield \
+                    ( (x_min, y_min, x_max-x_min, y_max-y_min,),
+                      self.image[y_min:y_max, x_min:x_max],
+                    )
+
+    def find_matching_points(self, ref):
+        bounds = ref.get_crop_rect()
+        matched_points = []
+        for ((x,y,_w,_h), segment) in self.foreach():
+            segment_orb = ImageWithORB(segment, ref.get_orb_config())
+            segment_orb.compute()
+            bruteforce_match = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=True)
+            matches = bruteforce_match.match(
+                ref.get_descriptors(),
+                segment_orb.get_descriptors(),
               )
+            best_matches = []
+            for m,n in matches:
+                if m.distance < 0.7 * n.distance:
+                    best_matches.append(m)
+                else:
+                    pass
+            if len(best_matches) < 20:
+                print(f'ignore block ({x:05},{y:05}), only {len(best_matches)} best matches')
+            else:
+                reference_keypoints = ref.get_keypoints()
+                target_keypoints = segment_orb.get_keypoints()
+                reference_selection = np.float32(
+                    [reference_keypoints[m.queryIdx].pt for m in best_matches],
+                  )
+                reference_selection = reference_selection.reshape(-1,1,2)
+                target_selection = np.float32(
+                    [target_keypoints[m.trainIdx].pt for m in best_matches],
+                  )
+                target_selection = target_selection.reshape(-1,1,2)
+                (homo_matrix, mask) = cv.findHomography(
+                    reference_selection,
+                    target_selection,
+                    cv.RANSAC,
+                    5.0,
+                  )
+                print(f'block ({x:05},{y:05}) has {len(best_matches)} best matches')
+                print(homo_matrix)
+                matched_points.append((x,y,bounds,homo_matrix,mask,))
+        return matched_points
 
 #---------------------------------------------------------------------------------------------------
 
@@ -340,11 +336,11 @@ class ORBMatcher():
     application.
     """
 
-    def __init__(self, app_model, config=None):
+    def __init__(self, app_model, orb_config=None):
         self.app_model = app_model
         self.orb_config = ORBConfig()
         self.reference_image = None
-        self.selected_image = None
+        self.target_image = None
 
     def get_orb_config(self):
         return self.orb_config
@@ -363,6 +359,13 @@ class ORBMatcher():
         #print(f'ORBMatcher.set_orb_config() #(set self.orb_config = {orb_config})')
         self.orb_config = deepcopy(orb_config)
 
+    def get_reference(self):
+        return self.reference_image
+
+    def set_reference(self, image):
+        self.reference_image = ImageWithORB(image)
+        self.reference_image.compute()
+
     def get_keypoints(self):
         if self.reference_image is not None:
             return self.reference_image.get_keypoints()
@@ -380,14 +383,20 @@ class ORBMatcher():
         list in the "FilesTab". It starts running the pattern matching algorithm
         and changes the display of the GUI over to the "InspectTab".
         """
-        patimg = self.app_model.reference.get_image()
-        targimg = self.target.get_image()
-        if patimg is None:
-            print(f'RMEMatcher.match_on_file() #(self.reference.get_image() returned None)')
-        elif targimg is None:
-            print(f'RMEMatcher.match_on_file() #(self.target.get_image() returned None)')
+        if not self.reference_image:
+            reference = self.app_model.get_reference()
+            if not reference:
+                raise ValueError('reference image has not been selected')
+            else:
+                self.reference_image = ImageWithORB(reference, self.get_orb_config())
+                self.reference_image.compute()
         else:
-            self.distance_map = DistanceMap(self.target, self.reference)
-            self.target_matched_points = \
-                self.distance_map.find_matching_points(self.threshold)
-
+            pass
+        self.target_image = self.target.get_target()
+        if self.target_image is None:
+            print(f'RMEMatcher.match_on_file() #(self.reference.get_image() returned None)')
+        else:
+            target = self.target_image.get_image()
+            segmented_image = SegmentedImage(target, boundds)
+            matched_points = segmented_image.find_matching_points(self.reference_image)
+            

@@ -82,6 +82,7 @@ class CachedCVImageLoader():
 
     def get_bounds_rect(self):
         if self.image is None:
+            print(f'{self.__class__.__name__}.get_bounds_rect() #(return None for {self.path!r})')
             return None
         else:
             shape = self.image.shape

@@ -221,19 +221,19 @@ class RMEMatcher():
     match operation and caching the results -- in this case the cache
     is the DistanceMap generated. """
 
-    def __init__(self, config):
-        self.config = config
+    def __init__(self, app_model):
+        self.app_model = app_model
         self.distance_map = None
-        self.threshold = config.get_threshold()
+        self.threshold = app_model.get_threshold()
         self.target_matched_points = None
 
     def match_on_file(self):
         #target_image_path = self.target.get_path()
         print(f'{self.__class__.__name__}.match_on_file()')
-        reference = self.config.get_reference()
-        target    = self.config.get_target()
-        suffix    = self.config.get_file_encoding()
-        threshold = self.config.get_threshold()
+        reference = self.app_model.get_reference()
+        target    = self.app_model.get_target()
+        suffix    = self.app_model.get_file_encoding()
+        threshold = self.app_model.get_threshold()
         reference.assert_parameter('Pattern image')
         target.assert_parameter('Input image')
         if self.distance_map and self.distance_map.same_inputs(reference, target):
