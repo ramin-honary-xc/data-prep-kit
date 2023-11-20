@@ -39,7 +39,8 @@ class SingleFeatureMultiCrop():
         self.save_distance_map = None
         self.target = CachedCVImageLoader()
         self.target_matched_points = []
-        self.reference = CachedCVImageLoader()
+        self.target_image = CachedCVImageLoader()
+        self.reference_image = CachedCVImageLoader()
         self.threshold = 0.92
         self.rme_matcher = None
         self.orb_matcher = None
@@ -56,20 +57,14 @@ class SingleFeatureMultiCrop():
     def set_cli_config(self, config):
         self.cli_config = config
         self.set_target_fileset(config.inputs)
-        self.set_reference_image_path(config.pattern)
+        # Load the reference right away, if it is not None
+        self.reference_image.load_image(path=config.pattern)
         self.output_dir = Path(config.output_dir)
         self.threshold = config.threshold
         self.file_encoding = config.encoding
         self.save_distance_map = config.save_map
         self.set_file_encoding(config.encoding)
         self.threshold = config.threshold
-        # Load the reference right away, if it is not None
-        self.reference_image_path = config.pattern
-        if self.reference_image_path:
-            self.reference.load_image(self.reference_image_path)
-            self.feature_region = self.reference.get_crop_rect()
-        else:
-            pass
         if config.crop_regions_json:
             self.crop_regions = config.crop_regions_json
         else:
@@ -115,15 +110,11 @@ class SingleFeatureMultiCrop():
     def set_file_encoding(self, encoding):
         self.file_encoding = fs.image_file_format_suffix(encoding)
 
-    def get_target(self):
-        return self.target
+    def get_target_image(self):
+        return self.target_image
 
-    def get_target_image_path(self):
-        return self.target.get_path()
-
-    def set_target_image_path(self, path):
-        #print(f'RMEMatcher.set_target_image_path("{path}")')
-        self.target.load_image(path=path)
+    def set_target_image(self, target):
+        self.target_image = target
 
     def get_target_fileset(self):
         return self.target_fileset
@@ -143,28 +134,20 @@ class SingleFeatureMultiCrop():
     def remove_image_path(self, path):
         self.target_fileset.delete(path)
 
-    def get_reference(self):
-        return self.reference
+    def get_reference_image(self):
+        return self.reference_image
 
-    def get_reference_image_path(self):
-        return self.reference.get_path()
-
-    def set_reference_image_path(self, path):
-        """This function sets the reference image path and also attempts to
-        load the image from this path. Also the feature region is set
-        to the value returned by
-        "CachedCVImageLoader.get_crop_rect()", which is, when it is
-        first loaded, always the rectangular region that circumscribes
-        the full the image. """
-        self.reference_image_path = path
-        if path:
-            self.reference.load_image(path=path, crop_rect=self.feature_region)
-        else:
+    def set_reference_image(self, reference):
+        if isinstance(reference, str):
+            reference = CachedCVImageLoader(path=Path(str))
+        elif isinstance(reference, Path) or isinstance(reference, PurePath):
+            reference = CachedCVImageLoader(path=reference)
+        elif isinstance(reference, CachedCVImageLoader):
             pass
-        self.set_feature_region(self.reference.get_crop_rect())
-
-    def set_reference_pixmap(self, reference_path, pixmap):
-        self.reference.set_image(reference_path, pixmap)
+        else:
+            raise ValueError('expecting CachedCVImageLoader or Path as argument')
+        self.reference_image = reference_image
+        self.algorithm.set_reference_image(self.reference)
 
     def get_output_dir(self):
         return self.output_dir
@@ -332,8 +315,7 @@ class SingleFeatureMultiCrop():
         self.set_threshold(threshold)
 
     def match_on_file(self):
-        print(f'{self.__class__.__name__}.match_on_file() #-> {self.target_matched_points}')
-        self.algorithm.match_on_file()
+        return self.algorithm.match_on_file()
 
     def get_matched_points(self):
         print(f'{self.__class__.__name__}.get_matched_points()')

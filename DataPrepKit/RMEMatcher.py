@@ -168,7 +168,7 @@ class DistanceMap():
                 {"threshold": threshold},
               )
         elif threshold in self.memoized_regions:
-            print(f'DistanceMap.find_matching_points(threshold={threshold}) #(threshold memoized, returning list of {len(self.memoized_regions[threshold])} items)')
+            print(f'{self.__class__.__name__}.find_matching_points(threshold={threshold}) #(threshold memoized, returning list of {len(self.memoized_regions[threshold])} items)')
             return self.memoized_regions[threshold]
         else:
             pass
@@ -184,7 +184,7 @@ class DistanceMap():
             window_hcount, self.window_width
           )
 
-        print(f'DistanceMap.find_matching_points(threshold={threshold}) #(searching image)')
+        print(f'{self.__class__.__name__}.find_matching_points(threshold={threshold}) #(searching image)')
         results = []  # used to memoize these results
         for y in range(window_vcount):
             for x in range(window_hcount):
@@ -197,8 +197,15 @@ class DistanceMap():
                 global_x = x * self.window_width  + min_x
                 similarity = 1.0 - tile[min_y, min_x]
                 if similarity >= threshold:
-                    result = (global_x, global_y, similarity,)
-                    results.append(result)
+                    results.append(
+                        RMECandidate(
+                            ( global_x, global_y,
+                              self.reference_width, self.reference_height,
+                            ),
+                            similarity,
+                            self.target
+                          ),
+                      )
                     # RegionSize(
                     #     global_x, global_y,
                     #     self.reference_width, self.reference_height,
@@ -207,8 +214,29 @@ class DistanceMap():
                     pass
 
         self.memoized_regions[threshold] = results
-        print(f'DistanceMap.find_matching_points(threshold={threshold}) #(memoized list of {len(results)} results)')
+        print(f'{self.__class__.__name__}.find_matching_points(threshold={threshold}) #(memoized list of {len(results)} results)')
         return results
+
+#---------------------------------------------------------------------------------------------------
+
+class RMECandidate():
+    """Object instances of this class contain references to candidate
+    matching points in the target image."""
+
+    def __init__(self, rect, match_score, image):
+        self.rect = rect
+        self.match_score = match_score
+        self.image = image
+
+    def get_rect(self):
+        return self.rect
+
+    def get_match_score(self):
+        return self.match_score
+
+    def get_string_id(self):
+        (x, y, _width, _height) = self.rect
+        return f'{self.x:05}x{self.x:05}'
 
 #---------------------------------------------------------------------------------------------------
 
@@ -227,11 +255,18 @@ class RMEMatcher():
         self.threshold = app_model.get_threshold()
         self.target_matched_points = None
 
+    def get_reference_image(self):
+        return self.app_model.get_reference()
+
+    def set_reference_image(self, reference):
+        """Does not need to do anything, the reference is taken from self.app_model on demand."""
+        pass
+
     def match_on_file(self):
         #target_image_path = self.target.get_path()
         print(f'{self.__class__.__name__}.match_on_file()')
-        reference = self.app_model.get_reference()
-        target    = self.app_model.get_target()
+        reference = self.app_model.get_reference_image()
+        target    = self.app_model.get_target_image()
         suffix    = self.app_model.get_file_encoding()
         threshold = self.app_model.get_threshold()
         reference.assert_parameter('Pattern image')
@@ -252,9 +287,9 @@ class RMEMatcher():
                      self.distance_map.find_matching_points(threshold)
                  self.threshold = threshold
              else:
-                 print(f'RMEMatcher.change_threshold({threshold}) #(thrshold is already set to this value)')
+                 print(f'{self.__class__.__name__}.change_threshold({threshold}) #(thrshold is already set to this value)')
         else:
-            print(f'RMEMatcher.change_threshold() #(called before DistanceMap was constructed)')
+            print(f'{self.__class__.__name__}.change_threshold() #(called before DistanceMap was constructed)')
 
     def get_matched_points(self):
         """This function returns the list of patterm matching regions that

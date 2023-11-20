@@ -63,5 +63,5 @@ class ReferenceImagePreview(SimpleImagePreview):
 
     def update_reference_pixmap(self):
         app_model = self.main_view.get_app_model()
-        pattern = app_model.get_reference()
+        pattern = app_model.get_reference_image()
         self.set_filepath(pattern.get_path())

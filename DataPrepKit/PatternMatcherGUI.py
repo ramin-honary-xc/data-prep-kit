@@ -14,6 +14,7 @@ from DataPrepKit.SingleFeatureMultiCrop import SingleFeatureMultiCrop
 import DataPrepKit.GUIHelpers as dpk
 
 from pathlib import PurePath
+from traceback import print_exception
 
 import PyQt5.QtCore as qcore
 import PyQt5.QtGui as qgui
@@ -27,7 +28,7 @@ class InspectImagePreview(SimpleImagePreview):
     def __init__(self, main_view, parent):
         super(InspectImagePreview, self).__init__(parent)
         self.main_view = main_view
-        self.rect_items = []
+        self.visualized_match_list = []
 
     def post_init(self):
         pass
@@ -43,25 +44,120 @@ class InspectImagePreview(SimpleImagePreview):
 
     def clear_rectangles(self):
         scene = self.get_scene()
-        #print(f'InspectImagePreview.clear_rectangles() #(clear {len(self.rect_items)} items)')
-        for rect in self.rect_items:
-            scene.removeItem(rect)
-        self.rect_items = []
+        #print(f'InspectImagePreview.clear_rectangles() #(clear {len(self.visualized_match_list)} items)')
+        for match_item in self.visualized_match_list:
+            match_item.clear()
+        self.visualized_match_list = []
 
     def place_rectangles(self):
         print(f'{self.__class__.__name__}.place_rectangles()')
-        self.clear_rectangles()
-        scene = self.get_scene()
+        match_visualizer = self.main_view.get_match_visualizer()
         app_model = self.main_view.get_app_model()
-        point_list = app_model.get_matched_points()
+        match_list = app_model.get_matched_points()
+        scene = self.get_scene()
+        self.clear_rectangles()
+        for match in match_list:
+            self.visualized_match_list.append(
+                match_visualizer(self.main_view, scene, match),
+              )
+
+#---------------------------------------------------------------------------------------------------
+
+class RMEMatchVisualizer():
+
+    def __init__(self, main_view, scene, match_item):
+        self.main_view = main_view
+        self.scene = scene
+        self.match_item = match_item
+        self.feature_qrect = None
+        self.crop_region_qrect_list = []
+        self._draw()
+
+    def get_scene(self):
+        return self.scene
+
+    def clear(self):
+        if self.feature_qrect is not None:
+            self.scene.removeItem(self.feature_qrect)
+            self.feature_qrect = None
+        else:
+            pass
+        for item in self.crop_region_qrect_list:
+            self.scene.removeItem(item)
+        self.crop_region_qrect_list = []
+
+    def redraw(self, crop_rect_dict=None):
+        self.clear()
+        self._draw(crop_rect_dict)
+
+    def _draw(self, crop_rect_dict=None):
         pen = self.main_view.get_feature_region_pen()
-        for (x, y, width, height) in app_model.iterate_feature_regions(point_list):
-            item = scene.addRect(x, y, width, height, pen)
-            self.rect_items.append(item)
+        (x0, y0, width, height) = self.match_item.get_rect()
+        self.feature_qrect = self.scene.addRect(x0, y0, width, height, pen)
         pen = self.main_view.get_crop_region_pen()
-        for (_label, (x, y, width, height)) in app_model.iterate_crop_regions(point_list):
-            item = scene.addRect(x, y, width, height, pen)
-            self.rect_items.append(item)
+        if crop_rect_dict is not None:
+            for (_label, (x, y, width, height)) in crop_rect_dict.items():
+                item = self.scene.addRect(x+x0, y+y0, width, height, pen)
+                self.crop_region_qrect_list.append(item)
+        else:
+            pass
+
+class ORBMatchVisualizer():
+
+    def __init__(self, main_view, scene, match_item):
+        if not isinstance(main_view, PatternMatcherView):
+            raise ValueError(f'type(main_view) is {type(main_view)}, not an instance of PatternMatcherView', main_view)
+        elif not isinstance(scene, qt.QGraphicsScene):
+            raise ValueError(f'type(scene) is {type(scene)}, not an instance of QGraphicsScene', scene)
+        else:
+            pass
+        self.main_view = main_view
+        self.scene = scene
+        self.match_item = match_item
+        self.feature_line_list = []
+        self.crop_region_line_list_list = []
+        self._draw()
+
+    def get_scene(self):
+        return self.scene
+
+    def clear(self):
+        for item in self.feature_line_list:
+            self.scene.removeItem(item)
+        for crop_region_line_list in self.crop_region_line_list_list:
+            for crop_region_line in crop_region_line_list:
+                self.scene.removeItem(crop_region_line)
+
+    def redraw(self, crop_rect_dict=None):
+        self.clear()
+        self._draw()
+
+    def _draw(self, crop_rect_dict=None):
+        bottom_pen = self.main_view.get_horizontal_feature_region_pen()
+        left_pen = self.main_view.get_vertical_feature_region_pen()
+        top_right_pen = self.main_view.get_opposite_feature_region_pen()
+        crop_pen = self.main_view.get_crop_region_pen()
+        region_lines = self.match_item.get_bound_lines()
+        (bottom0, bottom1) = region_lines[0]
+        (left0  , left1  ) = region_lines[1]
+        (top0   , top1   ) = region_lines[2]
+        (right0 , right1 ) = region_lines[3]
+        self.feature_line_list = \
+          [ self.scene.addLine(bottom0[0], bottom0[1], bottom1[0], bottom1[1], bottom_pen),
+            self.scene.addLine(  left0[0],   left0[1],   left1[0],   left1[1], left_pen),
+            self.scene.addLine(   top0[0],    top0[1],    top1[0],    top1[1], top_right_pen),
+            self.scene.addLine( right0[0],  right0[1],  right1[0],  right1[1], top_right_pen),
+          ]
+        if crop_rect_dict is not None:
+            for (_label, rect) in crop_rect_dict.items():
+                line_list = []
+                for (crop0, crop1) in self.match_item.get_bound_lines(rect):
+                    line_list.append(
+                        self.scene.addLine(crop0[0], crop0[1], crop1[0], crop1[1], crop_pen),
+                      )
+                self.crop_region_line_list_list.append(line_list)
+        else:
+            pass
 
 #---------------------------------------------------------------------------------------------------
 
@@ -102,28 +198,32 @@ class FilesTab(FileSetGUI):
         pass
 
     def activation_handler(self, path):
+        """This is what happens when the return/enter key is pressed on a
+        selected file, or when a file is double-clicked."""
         print(f'{self.__class__.__name__}.activation_handler({path!r})')
         app_model = self.main_view.get_app_model()
-        no_error = False
+        results = None
         try:
-            app_model.set_target_image_path(path)
-            app_model.match_on_file()
-            no_error = True
-        except ValueError as err:
-            self.main_view.show_pattern_tab()
-            self.main_view.error_message(str(err))
-        if no_error:
-            matched_points = app_model.get_matched_points()
-            if matched_points:
-                self.main_view.update_inspect_tab()
-                self.main_view.show_inspect_tab()
+            target = app_model.get_target_image()
+            target.load_image(path)
+            results = app_model.match_on_file()
+            if results is not None:
+                if len(results) > 0:
+                    self.main_view.update_inspect_tab()
+                    self.main_view.show_inspect_tab()
+                else:
+                    self.main_view.error_message(
+                        "Pattern image could not be not found in this image",
+                      )
             else:
                 self.main_view.show_pattern_tab()
                 self.main_view.error_message(
-                    "A pattern image must be set for matching on the selected image.",
+                    "Please select a pattern image",
                   )
-        else:
-            pass
+        except ValueError as err:
+            self.main_view.show_pattern_tab()
+            self.main_view.error_message(str(err))
+            print_exception(err)
 
     def use_current_item_as_reference(self):
         path = self.current_item_path()
@@ -692,12 +792,12 @@ class PatternSetupTab(qt.QWidget):
         scene = self.preview_view.get_scene()
         app_model = self.main_view.get_app_model()
         feature_region = app_model.get_feature_region()
+        pen = self.main_view.get_crop_region_pen()
         if feature_region:
             self.feature_region = RegionContainer(None, app_model, scene, pen)
             self.feature_region.redraw_rect(feature_region)
         else:
             pass
-        pen = self.main_view.get_crop_region_pen()
         for name,crop_region in app_model.get_crop_regions().items():
             region = RegionContainer(name, app_model, scene, pen)
             self.crop_regions[name] = region
@@ -892,7 +992,7 @@ class InspectTab(qt.QWidget):
     def redraw_all_regions(self):
         print(f'{self.__class__.__name__}.redraw_all_regions()')
         app_model = self.main_view.get_app_model()
-        target = app_model.get_target()
+        target = app_model.get_target_image()
         path = target.get_path()
         self.image_display.set_filepath(path)
         self.image_display.redraw()
@@ -1185,12 +1285,21 @@ class PatternMatcherView(qt.QTabWidget):
         self.post_init()
 
     def init_pen_colors(self):
-        self.feature_region_pen = qgui.QPen(qgui.QColor(0, 255, 0, 255))
+        self.feature_region_pen = qgui.QPen(qgui.QColor(0, 255, 0, 223))
         self.feature_region_pen.setCosmetic(True)
         self.feature_region_pen.setWidth(3)
-        self.crop_region_pen = qgui.QPen(qgui.QColor(255, 0, 0, 255))
+        self.crop_region_pen = qgui.QPen(qgui.QColor(255, 0, 0, 223))
         self.crop_region_pen.setCosmetic(True)
         self.crop_region_pen.setWidth(3)
+        self.horizontal_feature_region_pen = qgui.QPen(qgui.QColor(255, 0, 255, 223))
+        self.horizontal_feature_region_pen.setCosmetic(True)
+        self.horizontal_feature_region_pen.setWidth(3)
+        self.vertical_feature_region_pen = qgui.QPen(qgui.QColor(0, 255, 255, 223))
+        self.vertical_feature_region_pen.setCosmetic(True)
+        self.vertical_feature_region_pen.setWidth(3)
+        self.opposite_feature_region_pen = qgui.QPen(qgui.QColor(255, 255, 0, 223))
+        self.opposite_feature_region_pen.setCosmetic(True)
+        self.opposite_feature_region_pen.setWidth(1)
 
     def post_init(self):
         self.files_tab.post_init()
@@ -1229,10 +1338,19 @@ class PatternMatcherView(qt.QTabWidget):
         self.pattern_tab.update_reference_pixmap()
         self.show_pattern_tab()
 
+    def get_match_visualizer(self):
+        return self.match_visualizer
+
     def set_algorithm_RME(self):
+        def visualizer(main_view, scene, match_item):
+            return RMEMatchVisualizer(main_view, scene, match_item)
+        self.match_visualizer = visualizer
         self.app_model.set_algorithm('RME')
 
     def set_algorithm_ORB(self):
+        def visualizer(main_view, scene, match_item):
+            return ORBMatchVisualizer(main_view, scene, match_item)
+        self.match_visualizer = visualizer
         self.app_model.set_algorithm('ORB')
 
     ###############  Methods to configure the pen colors  ###############
@@ -1248,6 +1366,36 @@ class PatternMatcherView(qt.QTabWidget):
             raise ValueError('received argument that is not a QPen')
         else:
             self.feature_region_pen = pen
+
+    def get_horizontal_feature_region_pen(self):
+        """When displaying a perspective rectangle, the bottom edge will be of
+        this color. """
+        return self.horizontal_feature_region_pen
+
+    def set_horizontal_feature_region_pen(self, pen):
+        """When displaying a perspective rectangle, the bottom edge will be of
+        this color. """
+        self.horizontal_feature_region_pen = pen
+
+    def get_vertical_feature_region_pen(self):
+        """When displaying a perspective rectangle, the left edge will be of
+        this color."""
+        return self.vertical_feature_region_pen
+
+    def set_vertical_feature_region_pen(self, pen):
+        """When displaying a perspective rectangle, the left edge will be of
+        this color."""
+        self.vertical_feature_region_pen = pen
+
+    def get_opposite_feature_region_pen(self):
+        """When displaying a perspective rectangle, the edges opposite the
+        lower edge and left edge will be of this color."""
+        return self.opposite_feature_region_pen
+
+    def set_opposite_feature_region_pen(self, pen):
+        """When displaying a perspective rectangle, the edges opposite the
+        lower edge and left edge will be of this color."""
+        self.opposite_feature_region_pen = pen
 
     def get_crop_region_pen(self):
         return self.crop_region_pen

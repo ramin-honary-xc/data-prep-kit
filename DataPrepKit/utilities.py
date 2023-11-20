@@ -138,3 +138,71 @@ def numpy_map_colors(gray_image, color_map):
             for x in range(0,w):
                 mapped[y,x] = color_map[gray_image[y,x]]
         return mapped
+
+#---------------------------------------------------------------------------------------------------
+
+def rect_to_lines_matrix(rect):
+    """Transform a rectangle encoded as a tuple(x,y,width,height) into a
+    matrix of float32 2D points, each encoded as a np.float32 array.
+    This function function creates lines that point away from the
+    origin if they touch the origin, or points away from the point
+    opposite diagonally from the origin. See also the
+    rect_to_lines_rh() which creates lines following the right-hand
+    rule. """
+    (x0, y0, width, height) = rect
+    x1 = x0 + width
+    y1 = y0 + height
+    return np.float32(
+        [[x0, y0], [x1, y0],
+         [x0, y0], [x0, y1],
+         [x1, y1], [x0, y1],
+         [x1, y1], [x1, y0]],
+      )
+
+def rect_to_lines_matrix_rh(rect):
+    """Transform a rectangle encoded as a tuple(x,y,width,height) into a
+    matrix of float32 2D points, each encoded as a np.float32 array.
+    This function creates lines that follow the right-hand rule,
+    starting from the origin the head of each line points to the tail
+    of the next line, and the lines point in a way that rotates around
+    the midpoint of the rectangle following the right-hand rule. """
+    (x0, y0, width, height) = rect
+    x1 = x0 + width
+    y1 = y0 + height
+    return np.float32(
+        [[x0, y0], [x1, y0,],
+         [x1, y0], [x1, y1,],
+         [x1, y1], [x0, y1,],
+         [x0, y1], [x0, y0,]],
+      )
+
+def lines_matrix_to_tuples(lines_matrix):
+    i = 0
+    result = []
+    while (i < lines_matrix.shape[0]):
+        a = (lines_matrix[i,0], lines_matrix[i,1],)
+        i += 1
+        b = (lines_matrix[i,0], lines_matrix[i,1],)
+        i += 1
+        result.append( (a,b,) )
+    return result
+
+def round_point2d(point):
+    return (round(point[0]), round(point[1]),)
+    
+def translate_point2d(matrix, point):
+    (x,y) = point
+    tpoint = cv.perspectiveTransform(np.float32([x, y, 0]), matrix)
+    return (tpoint[0], tpoint[1],)
+
+def round_line2d(line):
+    return (
+        round_point2d(line[0]),
+        round_point2d(line[1]),
+      )
+
+def translate_line2d(matrix, line):
+    return (
+        translate_point2d(matrix, line[0]),
+        translate_point2d(matrix, line[1]),
+      )
