@@ -26,22 +26,15 @@ def shift_image_file(input_path, x_count, y_count, rand_count, verbose=False):
         sys.stderr.write(f'no such file: {input_path!s}\n')
     else:
         pass
-    steps = []
-    if (not x_count) and (not y_count) and (rand_count > 0):
-        for _i in range(0, rand_count):
-            steps.append((random(), random(),))
-    else:
-        steps = \
-            [ (x, y) \
-                for x in create_steps(x_count, rand_count) \
-                for y in create_steps(y_count, rand_count) \
-             ]
+    x_steps = create_steps(x_count, rand_count)
+    y_steps = create_steps(y_count, rand_count)
     output_file_count = 0
     try:
         if verbose:
             sys.stderr.write(
                 f'read image file: {input_path!s}\n'
-                f'  steps = {steps!r}\n'
+                f'  x_steps = {x_steps!r}\n'
+                f'  y_steps = {y_steps!r}\n'
               )
         else:
             pass
@@ -49,31 +42,32 @@ def shift_image_file(input_path, x_count, y_count, rand_count, verbose=False):
         shape = input_img.shape
         height = shape[0]
         width = shape[1]
-        for (x, y) in steps:
-            x_shift = width*x
-            y_shift = width*y
-            M = np.float32([[1,0, x_shift], [0,1, y_shift]])
-            output_img = cv.warpAffine(
-                input_img, M, (width,height),
-                flags=cv.INTER_LINEAR,
-                borderMode=cv.BORDER_WRAP,
-              )
-            output_path = Path(input_path.parent)
-            output_path = output_path.joinpath(
-                input_path.stem + \
-                f'_{round(x_shift):05}x{round(y_shift):05}' + \
-                input_path.suffix \
-              )
-            if verbose:
-                sys.stderr.write(
-                    f'overwrite image file: {output_path!s}\n' \
-                    if output_path.exists() else \
-                    f'write image file: {output_path!s}\n' \
+        for x in x_steps:
+            for y in y_steps:
+                x_shift = width*x
+                y_shift = width*y
+                M = np.float32([[1,0, x_shift], [0,1, y_shift]])
+                output_img = cv.warpAffine(
+                    input_img, M, (width,height),
+                    flags=cv.INTER_LINEAR,
+                    borderMode=cv.BORDER_WRAP,
                   )
-            else:
-                pass
-            cv.imwrite(str(output_path), output_img)
-            output_file_count += 1
+                output_path = Path(input_path.parent)
+                output_path = output_path.joinpath(
+                    input_path.stem + \
+                    f'_{round(x_shift):05}x{round(y_shift):05}' + \
+                    input_path.suffix \
+                  )
+                if verbose:
+                    sys.stderr.write(
+                        f'write image file: {output_path!s}\n' \
+                        if output_path.exists() else \
+                        f'overwrite image file: {output_path!s}\n' \
+                      )
+                else:
+                    pass
+                cv.imwrite(str(output_path), output_img)
+                output_file_count += 1
     except Exception as err:
         traceback.print_tb(err.__traceback__)
         sys.stderr.write(f'{err!r}\n')
