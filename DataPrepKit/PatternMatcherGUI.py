@@ -50,7 +50,7 @@ class InspectImagePreview(SimpleImagePreview):
         self.visualized_match_list = []
 
     def place_rectangles(self):
-        print(f'{self.__class__.__name__}.place_rectangles()')
+        #print(f'{self.__class__.__name__}.place_rectangles()')
         match_visualizer = self.main_view.get_match_visualizer()
         app_model = self.main_view.get_app_model()
         match_list = app_model.get_matched_points()
@@ -200,7 +200,7 @@ class FilesTab(FileSetGUI):
     def activation_handler(self, path):
         """This is what happens when the return/enter key is pressed on a
         selected file, or when a file is double-clicked."""
-        print(f'{self.__class__.__name__}.activation_handler({path!r})')
+        #print(f'{self.__class__.__name__}.activation_handler({path!r})')
         app_model = self.main_view.get_app_model()
         results = None
         try:
@@ -227,7 +227,7 @@ class FilesTab(FileSetGUI):
 
     def use_current_item_as_reference(self):
         path = self.current_item_path()
-        print(f'FilesTab.use_current_item_as_reference() #("{path}")')
+        #print(f'FilesTab.use_current_item_as_reference() #("{path}")')
         self.main_view.get_app_model().set_reference_image_path(path)
         self.main_view.update_reference_pixmap()
 
@@ -288,9 +288,9 @@ class RegionSelectionTool(CropRectTool):
         calls "set_crop_region_selection()" which uses the
         "self.crop_region_selection" state variable to decide which
         rectangular region receives the update."""
-        print(f'{self.__class__.__name__}.draw_rect_updated({rect!r})')
         pattern_setup = self.main_view.get_pattern_setup()
         region = pattern_setup.get_selected_region_rect()
+        #print(f'{self.__class__.__name__}.draw_rect_updated({region.get_label()!r})')
         region.redraw_rect(rect)
 
     def draw_rect_cleared(self):
@@ -300,6 +300,7 @@ class RegionSelectionTool(CropRectTool):
         it should be deleted so it can be re-drawn. """
         pattern_setup = self.main_view.get_pattern_setup()
         region = pattern_setup.get_selected_region_rect()
+        #print(f'{self.__class__.__name__}.draw_rect_cleared() #(clear region {region.get_label()!r})')
         if region:
             region.clear_rect()
         else:
@@ -410,35 +411,36 @@ class ActiveSelectorModel(qcore.QStringListModel):
             return None
 
     def setData(self, qi, new_name, role):
-        print(f'{self.__class__.__name__}.setData({qi.row()}, {new_name!r}, {role})')
+        #print(f'{self.__class__.__name__}.setData({qi.row()}, {new_name!r}, {role})')
         if role == qcore.Qt.ItemDataRole.EditRole:
             i = qi.row()
             if (i == 0) or (new_name == ActiveSelectorModel.features_title):
                 # Zeroth index is protected, cannot be edited or deleted.
-                print(f'{self.__class__.__name__}.setData({i}, "{new_name}", {role}) #(refuse to edit index {i} = {old_name!r})')
+                #print(f'{self.__class__.__name__}.setData({i}, "{new_name}", {role}) #(refuse to edit index {i} = {old_name!r})')
                 return False
             elif (i < 0) or (i >= len(self.list_model)):
                 # Out-of-bounds index occurs when elements are added
                 # to the list.  No need to call parent classes, the
                 # action which triggers this will update itself, this
                 # function is only called to update the view.
-                print(f'{self.__class__.__name__}.setData({i}, {new_name!r}, {role}) #(append to list model {new_name!r})')
+                #print(f'{self.__class__.__name__}.setData({i}, {new_name!r}, {role}) #(append to list model {new_name!r})')
                 self.list_model.append(new_name)
                 return True
             else:
                 # If any other index is given, an edit
                 # occurred. Rename the index.
-                print(f'{self.__class__.__name__}.setData({i}, {new_name!r}, {role}) #(change list model index {i} to {new_name!r}')
+                #print(f'{self.__class__.__name__}.setData({i}, {new_name!r}, {role}) #(change list model index {i} to {new_name!r}')
                 old_name = self.list_model[i]
-                if self.rename_crop_region(old_name, new_name):
-                    print(f'{self.__class__.__name__}.setData({i}, {new_name!r}, {role}) #(successfully renamed {old_name!r} to {new_name!r}')
+                if old_name == new_name:
+                    return True
+                elif self.rename_crop_region(old_name, new_name):
+                    #print(f'{self.__class__.__name__}.setData({i}, {new_name!r}, {role}) #(successfully renamed {old_name!r} to {new_name!r}')
                     self.list_model[i] = new_name
                     return qcore.QStringListModel.setData(self, qi, new_name, role)
-                    #return True
                 else:
                     return False
         else:
-            print(f'{self.__class__.__name__}.setData({i}, "{new_name!r}", {role}) #(meaningless role {role})')
+            #print(f'{self.__class__.__name__}.setData({i}, "{new_name!r}", {role}) #(meaningless role {role})')
             return False
 
     def get_index(self, index):
@@ -466,13 +468,14 @@ class ActiveSelectorModel(qcore.QStringListModel):
                 return new_name
 
     def rename_crop_region(self, old_name, new_name):
+        #print(f'{self.__class__.__name__}.rename_crop_region({old_name!r}, {new_name!r})')
         if self.parent_view.rename_crop_region(old_name, new_name):
             return True
         else:
             return False
 
     def new_crop_region(self): #TODO: check if this is even used, remove it if it is
-        print(f'{self.__class__.__name__}.new_crop_region()')
+        #print(f'{self.__class__.__name__}.new_crop_region()')
         name = self.new_name_for_crop_region()
         index = len(self.list_model)
         self.list_model.append(name)
@@ -483,16 +486,16 @@ class ActiveSelectorModel(qcore.QStringListModel):
         if qi is not None:
             index = qi.row()
             if index == 0:
-                print(f'{self.__class__.__name__}.delete_crop_region({index}) #(return (0, None))')
+                #print(f'{self.__class__.__name__}.delete_crop_region({index}) #(return (0, None))')
                 return (0, None)
             else:
                 qcore.QStringListModel.removeRow(self, index)
                 name = self.list_model[index]
-                print(f'{self.__class__.__name__}.delete_crop_region({index}) #(return ({index}, {name}))')
+                #print(f'{self.__class__.__name__}.delete_crop_region({index}) #(return ({index}, {name}))')
                 del self.list_model[index]
                 return (index, name)
         else:
-            print(f'{self.__class__.__name__}.delete_crop_region(None) #(return (-1, None))')
+            #print(f'{self.__class__.__name__}.delete_crop_region(None) #(return (-1, None))')
             return (-1, None)
 
 
@@ -516,7 +519,7 @@ class ActiveSelector(qt.QListView):
           )
         super().setModel(self.active_selector)
         self.reset_selector_items()
-        self.pressed.connect(self.select_region_item)
+        #self.pressed.connect(self.select_region_item)
         ##---------- Setup context menus ----------
         #self.do_new_crop_region = context_menu_item(
         #    "New crop region",
@@ -534,9 +537,10 @@ class ActiveSelector(qt.QListView):
         ##----------
         self.setContextMenuPolicy(qcore.Qt.ContextMenuPolicy.ActionsContextMenu)
 
-    #def selectionChanged(self, selected, deselected):
-    #    print(f'{self.__class__.__name__}.selectionChanged()')
-    #    qt.QListView.selectionChanged(self, selected, deselected)
+    def currentChanged(self, current, previous):
+        #print(f'{self.__class__.__name__}.selectionChanged()')
+        qt.QListView.currentChanged(self, current, previous)
+        self.select_region_item(current)
 
     def post_init(self):
         self.active_selector.post_init()
@@ -548,7 +552,7 @@ class ActiveSelector(qt.QListView):
         return self.parent_view.get_preview_view()
 
     def new_crop_region(self):
-        print(f'{self.__class__.__name__}.new_crop_region()')
+        #print(f'{self.__class__.__name__}.new_crop_region()')
         (index, name) = self.active_selector.new_crop_region()
         model = self.model()
         qi = model.index(index)
@@ -561,7 +565,7 @@ class ActiveSelector(qt.QListView):
         return self.active_selector.delete_crop_region(qi)
 
     def rename_crop_region(self, old_name, new_name):
-        print(f'{self.__class__.__name__}.rename_crop_region({old_name!r}, {new_name!r})')
+        #print(f'{self.__class__.__name__}.rename_crop_region({old_name!r}, {new_name!r})')
         return self.parent_view.rename_crop_region(old_name, new_name)
 
     def reset_selector_items(self, crop_regions=None):
@@ -570,9 +574,9 @@ class ActiveSelector(qt.QListView):
           )
 
     def select_region_item(self, index):
-        print(f'{self.__class__.__name__}.select_region_item({index.row()})')
+        #print(f'{self.__class__.__name__}.select_region_item({index.row()})')
         name = self.active_selector.get_index(index.row())
-        print(f'{self.__class__.__name__}.select_region_item({index.row()}) #(selected item {name!r})')
+        #print(f'{self.__class__.__name__}.select_region_item({index.row()}) #(selected item {name!r})')
         if name == ActiveSelectorModel.features_title:
             name = None
         else:
@@ -605,9 +609,12 @@ class RegionContainer():
     def get_pen(self):
         return self.pen
 
-    def set_pen(self, pen):
+    def set_draw_pen(self, pen):
         self.pen = pen
         self.redraw_rect(self.get_rect())
+
+    def get_label(self):
+        return self.label
 
     def set_label(self, label):
         self.label = label
@@ -630,6 +637,8 @@ class RegionContainer():
             self.app_model.set_crop_region(self.label, rect)
         else:
             pass
+
+#---------------------------------------------------------------------------------------------------
 
 class PatternSetupTab(qt.QWidget):
 
@@ -703,15 +712,16 @@ class PatternSetupTab(qt.QWidget):
     def error_message(self, message):
         self.main_view.error_message(message)
 
-    def set_selected_region_label(self, name):
-        print(f'{self.__class__.__name__}.set_selected_region_label({name!r})')
-        self.selected_region_label = name
+    #def set_selected_region_label(self, name):
+    #    #print(f'{self.__class__.__name__}.set_selected_region_label({name!r})')
+    #    self.selected_region_label = name
 
     def get_preview_view(self):
         return self.preview_view
 
     def new_selector_item_action(self):
         """The event handler to create a new selector item."""
+        #print(f'{self.__class__.__name__}.new_selector_item_action()')
         (index, name) = self.active_selector.new_crop_region()
         app_model = self.main_view.get_app_model()
         if app_model.new_crop_region(name, None):
@@ -722,13 +732,14 @@ class PatternSetupTab(qt.QWidget):
                 scene,
                 self.main_view.get_crop_region_pen(),
               )
+            self.set_region_selection(name)
             return name
         else:
             self.active_selector.reset_selector_items()
             return None
 
     def rename_crop_region(self, old_name, new_name):
-        print(f'{self.__class__.__name__}.rename_crop_region({old_name!r}, {new_name!r})')
+        #print(f'{self.__class__.__name__}.rename_crop_region({old_name!r}, {new_name!r})')
         app_model = self.main_view.get_app_model()
         result = app_model.rename_crop_region(old_name, new_name)
         if not result:
@@ -780,11 +791,13 @@ class PatternSetupTab(qt.QWidget):
         if len(urls) > 0:
             self.set_reference_image_path(urls[0])
             if len(urls) > 1:
-                print(f'WARNING: multiple files selected as pattern path, using only first one "{urls[0]}"')
+                #print(f'WARNING: multiple files selected as pattern path, using only first one "{urls[0]}"')
+                pass
             else:
                 pass
         else:
-            print(f'PatternSetupTab.open_pattern_file_handler() #(file selection dialog returned empty list)')
+            #print(f'PatternSetupTab.open_pattern_file_handler() #(file selection dialog returned empty list)')
+            pass
 
     #####################  Working with regions  #####################
 
@@ -792,18 +805,18 @@ class PatternSetupTab(qt.QWidget):
         scene = self.preview_view.get_scene()
         app_model = self.main_view.get_app_model()
         feature_region = app_model.get_feature_region()
-        pen = self.main_view.get_crop_region_pen()
+        pen = self.main_view.get_feature_region_pen()
         if feature_region:
             self.feature_region = RegionContainer(None, app_model, scene, pen)
             self.feature_region.redraw_rect(feature_region)
         else:
             pass
+        pen = self.main_view.get_crop_region_pen()
         for name,crop_region in app_model.get_crop_regions().items():
-            region = RegionContainer(name, app_model, scene, pen)
-            self.crop_regions[name] = region
+            self.crop_regions[name] = RegionContainer(name, app_model, scene, pen)
 
     def set_region_selection(self, label):
-        print(f'{self.__class__.__name__}.set_region_selection({label!r})')
+        #print(f'{self.__class__.__name__}.set_region_selection({label!r})')
         if (not label) or \
           (label == ActiveSelectorModel.features_title) or \
           (label in self.crop_regions):
@@ -813,7 +826,7 @@ class PatternSetupTab(qt.QWidget):
 
     def new_crop_region(self, label, rect):
         """Creates a new crop region."""
-        print(f'{self.__class__.__name__}.new_crop_region({label!r}, {rect!r})')
+        #print(f'{self.__class__.__name__}.new_crop_region({label!r}, {rect!r})')
         #----------------------------------------
         if not label:
             raise ValueError('label is None')
@@ -836,7 +849,7 @@ class PatternSetupTab(qt.QWidget):
 
     def delete_crop_region(self, label):
         """Deletes a crop region, if the crop region already exists."""
-        print(f'{self.__class__.__name__}.new_crop_region({label!r})')
+        #print(f'{self.__class__.__name__}.new_crop_region({label!r})')
         #----------------------------------------
         if not label:
             raise ValueError('label is None')
@@ -853,13 +866,14 @@ class PatternSetupTab(qt.QWidget):
         return self.selected_region_label
 
     def set_region_selector(self, selected_region_label):
-        print(f'{self.__class__.__name__}.set_region_selector({selected_region_label!r})')
+        #print(f'{self.__class__.__name__}.set_region_selector({selected_region_label!r})')
+        crop_rect_tool = self.preview_view.get_crop_rect_tool()
         if (not selected_region_label) or \
-          (selected_region_label == ActiveSelectorModel.features_title) or \
-          (selected_region_label in self.crop_regions):
-            self.selected_region_label = selected_region_label
+          (selected_region_label == ActiveSelectorModel.features_title):
+            crop_rect_tool.set_draw_pen(self.main_view.get_feature_region_pen())
         else:
-            raise ValueError('no such named region', selected_region_label)
+            crop_rect_tool.set_draw_pen(self.main_view.get_crop_region_pen())
+        self.selected_region_label = selected_region_label
 
     def get_selected_region_rect(self):
         """Returns the rectangle of the region that is currently selected. If
@@ -990,7 +1004,7 @@ class InspectTab(qt.QWidget):
         self.image_display.show()
 
     def redraw_all_regions(self):
-        print(f'{self.__class__.__name__}.redraw_all_regions()')
+        #print(f'{self.__class__.__name__}.redraw_all_regions()')
         app_model = self.main_view.get_app_model()
         target = app_model.get_target_image()
         path = target.get_path()
@@ -1218,7 +1232,7 @@ class AlgorithmSelector(qt.QTabWidget):
         self.check_patchSize()
         self.check_fastThreshold()
         self.push_do(self.orb_config_undo)
-        print(f'ConfigTab.apply_changes_action({str(self.orb_config)})')
+        #print(f'ConfigTab.apply_changes_action({str(self.orb_config)})')
         app_model.set_orb_config(self.orb_config)
         self.after_update()
         ref_orb_image = app_model.get_reference_image()
@@ -1229,7 +1243,7 @@ class AlgorithmSelector(qt.QTabWidget):
             self.main_view.change_to_files_tab()
 
     def reset_defaults_action(self):
-        print(f'ConfigTab.reset_defaults_action()')
+        #print(f'ConfigTab.reset_defaults_action()')
         self.push_do(self.orb_config_undo)
         self.orb_config = ORBConfig()
 
@@ -1242,13 +1256,14 @@ class AlgorithmSelector(qt.QTabWidget):
 
     def shift_do(self, forward, reverse):
         if len(forward) > 0:
-            print(f'ConfigTab.shift_do() #(len(forward) -> {len(forward)}, len(reverse) -> {len(reverse)})')
+            #print(f'ConfigTab.shift_do() #(len(forward) -> {len(forward)}, len(reverse) -> {len(reverse)})')
             self.push_do(reverse)
             self.orb_config = deepcopy(forward[-1])
             del forward[-1]
             self.apply_changes_action()
         else:
-            print(f'ConfigTab.shift_do() #(cannot undo/redo, reached end of stack)')
+            #print(f'ConfigTab.shift_do() #(cannot undo/redo, reached end of stack)')
+            pass
 
     def undo_action(self):
         self.shift_do(self.orb_config_undo, self.orb_config_redo)

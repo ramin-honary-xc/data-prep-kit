@@ -226,12 +226,12 @@ class SingleFeatureMultiCrop():
         else:
             pass
         if new_name is None:
-            self.delete_crop_region(old_name)
+            result = self.delete_crop_region(old_name)
             print(f'{self.__class__.__name__}.rename_crop_region({old_name!r}, {new_name!r}) #(crop_regions = {self.crop_regions})')
             self.print_state()
-            return True
+            return result
         elif (new_name in self.crop_regions):
-            print(f'{self.__class__.__name__}.rename_crop_region({old_name!r}, {new_name!r}) #({new_name!r}) already exists)')
+            print(f'{self.__class__.__name__}.rename_crop_region({old_name!r}, {new_name!r}) #({new_name!r} already exists)')
             return False
         else:
             if old_name in self.crop_regions:
