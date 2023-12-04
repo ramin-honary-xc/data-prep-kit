@@ -467,6 +467,7 @@ class ORBMatcher():
         reference_bounds = self.reference_image.get_crop_rect()
         if target_image is None:
             print(f'{self.__class__.__name__}.match_on_file() #(self.reference.get_image() returned None)')
+            raise ValueError('input image not selected')
         else:
             segmented_image = SegmentedImage(target_image, reference_bounds)
             self.matched_points = segmented_image.find_matching_points(self.reference_image)

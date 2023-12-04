@@ -1032,6 +1032,8 @@ class InspectTab(qt.QWidget):
         return (listwidget.currentRow(), listwidget.count())
 
     def save_selected(self):
+        print('------------------------------------------------------------')
+        print(f'{self.__class__.__name__}.save_selected()')
         app_model = self.main_view.get_app_model()
         output_dir = app_model.get_output_dir()
         output_dir = self.modal_prompt_get_directory(str(output_dir))
@@ -1042,6 +1044,8 @@ class InspectTab(qt.QWidget):
             self.main_view.error_message(str(err))
 
     def save_selected_all(self):
+        print('------------------------------------------------------------')
+        print(f'{self.__class__.__name__}.save_selected_all()')
         app_model = self.main_view.get_app_model()
         output_dir = app_model.get_cli_config().output_dir
         output_dir = self.modal_prompt_get_directory(str(output_dir))

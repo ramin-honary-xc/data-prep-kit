@@ -227,6 +227,11 @@ class RMECandidate():
         self.rect = rect
         self.match_score = match_score
         self.image = image
+        (x, y, width, height) = rect
+        self.x_min = round(min(x, x + width))
+        self.y_min = round(min(y, y + height))
+        self.x_max = round(max(x, x + width))
+        self.y_max = round(max(y, y + height))
 
     def get_rect(self):
         return self.rect
@@ -237,6 +242,71 @@ class RMECandidate():
     def get_string_id(self):
         (x, y, _width, _height) = self.rect
         return f'{self.x:05}x{self.x:05}'
+
+    def check_crop_region_size(self):
+        """Return True if this RegionSize fits within the bounds of the given image."""
+        image = self.image.get_image()
+        shape = image.shape
+        image_height = shape[0]
+        image_width = shape[1]
+        if (self.x_min > image_width) or \
+           (self.y_min > image_height) or \
+           (self.x_max > image_width) or \
+           (self.y_max > image_height):
+               return None
+        else:
+            return (image_width, image_height)
+
+    def crop_image(self, relative_rect=None):
+        """Return a copy of the given image cropped to this object's
+        rectangle. """
+        image = self.image.get_image()
+        if self.check_crop_region_size():
+            return image[ \
+                self.y_min : self.y_max, \
+                self.x_min : self.x_max \
+              ]
+        else:
+            shape = image.shape
+            image_height = shape[0]
+            image_width  = shape[1]
+            x = relative_rect['x'] if relative_rect else 0
+            y = relative_rect['y'] if relative_rect else 0
+            raise ValueError(
+                "pattern crop not fully contained within pattern image",
+                {"image_width": image_width,
+                 "image_height": image_height,
+                 "crop_X": x,
+                 "crop_width": self.x_max - self.x_min,
+                 "crop_Y": y,
+                 "crop_height": self.y_max - self.y_min,
+                 },
+              )
+
+    def crop_write_images(self, crop_rects, output_path):
+        print(f'{self.__class__.__name__}.crop_write_images({crop_rects!r}), {str(output_path)!r})')
+        """The arguments are as follows:
+
+          - rect_list: the dictionary of string labels associated with
+            rectangles, each rectangle formatted as a 4-tuple
+            (x,y,width,height) to crop from the current result.
+
+          - output_path: a string to be formatted by the Python
+            "format()" function, where the variables "{label}" and
+            "{image_ID}" is replaced with a string that uniquely
+            identifies the output image for this batch.
+
+        """
+        (x0, y0, _width, _height) = self.rect
+        for (label, rect) in crop_rects.items():
+            (x,y,width,height) = rect
+            x += x0
+            y += y0
+            image_ID = f'_{x:05}x{y:05}'
+            outpath = str(output_path).format(label=label, image_ID=image_ID)
+            print(f'{self.__class__.__name__}.crop_write_images() #(save {outpath!r})')
+            image = self.crop_image(rect)
+            cv.imwrite(outpath, image)
 
 #---------------------------------------------------------------------------------------------------
 

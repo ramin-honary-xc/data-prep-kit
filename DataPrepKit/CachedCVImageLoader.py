@@ -39,7 +39,7 @@ class CachedCVImageLoader():
             pass
 
     def force_load_image(self, path):
-        print(f'{self.__class__.__name__}.force_load_image({path!r})')
+        #print(f'{self.__class__.__name__}.force_load_image({path!r})')
         self.image = cv.imread(os.fspath(path))
         if self.image is None:
             self.path = None
@@ -60,7 +60,7 @@ class CachedCVImageLoader():
         buffer if the set_crop_rect() method has been called to set a
         cropping region."""
         if self.image is None:
-            print(f'WARNING: CachedCVImageLoader("{self.path!r}").get_image() returned None')
+            #print(f'WARNING: CachedCVImageLoader("{self.path!r}").get_image() returned None')
             return None
         elif self.crop_rect is not None:
             region = RegionSize(*(self.crop_rect))
@@ -82,7 +82,7 @@ class CachedCVImageLoader():
 
     def get_bounds_rect(self):
         if self.image is None:
-            print(f'{self.__class__.__name__}.get_bounds_rect() #(return None for {self.path!r})')
+            #print(f'{self.__class__.__name__}.get_bounds_rect() #(return None for {self.path!r})')
             return None
         else:
             shape = self.image.shape

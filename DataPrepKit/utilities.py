@@ -141,6 +141,18 @@ def numpy_map_colors(gray_image, color_map):
 
 #---------------------------------------------------------------------------------------------------
 
+def bounding_rect(rect_list):
+    x_list = []
+    y_list = []
+    for (x,y,width,height) in rect_list:
+        x_list.append(x)
+        x_list.append(x+width)
+        y_list.append(y)
+        y_list.append(y+height)
+    x = min(x_list)
+    y = min(y_list)
+    return (x, y, max(x_list) - x, max(y_list) - y)
+
 def rect_to_lines_matrix(rect):
     """Transform a rectangle encoded as a tuple(x,y,width,height) into a
     matrix of float32 2D points, each encoded as a np.float32 array.
