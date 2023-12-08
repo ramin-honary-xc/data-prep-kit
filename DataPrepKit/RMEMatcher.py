@@ -1,6 +1,7 @@
 import DataPrepKit.FileSet as fs
 from DataPrepKit.CachedCVImageLoader import CachedCVImageLoader
 from DataPrepKit.RegionSize import RegionSize
+from DataPrepKit.AbstractMatcher import AbstractMatcher, AbstractMatchCandidate
 import DataPrepKit.utilities as util
 
 import math
@@ -219,11 +220,12 @@ class DistanceMap():
 
 #---------------------------------------------------------------------------------------------------
 
-class RMECandidate():
+class RMECandidate(AbstractMatchCandidate):
     """Object instances of this class contain references to candidate
     matching points in the target image."""
 
     def __init__(self, rect, match_score, image):
+        super().__init__()
         self.rect = rect
         self.match_score = match_score
         self.image = image
@@ -240,6 +242,7 @@ class RMECandidate():
         return self.match_score
 
     def get_string_id(self):
+        """See documentation for AbstractMatchCadndidate.get_string_id()"""
         (x, y, _width, _height) = self.rect
         return f'{self.x:05}x{self.x:05}'
 
@@ -258,8 +261,7 @@ class RMECandidate():
             return (image_width, image_height)
 
     def crop_image(self, relative_rect=None):
-        """Return a copy of the given image cropped to this object's
-        rectangle. """
+        """See documentation for AbstractMatchCandidate.crop_image()."""
         image = self.image.get_image()
         if self.check_crop_region_size():
             return image[ \
@@ -284,19 +286,8 @@ class RMECandidate():
               )
 
     def crop_write_images(self, crop_rects, output_path):
+        """See documentation for AbstractMatchCandidate.crop_write_image()."""
         print(f'{self.__class__.__name__}.crop_write_images({crop_rects!r}), {str(output_path)!r})')
-        """The arguments are as follows:
-
-          - rect_list: the dictionary of string labels associated with
-            rectangles, each rectangle formatted as a 4-tuple
-            (x,y,width,height) to crop from the current result.
-
-          - output_path: a string to be formatted by the Python
-            "format()" function, where the variables "{label}" and
-            "{image_ID}" is replaced with a string that uniquely
-            identifies the output image for this batch.
-
-        """
         (x0, y0, _width, _height) = self.rect
         for (label, rect) in crop_rects.items():
             (x,y,width,height) = rect
@@ -310,7 +301,7 @@ class RMECandidate():
 
 #---------------------------------------------------------------------------------------------------
 
-class RMEMatcher():
+class RMEMatcher(AbstractMatcher):
     """Contains the state specific to the Root-Mean Error matching
     algorithm used. An instance of this class takes a reference to the
     SingleFeatureMultiCrop object that retains the shared state for
@@ -322,7 +313,6 @@ class RMEMatcher():
     def __init__(self, app_model):
         self.app_model = app_model
         self.distance_map = None
-        self.threshold = app_model.get_threshold()
         self.target_matched_points = None
 
     def get_reference_image(self):
@@ -332,7 +322,20 @@ class RMEMatcher():
         """Does not need to do anything, the reference is taken from self.app_model on demand."""
         pass
 
+    def needs_refresh(self):
+        """Conditions that would return True include when the match has not
+        been run yet, when the target or reference images have
+        changed, or when the threshold has changed. """
+        # ------------------------------------------------------------
+        # NOTE: the threshold is not actually considered because it is
+        # cached separately in the 'DistanceMap' object, so we return
+        # False (does not need refresh) regardless of whether the
+        # threshold has changed or not, and allow the 'DistanceMap' to
+        # check whether it has points cached for the current threshold value.
+        return AbstractMatcher(self, needs_refresh)
+
     def match_on_file(self):
+        """See documentation for DataPrepKit.AbstractMatcher.match_on_file()."""
         #target_image_path = self.target.get_path()
         print(f'{self.__class__.__name__}.match_on_file()')
         reference = self.app_model.get_reference_image()
@@ -341,37 +344,19 @@ class RMEMatcher():
         threshold = self.app_model.get_threshold()
         reference.assert_parameter('Pattern image')
         target.assert_parameter('Input image')
-        if self.distance_map and self.distance_map.same_inputs(reference, target):
-            pass
-        else:
-            self.distance_map = DistanceMap(target, reference, suffix)
-            self.target_matched_points = \
-                self.distance_map.find_matching_points(threshold)
-        return self.target_matched_points
-
-    def change_threshold(self, threshold):
-        print(f'{self.__class__.__name__}.change_threshold({threshold})')
-        if self.distance_map:
-             if self.threshold != threshold:
-                 self.target_matched_points = \
-                     self.distance_map.find_matching_points(threshold)
-                 self.threshold = threshold
-             else:
-                 print(f'{self.__class__.__name__}.change_threshold({threshold}) #(thrshold is already set to this value)')
-        else:
-            print(f'{self.__class__.__name__}.change_threshold() #(called before DistanceMap was constructed)')
+        self._update_inputs(target, reference)
+        self.distance_map = DistanceMap(target, reference, suffix)
+        return AbstractMatcher._update_matched_points(
+            self, 
+            self.distance_map.find_matching_points(threshold),
+          )
 
     def get_matched_points(self):
-        """This function returns the list of patterm matching regions that
-        were most recently computed by running the
-        self.distance_map.find_matching_region() function."""
-        print(f'{self.__class__.__name__}.get_matched_points() #-> {self.target_matched_points}')
-        return self.target_matched_points
+        """See documentation for DataPrepKit.AbstractMatcher.get_matched_points()."""
+        return AbstractMatcher.get_matched_points(self)
 
     def save_calculations(self):
-        """This function is called to save the intermediate steps used to
-        comptue the pattern matching operation. In the case of the RME
-        matching algorithm, the distance map is saved to a file. """
+        """See documentation for DataPrepKit.AbstractMatcher.save_calculations."""
         interm_calc_path = PurePath(target_image_path)
         interm_calc_path = PurePath(
             interm_calc_path.parent / \

@@ -316,6 +316,7 @@ class SingleFeatureMultiCrop():
         self.set_threshold(threshold)
 
     def match_on_file(self):
+        """See documentation for DataPrepKit.AbstractMatcher.match_on_file()."""
         return self.algorithm.match_on_file()
 
     def get_matched_points(self):
