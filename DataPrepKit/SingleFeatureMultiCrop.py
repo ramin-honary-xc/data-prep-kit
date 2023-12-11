@@ -52,6 +52,10 @@ class SingleFeatureMultiCrop():
             self.set_cli_config(cli_config)
         else:
             pass
+        if self.algorithm is None:
+            self.set_algorithm('ORB')
+        else:
+            pass
  
     def get_cli_config(self):
         return self.cli_config
@@ -60,7 +64,10 @@ class SingleFeatureMultiCrop():
         self.cli_config = config
         self.set_target_fileset(config.inputs)
         # Load the reference right away, if it is not None
-        self.reference_image.load_image(path=config.pattern)
+        if config.pattern is None:
+            pass
+        else:
+            self.reference_image.load_image(path=config.pattern)
         self.output_dir = Path(config.output_dir)
         self.threshold = config.threshold
         self.file_encoding = config.encoding
@@ -72,6 +79,12 @@ class SingleFeatureMultiCrop():
         else:
             pass
         self.set_algorithm(config.algorithm)
+
+    def get_orb_matcher(self):
+        return self.orb_matcher
+
+    def get_rme_matcher(self):
+        return self.rme_matcher
 
     def get_algorithm(self):
         return self.algorithm
@@ -103,8 +116,16 @@ class SingleFeatureMultiCrop():
         if threshold > 1.0:
             raise ValueError('threshold value out of range (0.0, 1.0)', threshold)
         else:
-            self.algorithm.change_threshold(threshold)
             self.threshold = threshold
+            target = self.get_target_image()
+            reference = self.get_reference_image()
+            if (target is not None) and \
+              (target.get_image() is not None) and \
+              (reference is not None) and \
+              (reference.get_image() is not None):
+                self.algorithm.match_on_file()
+            else:
+                pass
 
     def get_file_encoding(self):
         return self.file_encoding
@@ -116,7 +137,12 @@ class SingleFeatureMultiCrop():
         return self.target_image
 
     def set_target_image(self, target):
-        self.target_image = target
+        if isinstance(target, CachedCVImageLoader):
+            self.target_image = target
+        elif isinstance(target, PurePath) or isinstance(target, str):
+            self.target_image.load_image(path=target)
+        else:
+            raise ValueError('value of incorrect type for "target" image', target)
 
     def get_target_fileset(self):
         return self.target_fileset
@@ -148,8 +174,7 @@ class SingleFeatureMultiCrop():
             pass
         else:
             raise ValueError('expecting CachedCVImageLoader or Path as argument')
-        self.reference_image = reference_image
-        self.algorithm.set_reference_image(self.reference)
+        self.reference_image = reference
 
     def get_output_dir(self):
         return self.output_dir

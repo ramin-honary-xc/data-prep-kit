@@ -261,12 +261,13 @@ class RMECandidate(AbstractMatchCandidate):
             return (image_width, image_height)
 
     def crop_image(self, relative_rect=None):
-        """See documentation for AbstractMatchCandidate.crop_image()."""
+        """Return a copy of the given image cropped to this object's
+        rectangle. """
         image = self.image.get_image()
         if self.check_crop_region_size():
-            return image[ \
-                self.y_min : self.y_max, \
-                self.x_min : self.x_max \
+            return image[
+                self.y_min : self.y_max,
+                self.x_min : self.x_max,
               ]
         else:
             shape = image.shape

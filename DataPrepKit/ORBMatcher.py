@@ -1,6 +1,6 @@
 from DataPrepKit.CachedCVImageLoader import CachedCVImageLoader
 from DataPrepKit.AbstractMatcher import AbstractMatcher, AbstractMatchCandidate
-from DataPrepKit.utilities import rect_to_lines_matrix, lines_matrix_to_tuples, round_line2d
+import DataPrepKit.utilities as util
 
 from copy import deepcopy
 import math
@@ -9,7 +9,7 @@ from pathlib import (PurePath, Path)
 
 import cv2 as cv
 import numpy as np
-#import numpy.linalg
+import numpy.linalg
 
 import traceback
 
@@ -120,10 +120,14 @@ class FeatureProjection(AbstractMatchCandidate):
         self.image = image
         self.rect = rect
         self.homo_matrix = homo_matrix
+        self.inv_homo_matrix = numpy.linalg.inv(homo_matrix)
         #self.inv_homo_matrix = numpy.linalg.inv(self.homo_matrix)
         self.mask = mask
         self.query_points = query_points
         self.train_points = train_points
+        self.bound_lines = None
+        self.string_id = None
+        self.in_bounds = None
 
     def get_rect(self):
         return self.rect
@@ -133,18 +137,86 @@ class FeatureProjection(AbstractMatchCandidate):
         return 0.0
 
     def get_bound_lines(self, rect=None):
-        (x_off,y_off,width,height) = self.rect if rect is None else rect
-        lines_matrix = rect_to_lines_matrix((0,0,width,height,)).reshape(-1,1,2)
-        perspective = cv.perspectiveTransform(lines_matrix, self.homo_matrix).reshape(-1,2)
-        results = []
-        for line in lines_matrix_to_tuples(perspective):
-            ((x0, y0), (x1, y1)) = round_line2d(line)
-            results.append(
-                ( (x0 + x_off, y0 + y_off,),
-                  (x1 + x_off, y1 + y_off,),
-                ),
-              )
-        return results
+        if self.bound_lines is None:
+            (x_off,y_off,width,height) = self.rect if rect is None else rect
+            lines_matrix = util.rect_to_lines_matrix((0,0,width,height,)).reshape(-1,1,2)
+            perspective = cv.perspectiveTransform(lines_matrix, self.homo_matrix).reshape(-1,2)
+            results = []
+            for line in util.lines_matrix_to_tuples(perspective):
+                ((x0, y0), (x1, y1)) = util.round_line2d(line)
+                results.append(
+                    ( (x0 + x_off, y0 + y_off,),
+                      (x1 + x_off, y1 + y_off,),
+                    ),
+                  )
+            self.bound_lines = results
+            return self.bound_lines
+        else:
+            return self.bound_lines
+
+    def get_string_id(self):
+        """After the feature rectangle is transformed into some irregular
+        quadrilateral, the a string representation of the midpoint of
+        this quadrilateral is used as the unique ID for this candidate. """
+        if self.string_id is None:
+            bound_lines = self.get_bound_lines()
+            xsum = 0
+            ysum = 0
+            count = 0
+            for ((x1, y1), (x2, y2)) in bound_lines:
+                xsum += x1 + x2
+                ysum += y1 + y2
+                count += 2
+            x = round(xsum / count)
+            y = round(ysum / count)
+            self.string_id = f'{x:05}x{y:05}'
+            return self.string_id
+        else:
+            return self.string_id
+
+    def check_crop_region_size(self):
+        if self.in_bounds is None:
+            bound_lines = self.get_bound_lines()
+            for ((x0, y0), (x1, y1)) in bound_lines:
+                if (x0 < 0) or (x0 > width) or \
+                  (x1 < 0) or (x1 > width) or \
+                  (y0 < 0) or (y0 > height) or \
+                  (y1 < 0) or (y1 > height):
+                    self.in_bounds = False
+                    return False
+                else:
+                    continue
+            self.in_bounds = True
+            return True
+        else:
+            return self.in_bounds
+
+    def crop_image(self, relative_rect=None):
+        if self.cropped_image is None:
+            self.cropped_image = None
+            
+            return self.cropped_image
+        else:
+            return self.cropped_image
+
+    def crop_write_images(self, crop_rects, output_path):
+        rect = util.bounding_rect(crop_rects.values())
+        (bound_x, bound_y, bound_width, bound_height) = rect
+        warped = cv.warpPerspective(
+            self.image,
+            self.inv_homo_matrix,
+            (bound_width, bound_height),
+          )
+        image_ID = self.get_string_id()
+        for (label, (x, y, width, height)) in crop_rects.items():
+            print(f'{self.__class__.__name__}.crop_write_images() #(format outpath {str(output_path)!r}, label={label!r}, image_ID={image_ID!r})')
+            outpath = str(output_path).format(label=label, image_ID=image_ID)
+            print(f'{self.__class__.__name__}.crop_write_images() #(save {outpath!r})')
+            image = warped[
+                y : y + height,
+                x : x + width,
+              ]
+            cv.imwrite(outpath, image)
 
 #---------------------------------------------------------------------------------------------------
 
@@ -192,7 +264,7 @@ class SegmentedImage():
         compute."""
         top = img - seg
         subseg = round(seg*step_size_ratio)
-        num_steps = math.ceil(top / subseg)
+        num_steps = max(1, math.ceil(top / subseg))
         step = top / num_steps
         i = 0.0
         #print(f'---------- img={img}, seg={seg}, halfseg={halfseg}, step={step} top={top} ----------')
@@ -264,15 +336,19 @@ class SegmentedImage():
                       )
                     #print(f'block ({x:05},{y:05}) has {len(best_matches)} best matches (out of {len(matches)})')
                     #print(homo_matrix)
-                    matched_points.append(
-                        FeatureProjection(
+                    try:
+                        proj = FeatureProjection(
                             segment,
                             (x, y, width, height),
                             homo_matrix, mask,
                             reference_selection,
                             target_selection,
-                          ),
-                      )
+                          )
+                        matched_points.append(proj)
+                    except Exception as err:
+                        print(f'{self.__class__.__name__}.find_matching_points() #(({x},{y}) ignored, {err})')
+                        #traceback.print_exception(err)
+                        pass
         return matched_points
 
 #---------------------------------------------------------------------------------------------------
@@ -472,7 +548,7 @@ class ORBMatcher(AbstractMatcher):
             else:
                 self.reference_with_orb = ImageWithORB(reference, self.orb_config)
                 self.reference_with_orb.compute()
-                self.last_run_orb_config = self.orb_confi
+                self.last_run_orb_config = self.orb_config
         else:
             pass
         target = self.app_model.get_target_image()

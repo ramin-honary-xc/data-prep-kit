@@ -44,7 +44,8 @@ class ReferenceImagePreview(SimpleImagePreview):
             else:
                 pass
             if isinstance(path, PurePath):
-                app_model.set_reference_image_path(path)
+                reference = app_model.get_reference_image()
+                reference.load_image(path=path)
                 self.set_filepath(path)
             else:
                 print(f'WARNING: ignoring drag dropped non-local-file path: "{path}"')

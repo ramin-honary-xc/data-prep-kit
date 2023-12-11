@@ -228,7 +228,9 @@ class FilesTab(FileSetGUI):
     def use_current_item_as_reference(self):
         path = self.current_item_path()
         #print(f'FilesTab.use_current_item_as_reference() #("{path}")')
-        self.main_view.get_app_model().set_reference_image_path(path)
+        app_model = self.main_view.get_app_model()
+        reference = app_model.get_reference_image()
+        reference.load_image(path=path)
         self.main_view.update_reference_pixmap()
 
 #---------------------------------------------------------------------------------------------------
@@ -1237,14 +1239,17 @@ class AlgorithmSelector(qt.QTabWidget):
         self.check_fastThreshold()
         self.push_do(self.orb_config_undo)
         #print(f'ConfigTab.apply_changes_action({str(self.orb_config)})')
-        app_model.set_orb_config(self.orb_config)
-        self.after_update()
-        ref_orb_image = app_model.get_reference_image()
-        if ref_orb_image is not None:
-            self.main_view.redraw()
-            self.main_view.change_to_reference_tab()
+        orb_matcher = app_model.get_orb_matcher()
+        if orb_matcher:
+            orb_matcher.set_orb_config(self.orb_config)
         else:
-            self.main_view.change_to_files_tab()
+            print(f'{self.__class__.__name__} #(cannot update ORB config)')
+        self.after_update()
+        #ref_orb_image = app_model.get_reference_image()
+        #if ref_orb_image is not None:
+        #    self.main_view.change_to_reference_tab()
+        #else:
+        #    self.main_view.change_to_files_tab()
 
     def reset_defaults_action(self):
         #print(f'ConfigTab.reset_defaults_action()')

@@ -17,11 +17,6 @@ class AbstractMatchCandidate():
     def check_crop_region_size(self):
         return False
 
-    def crop_image(self, relative_rect=None):
-        """Return a copy of the given image cropped to this object's
-        rectangle. """
-        return None
-
     def crop_write_image(self, crop_rects, output_path):
         """The arguments are as follows:
 
@@ -67,7 +62,7 @@ class AbstractMatcher():
         the target or reference images have changed, or when the
         threshold has changed. """
         return \
-            (self.matched_points is None)
+            (self.matched_points is None) \
             (self.last_run_target != self.app_model.get_target_image().get_path()) or \
             (self.last_run_reference != self.app_model.get_reference_image().get_path())
 
