@@ -188,6 +188,68 @@ def rect_to_lines_matrix_rh(rect):
          [x0, y1], [x0, y0,]],
       )
 
+def rect_to_spline_matrix(rect):
+    """Similar to 'rect_to_lines_matrix()' but only returns four lines
+    from head to tail."""
+    (x0, y0, width, height) = rect
+    x1 = x0 + width
+    y1 = y0 + height
+    return np.float32([[x0, y0], [x1, y0], [x1, y1], [x0, y1]])
+
+def spline_matrix4x2_to_lines(p):
+    """Convert a matrix constructed by 'rect_to_spline_matrix()' (which
+    assumes a 4x2 matrix) into a list of line segments, each segment
+    being of the form ((x0, y0), (x1, y1)). This function returns the
+    first two segments adjacent to the origin vertex and the last two
+    segments adjacent to the vertex opposite the origin.
+    """
+    p = np.int32(p)
+    return \
+        [ ((p[0,0], p[0,1],), (p[1,0], p[1,1],),),
+          ((p[0,0], p[0,1],), (p[3,0], p[3,1],),),
+          ((p[1,0], p[1,1],), (p[2,0], p[2,1],),),
+          ((p[3,0], p[3,1],), (p[2,0], p[2,1],),),
+        ]
+
+def spline_matrix_to_lines_rh(p):
+    """Convert an Nx2 matrix (for example, a matrix constructed by
+    'rect_to_spline_matrix()') into a list of line segments, each
+    segment being of the form ((x0, y0), (x1, y1)). This function
+    returns a list of segments from head to tail going around each
+    vertex in 'p'. In the case of rectangles, this constructs line
+    segments traveling between vertices following the right-hand rule.
+    """
+    p = np.int32(p)
+    n = p.shape[0]
+    segments = list(range(0,n))
+    for i0 in segments:
+        i1 = (i0 + 1) % n
+        segments[i0] = ((p[i0,0], p[i0,1],), (p[i1,0], p[i1,1],),)
+    return segments
+
+def rect_transform_rebound(rect, matrix):
+    """Given a rectangle 'rect' and a transformation matrix 'M', convert
+    transform the vertex points of the rectangle by the matrix and
+    then find a new bounding rect around those points. This is useful
+    for cropping a larger image to a smaller area of interest prior to
+    performing a perspective transform on the image so that the larger
+    image does not have to be transformed in its entirety. """
+    (x0, y0, width, height) = rect
+    x1 = x0 + width
+    y1 = y0 + height
+    points = np.float32([[x0, y0], [x1, y0], [x1, y1], [x0, y1]]).reshape(-1,1,2)
+    transformed = cv.perspectiveTransform(points, matrix).reshape(-1,2)
+    #print(f'#  transformed:\n{transformed}')
+    xs = transformed[:,0:1]
+    ys = transformed[:,1:2]
+    #print(f'xs = {xs}\nys = {ys}')
+    x_min = min(xs)[0]
+    x_max = max(xs)[0]
+    y_min = min(ys)[0]
+    y_max = max(ys)[0]
+    #print(f'# return({x_min}, {y_min}, {x_max - x_min}, {y_max - y_min})')
+    return (transformed, (x_min, y_min, x_max - x_min, y_max - y_min))
+
 def lines_matrix_to_tuples(lines_matrix):
     i = 0
     result = []
@@ -202,10 +264,10 @@ def lines_matrix_to_tuples(lines_matrix):
 def round_point2d(point):
     return (round(point[0]), round(point[1]),)
     
-def translate_point2d(matrix, point):
+def translate_point2d(point, matrix):
     (x,y) = point
-    tpoint = cv.perspectiveTransform(np.float32([x, y, 0]), matrix)
-    return (tpoint[0], tpoint[1],)
+    transformed = cv.perspectiveTransform(np.float32([x, y, 0]), matrix)
+    return (transformed[0], transformed[1],)
 
 def round_line2d(line):
     return (
@@ -213,8 +275,8 @@ def round_line2d(line):
         round_point2d(line[1]),
       )
 
-def translate_line2d(matrix, line):
+def translate_line2d(line, matrix):
     return (
-        translate_point2d(matrix, line[0]),
-        translate_point2d(matrix, line[1]),
+        translate_point2d(line[0], matrix),
+        translate_point2d(line[1], matrix),
       )

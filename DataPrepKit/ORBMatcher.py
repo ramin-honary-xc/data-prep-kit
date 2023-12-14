@@ -115,19 +115,61 @@ class FeatureProjection(AbstractMatchCandidate):
     brute-force matching as in the SegmentedImage.find_matching_points()
     method."""
 
-    def __init__(self, image, rect, homo_matrix, mask, query_points, train_points):
+    def __init__(self):
         super().__init__()
-        self.image = image
-        self.rect = rect
-        self.homo_matrix = homo_matrix
-        self.inv_homo_matrix = numpy.linalg.inv(homo_matrix)
-        #self.inv_homo_matrix = numpy.linalg.inv(self.homo_matrix)
-        self.mask = mask
-        self.query_points = query_points
-        self.train_points = train_points
+        self.image = None
+        self.rect = None
+        self.homography = None
+        self.inverse_homography = None
+        self.offset_homography = None
+        self.query_points = None
+        self.train_points = None
         self.bound_lines = None
         self.string_id = None
         self.in_bounds = None
+
+    def make(image, rect, query_points, train_points):
+        """This is the actual initailizer, the __init__() function sets all
+        fields to None. A non-standard initializer is used to catch
+        exceptions and other sanity checks that might occur during and
+        return None instead if anything seems wrong, which cannot be
+        done from an ordinary __init__() function.
+
+        The homography matrix argument 'homography' is expected to
+        have been computed with points in the given 'segment' argument
+        relative to the reference image, and the 'rect' argument
+        contains the position of the 'segment' in the 'image' (the
+        segment was cropped from the image), along with the width and
+        height of the reference image. This 'rect' is
+        perspective-projected then used to recompute the homography
+        matrix relative to the image, rather than the segment.
+        """
+        self = FeatureProjection()
+        self.image = image
+        self.rect = rect
+        self.query_points = query_points # comes from the reference image
+        self.train_points = train_points # comes from the target image
+        #--------------------------------------------------
+        try:
+            offset = np.float32([self.rect[0], self.rect[1]])
+            (homography, _mask) = cv.findHomography(
+                self.query_points,
+                self.train_points + offset,
+                cv.RANSAC,
+                5.0,
+              )
+            #print(f'homography:\n{homography}')
+            self.homography = homography
+        except Exception as err:
+            traceback.print_exception(err)
+            return None
+        #--------------------------------------------------
+        try:
+            self.inverse_homography = numpy.linalg.inv(homography)
+        except Exception as err:
+            print(f'ignoring, failed to compute inverse matrix for:\n{homography}')
+            return None
+        return self
 
     def get_rect(self):
         return self.rect
@@ -137,22 +179,22 @@ class FeatureProjection(AbstractMatchCandidate):
         return 0.0
 
     def get_bound_lines(self, rect=None):
-        if self.bound_lines is None:
-            (x_off,y_off,width,height) = self.rect if rect is None else rect
-            lines_matrix = util.rect_to_lines_matrix((0,0,width,height,)).reshape(-1,1,2)
-            perspective = cv.perspectiveTransform(lines_matrix, self.homo_matrix).reshape(-1,2)
-            results = []
-            for line in util.lines_matrix_to_tuples(perspective):
-                ((x0, y0), (x1, y1)) = util.round_line2d(line)
-                results.append(
-                    ( (x0 + x_off, y0 + y_off,),
-                      (x1 + x_off, y1 + y_off,),
-                    ),
-                  )
-            self.bound_lines = results
-            return self.bound_lines
-        else:
-            return self.bound_lines
+        #print(f'{self.__class__.__name__}.get_bound_lines({rect})')
+        rect = rect if rect is not None else (0, 0, self.rect[2], self.rect[3])
+        #offset = np.float32([self.rect[0], self.rect[1]])
+        #print(f'----------------------------------------')
+        #print(f'offset:\n{offset}')
+        #r = util.spline_matrix4x2_to_lines(self.offset_perspective)
+        rect_matrix = util.rect_to_spline_matrix(rect).reshape(-1,1,2)
+        #print(f'rect_matrix:\n{rect_matrix}')
+        perspective_view = cv.perspectiveTransform(
+            rect_matrix,
+            self.homography,
+          ).reshape(-1,2)
+        #print(f'perspective_view:\n{perspective_view}')
+        r = util.spline_matrix4x2_to_lines(perspective_view)
+        #print(f'bound_lines:\n{r}')
+        return r
 
     def get_string_id(self):
         """After the feature rectangle is transformed into some irregular
@@ -175,48 +217,31 @@ class FeatureProjection(AbstractMatchCandidate):
             return self.string_id
 
     def check_crop_region_size(self):
-        if self.in_bounds is None:
-            bound_lines = self.get_bound_lines()
-            for ((x0, y0), (x1, y1)) in bound_lines:
-                if (x0 < 0) or (x0 > width) or \
-                  (x1 < 0) or (x1 > width) or \
-                  (y0 < 0) or (y0 > height) or \
-                  (y1 < 0) or (y1 > height):
-                    self.in_bounds = False
-                    return False
-                else:
-                    continue
-            self.in_bounds = True
-            return True
-        else:
-            return self.in_bounds
+        return self.in_bounds
 
     def crop_image(self, relative_rect=None):
-        if self.cropped_image is None:
-            self.cropped_image = None
-            
-            return self.cropped_image
-        else:
-            return self.cropped_image
+        relative_rect = relative_rect if relative_rect is not None else self.rect
+        (_x, _y, width, height) = relative_rect
+        return cv.warpPerspective(
+            self.image,
+            self.inverse_homography,
+            (width, heigth),
+          )
 
     def crop_write_images(self, crop_rects, output_path):
-        rect = util.bounding_rect(crop_rects.values())
-        (bound_x, bound_y, bound_width, bound_height) = rect
-        warped = cv.warpPerspective(
-            self.image,
-            self.inv_homo_matrix,
-            (bound_width, bound_height),
-          )
         image_ID = self.get_string_id()
         for (label, (x, y, width, height)) in crop_rects.items():
-            print(f'{self.__class__.__name__}.crop_write_images() #(format outpath {str(output_path)!r}, label={label!r}, image_ID={image_ID!r})')
             outpath = str(output_path).format(label=label, image_ID=image_ID)
             print(f'{self.__class__.__name__}.crop_write_images() #(save {outpath!r})')
-            image = warped[
-                y : y + height,
-                x : x + width,
-              ]
+            image = cv.warpPerspective(
+                self.image,
+                self.inverse_homography,
+                (width, height),
+              )
             cv.imwrite(outpath, image)
+
+
+#np.float32([[-2.30960328e-01  9.38239747e-01  2.11603624e+02] [-9.51234563e-01 -2.76217543e-01  4.19597973e+02] [ 7.28159784e-05 -1.36636120e-04  1.00000000e+00]])
 
 #---------------------------------------------------------------------------------------------------
 
@@ -248,6 +273,7 @@ class SegmentedImage():
         self.image = nparray2d
         self.image_width = img_width
         self.image_height = img_height
+        self.matched_points = None
         #print(f'segment_width = {self.segment_width}')
         #print(f'segment_height = {self.segment_height}')
         #print(f'image_width = {self.image_width}')
@@ -283,7 +309,15 @@ class SegmentedImage():
                     )
 
     def find_matching_points(self, ref):
-        #print(f'{self.__class__.__name__}.find_matching_points(ref) #(ref is a {type(ref)})')
+        print(f'{self.__class__.__name__}.find_matching_points(ref) #(ref is a {type(ref)})')
+        if self.matched_points is not None:
+            return self.matched_points
+        else:
+            self.matched_points = self.compute(ref)
+            return self.matched_points
+
+    def compute(self, ref):
+        print(f'{self.__class__.__name__}.compute(ref) #(ref is a {type(ref)})')
         ref.compute()
         (_x, _y, width, height) = ref.get_crop_rect()
         reference_keypoints = ref.get_keypoints()
@@ -328,26 +362,18 @@ class SegmentedImage():
                         [target_keypoints[m.trainIdx].pt for m in best_matches],
                       )
                     target_selection = target_selection.reshape(-1,1,2)
-                    (homo_matrix, mask) = cv.findHomography(
+                    #print(f'block ({x:05},{y:05}) has {len(best_matches)} best matches (out of {len(matches)})')
+                    #print(homography)
+                    proj = FeatureProjection.make(
+                        self.image,
+                        (x, y, width, height,),
                         reference_selection,
                         target_selection,
-                        cv.RANSAC,
-                        5.0,
                       )
-                    #print(f'block ({x:05},{y:05}) has {len(best_matches)} best matches (out of {len(matches)})')
-                    #print(homo_matrix)
-                    try:
-                        proj = FeatureProjection(
-                            segment,
-                            (x, y, width, height),
-                            homo_matrix, mask,
-                            reference_selection,
-                            target_selection,
-                          )
+                    if proj is not None:
                         matched_points.append(proj)
-                    except Exception as err:
-                        print(f'{self.__class__.__name__}.find_matching_points() #(({x},{y}) ignored, {err})')
-                        #traceback.print_exception(err)
+                    else:
+                        print(f'{self.__class__.__name__}.find_matching_points() #(({x},{y}) ignored)')
                         pass
         return matched_points
 
@@ -490,6 +516,7 @@ class ORBMatcher(AbstractMatcher):
         self.orb_config = ORBConfig()
         self.reference_with_orb = None
         self.last_run_orb_config = None
+        self.cached_image = None
 
     def get_orb_config(self):
         return self.orb_config
@@ -534,9 +561,16 @@ class ORBMatcher(AbstractMatcher):
     def needs_refresh(self):
         return \
             AbstractMatcher(self) or \
-            self.orb_config != self.last_run_orb_config
+            (self.orb_config != self.last_run_orb_config) or \
+            (self.cached_image is None)
 
     def match_on_file(self):
+        if self.cached_image is None:
+            return self.force_match_on_file()
+        else:
+            return AbstractMatcher.get_matched_points(self)
+    
+    def force_match_on_file(self):
         """This function is triggered when you double-click on an item in the image
         list in the "FilesTab". It starts running the pattern matching algorithm
         and changes the display of the GUI over to the "InspectTab". """
@@ -559,6 +593,7 @@ class ORBMatcher(AbstractMatcher):
             raise ValueError('input image not selected')
         else:
             segmented_image = SegmentedImage(target_image, reference_bounds)
+            self.cached_image = segmented_image
             return AbstractMatcher._update_matched_points(
                 self,
                 segmented_image.find_matching_points(self.reference_with_orb),

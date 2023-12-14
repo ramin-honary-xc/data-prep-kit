@@ -381,13 +381,13 @@ class SingleFeatureMultiCrop():
                         target_image_path.stem + '{image_ID}' + suffix
                       )
                     feature_region = self.reference_image.get_crop_rect()
-                    print(f'{self.__class__.__name__}.save_selected() #(output_dir = {str(output_path)!r})')
+                    #print(f'{self.__class__.__name__}.save_selected() #(output_dir = {str(output_path)!r})')
                     match_item.crop_write_images({'': feature_region}, str(output_path))
                 else:
                     output_path = output_dir / PurePath('{label}') / PurePath(
                         target_image_name.stem + '{image_ID}' + suffix
                       )
-                    print(f'{self.__class__.__name__}.save_selected() #(output_dir = {str(output_path)!r})')
+                    #print(f'{self.__class__.__name__}.save_selected() #(output_dir = {str(output_path)!r})')
                     match_item.crop_write_image(crop_regions, str(output_path))
             except OSError as err:
                 traceback.print_exception(err)
