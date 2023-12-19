@@ -35,12 +35,19 @@ class InspectImagePreview(SimpleImagePreview):
 
     def clear(self):
         self.clear_rectangles()
-        super(InspectImagePreview, self).clear()
+        SimpleImagePreview.clear(self)
 
     def redraw(self):
-        super(InspectImagePreview, self).redraw()
+        print(f'{self.__class__.__name__}.redraw()')
+        app_model = self.main_view.get_app_model()
+        match_list = app_model.get_matched_points()
+        self.redraw_regions(match_list)
+
+    def redraw_regions(self, match_list):
+        print(f'{self.__class__.__name__}.redraw_regions(match_list) #(len(match_list) = {len(match_list)})')
+        SimpleImagePreview.redraw(self)
         self.clear_rectangles()
-        self.place_rectangles()
+        self.place_rectangles(match_list)
 
     def clear_rectangles(self):
         scene = self.get_scene()
@@ -49,11 +56,10 @@ class InspectImagePreview(SimpleImagePreview):
             match_item.clear()
         self.visualized_match_list = []
 
-    def place_rectangles(self):
-        #print(f'{self.__class__.__name__}.place_rectangles()')
+    def place_rectangles(self, match_list):
+        print(f'{self.__class__.__name__}.place_rectangles()')
         match_visualizer = self.main_view.get_match_visualizer()
-        app_model = self.main_view.get_app_model()
-        match_list = app_model.get_matched_points()
+        print(f'{self.__class__.__name__}.place_rectangles() #(len(match_list) = {len(match_list)})')
         scene = self.get_scene()
         self.clear_rectangles()
         for match in match_list:
@@ -133,11 +139,11 @@ class ORBMatchVisualizer():
         self._draw()
 
     def _draw(self, crop_rect_dict=None):
-        bottom_pen = self.main_view.get_horizontal_feature_region_pen()
-        left_pen = self.main_view.get_vertical_feature_region_pen()
+        bottom_pen    = self.main_view.get_horizontal_feature_region_pen()
+        left_pen      = self.main_view.get_vertical_feature_region_pen()
         top_right_pen = self.main_view.get_opposite_feature_region_pen()
-        crop_pen = self.main_view.get_crop_region_pen()
-        region_lines = self.match_item.get_bound_lines()
+        crop_pen      = self.main_view.get_crop_region_pen()
+        region_lines  = self.match_item.get_bound_lines()
         (bottom0, bottom1) = region_lines[0]
         (left0  , left1  ) = region_lines[1]
         (top0   , top1   ) = region_lines[2]
@@ -989,9 +995,9 @@ class InspectTab(qt.QWidget):
         threshold = self.slider.get_percent()
         if threshold is not None:
             app_model = self.main_view.get_app_model()
-            app_model.change_threshold(threshold)
-            if app_model.get_feature_region() is not None:
-                self.image_display.redraw()
+            regions = app_model.set_threshold(threshold)
+            if regions is not None:
+                self.image_display.redraw_regions(regions)
             else:
                 pass
         else:

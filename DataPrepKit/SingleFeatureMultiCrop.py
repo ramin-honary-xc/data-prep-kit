@@ -123,9 +123,9 @@ class SingleFeatureMultiCrop():
               (target.get_image() is not None) and \
               (reference is not None) and \
               (reference.get_image() is not None):
-                self.algorithm.match_on_file()
+                return self.algorithm.set_threshold(threshold)
             else:
-                pass
+                return None
 
     def get_file_encoding(self):
         return self.file_encoding
@@ -336,9 +336,6 @@ class SingleFeatureMultiCrop():
                     yield (label, (crop_x+x_off, crop_y+y_off, width, height,),)
 
     ############  Calling into algorithms  ############
-
-    def change_threshold(self, threshold):
-        self.set_threshold(threshold)
 
     def match_on_file(self):
         """See documentation for DataPrepKit.AbstractMatcher.match_on_file()."""

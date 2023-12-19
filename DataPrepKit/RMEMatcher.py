@@ -356,6 +356,9 @@ class RMEMatcher(AbstractMatcher):
         """See documentation for DataPrepKit.AbstractMatcher.get_matched_points()."""
         return AbstractMatcher.get_matched_points(self)
 
+    def set_threshold(self, _threshold):
+        return self.match_on_file()
+
     def save_calculations(self):
         """See documentation for DataPrepKit.AbstractMatcher.save_calculations."""
         interm_calc_path = PurePath(target_image_path)

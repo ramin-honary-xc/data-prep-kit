@@ -7,6 +7,13 @@ class AbstractMatchCandidate():
         return None
 
     def get_match_score(self):
+        """This function should return a value between 0.0 and 1.0 where
+        values closer to 1.0 are candidates more similar to the
+        reference, and values closer to 0.0 are candidates less
+        similar to the reference. Candidates will be filtered by
+        end-users of this app in using the interactive "threshold"
+        control which is a percentage computed by multiplying the
+        value returned by this function by 100.0. """
         return 0.0
 
     def get_string_id(self):
@@ -79,12 +86,23 @@ class AbstractMatcher():
         'needs_refresh()' to see if the result needs to be computes,
         computes and caches the result if necessary, and then returns
         the most recently cached results. """
-        print(f'{self.__class__.__name__}.get_matched_points()')
+        #print(f'{self.__class__.__name__}.get_matched_points()')
         if self.matched_points is None:
-            self.match_on_file()
+            return self.match_on_file()
+        else:
+            return self.matched_points
+
+    def set_threshold(self, threshold):
+        """This method should update the state of the matcher so that
+        candidates are added or removed to the list of candidates
+        returned by 'match_on_file()' and return this upadted
+        list. This function by default calls the 'match_on_file()'
+        method and returns its result."""
+        if threshold != self.threshold:
+            self.threshold = threshold
         else:
             pass
-        return self.matched_points
+        return self.get_matched_points()
 
     def save_calculations(self):
         """This function is called to save the intermediate steps used to
