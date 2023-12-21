@@ -183,6 +183,12 @@ class SingleFeatureMultiCrop():
         print(f'{self.__class__.__name__}.set_output_dir({str(output_dir)!r})')
         self.output_dir = Path(output_dir)
 
+    def guess_compute_steps(self):
+        if self.algorithm is not None:
+            return self.algorithm.guess_compute_steps()
+        else:
+            return None
+
     ###############  Setting up feature and crop regions  ###############
 
     def get_crop_regions(self):
@@ -337,9 +343,9 @@ class SingleFeatureMultiCrop():
 
     ############  Calling into algorithms  ############
 
-    def match_on_file(self):
+    def match_on_file(self, progress=None):
         """See documentation for DataPrepKit.AbstractMatcher.match_on_file()."""
-        return self.algorithm.match_on_file()
+        return self.algorithm.match_on_file(progress=progress)
 
     def get_matched_points(self):
         #print(f'{self.__class__.__name__}.get_matched_points()')
@@ -403,7 +409,7 @@ class SingleFeatureMultiCrop():
         self.print_state()
         self.save_selected(target_image, output_dir)
 
-    def batch_crop_matched_patterns(self, target_fileset=None, output_dir=None):
+    def batch_crop_matched_patterns(self, target_fileset=None, output_dir=None, progress=None):
         """Pass an optional 'FileSet' object, the 'target_fileset' field of
         this class is used by default. Pass an optional 'output_dir'
         file path, the (output_dir' field is used by default. This
@@ -420,6 +426,10 @@ class SingleFeatureMultiCrop():
             #    f'threshold = {self.threshold}\n'
             #    f'save_distance_map = {self.save_distance_map}',
             #  )
+            if progress is not None:
+                progress.update_progress(1, label=f'{str(image)!r}')
+            else:
+                pass
             self.crop_matched_references(image, output_dir)
 
     ###############  Debugging methods  ###############

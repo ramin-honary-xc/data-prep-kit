@@ -335,7 +335,10 @@ class RMEMatcher(AbstractMatcher):
         # check whether it has points cached for the current threshold value.
         return AbstractMatcher(self, needs_refresh)
 
-    def match_on_file(self):
+    def guess_compute_steps(self):
+        return 1
+
+    def match_on_file(self, progress=None):
         """See documentation for DataPrepKit.AbstractMatcher.match_on_file()."""
         #target_image_path = self.target.get_path()
         print(f'{self.__class__.__name__}.match_on_file()')
@@ -347,6 +350,10 @@ class RMEMatcher(AbstractMatcher):
         target.assert_parameter('Input image')
         self._update_inputs(target, reference)
         self.distance_map = DistanceMap(target, reference, suffix)
+        if progress is not None:
+            progress.update_progress(1)
+        else:
+            pass
         return AbstractMatcher._update_matched_points(
             self, 
             self.distance_map.find_matching_points(threshold),

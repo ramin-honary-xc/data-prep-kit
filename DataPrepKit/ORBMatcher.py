@@ -251,11 +251,12 @@ class SegmentedImage():
     and hypotenuse is chosen as the segment size.
     """
 
-    def __init__(self, nparray2d, rect):
+    def __init__(self, nparray2d, rect, progress=None):
         (_x, _y, seg_width, seg_height) = rect
         shape = nparray2d.shape
         img_height = shape[0]
         img_width  = shape[1]
+        self.progress_dialog = progress
         if (seg_height > img_height) and (seg_width > img_width):
             raise ValueError(f'bad reference image, both width and height ({seg_width},{seg_height}) are larger than search target image ({img_width},{img_height})', (seg_width, seg_height), (img_width, img_height))
         elif (seg_height > img_height):
@@ -272,6 +273,11 @@ class SegmentedImage():
         self.image_height = img_height
         self.matched_points = None
         
+    def guess_compute_steps_1D(img, seg, step_size_ratio=(1/4)):
+        top = img - seg
+        subseg = round(seg*step_size_ratio)
+        return(max(1, math.ceil(top / subseg)))
+
     def foreach_1D(img, seg, step_size_ratio=(1/4)):
         """1-dimensional version of a kind of convolution-like operator that
         sub-divides an array "img" into segments of size "seg" with a
@@ -291,7 +297,14 @@ class SegmentedImage():
             yield (i, i+seg)
             i += step
 
+    def guess_compute_steps(self):
+        return \
+            SegmentedImage.guess_compute_steps_1D(self.image_height, self.segment_height) * \
+            SegmentedImage.guess_compute_steps_1D(self.image_width,  self.segment_width)
+
     def foreach(self):
+        steps = self.guess_compute_steps()
+        count = 0
         for (y_min,y_max) in SegmentedImage.foreach_1D(self.image_height, self.segment_height):
             for (x_min,x_max) in SegmentedImage.foreach_1D(self.image_width, self.segment_width):
                 #print(f'x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max}')
@@ -299,6 +312,11 @@ class SegmentedImage():
                     ( (x_min, y_min, x_max-x_min, y_max-y_min,),
                       self.image[y_min:y_max, x_min:x_max],
                     )
+                if self.progress_dialog is not None:
+                    count += 1
+                    self.progress_dialog.set_progress(count, steps)
+                else:
+                    pass
 
     def find_matching_points(self, ref):
         #print(f'{self.__class__.__name__}.find_matching_points(ref) #(ref is a {type(ref)})')
@@ -564,13 +582,16 @@ class ORBMatcher(AbstractMatcher):
             if item.get_match_score() >= threshold \
           ]
 
-    def match_on_file(self):
+    def guess_compute_steps(self):
+        return 100
+
+    def match_on_file(self, progress=None):
         if self.cached_image is None:
-            return self.force_match_on_file()
+            return self.force_match_on_file(progress=progress)
         else:
             return self.get_matched_points()
     
-    def force_match_on_file(self):
+    def force_match_on_file(self, progress=None):
         """This function is triggered when you double-click on an item in the image
         list in the "FilesTab". It starts running the pattern matching algorithm
         and changes the display of the GUI over to the "InspectTab". """
@@ -592,7 +613,7 @@ class ORBMatcher(AbstractMatcher):
             #print(f'{self.__class__.__name__}.match_on_file() #(self.reference.get_image() returned None)')
             raise ValueError('input image not selected')
         else:
-            segmented_image = SegmentedImage(target_image, reference_bounds)
+            segmented_image = SegmentedImage(target_image, reference_bounds, progress=progress)
             self.cached_image = segmented_image
             AbstractMatcher._update_matched_points(
                 self,
