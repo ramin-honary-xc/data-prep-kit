@@ -23,6 +23,39 @@ import PyQt5.QtWidgets as qt
 ####################################################################################################
 # The Qt GUI
 
+class ProgressDialog(qt.QProgressDialog):
+
+    def __init__(self, window_title, cancel_title, min_value, max_value, main_view):
+        super(ProgressDialog, self).__init__(
+            window_title,
+            cancel_title,
+            min_value,
+            max_value,
+            parent=main_view
+          )
+        self.main_view = main_view
+        self.setValue(min_value)
+        self.setMinimumDuration(1000)
+        self.setWindowModality(qcore.Qt.WindowModal)
+
+    def done(self):
+        self.reset()
+
+    def set_progress(self, min_value, max_value, label=None):
+        if label is not None:
+            self.setLabelText(label)
+        else:
+            pass
+        self.setMaximum(max_value)
+        self.setValue(min_value)
+
+    def update_progress(self, steps, label=None):
+        if label is not None:
+            self.setLabelText(label)
+        else:
+            pass
+        self.setValue(self.value() + steps)
+
 class InspectImagePreview(SimpleImagePreview):
 
     def __init__(self, main_view, parent):
@@ -209,24 +242,43 @@ class FilesTab(FileSetGUI):
         #print(f'{self.__class__.__name__}.activation_handler({path!r})')
         app_model = self.main_view.get_app_model()
         results = None
+        progress_dialog = None
         try:
+            guess_steps = app_model.guess_compute_steps()
+            compute_steps = 2 if guess_steps is None else guess_steps + 2
             target = app_model.get_target_image()
+            progress_dialog = self.main_view.show_progress(
+                f'Process image {str(target.get_path())!r}',
+                'Cancel', 0, compute_steps,
+              )
             target.load_image(path)
-            results = app_model.match_on_file()
+            progress_dialog.update_progress(1, label='Searching image...')
+            results = app_model.match_on_file(progress=progress_dialog)
+            progress_dialog.update_progress(1)
+            progress_dialog.done()
             if results is not None:
                 if len(results) > 0:
                     self.main_view.update_inspect_tab()
                     self.main_view.show_inspect_tab()
                 else:
+                    self.main_view.update_inspect_tab()
                     self.main_view.error_message(
                         "Pattern image could not be not found in this image",
                       )
             else:
+                if progress_dialog is not None:
+                    progress_dialog.cancel()
+                else:
+                    pass
                 self.main_view.show_pattern_tab()
                 self.main_view.error_message(
                     "Please select a pattern image",
                   )
         except ValueError as err:
+            if progress_dialog is not None:
+                progress_dialog.cancel()
+            else:
+                pass
             self.main_view.show_pattern_tab()
             self.main_view.error_message(str(err))
             print_exception(err)
@@ -1058,7 +1110,13 @@ class InspectTab(qt.QWidget):
         output_dir = app_model.get_cli_config().output_dir
         output_dir = self.modal_prompt_get_directory(str(output_dir))
         app_model.set_output_dir(PurePath(output_dir))
-        app_model.batch_crop_matched_patterns()
+        compute_steps = len(app_model.get_target_fileset())
+        progress_dialog = self.main_view.show_progress(
+            f'Processing all files...',
+            'Cancel', 0, compute_steps,
+          )
+        app_model.batch_crop_matched_patterns(progress=progress_dialog)
+        progress_dialog.done()
 
     def search_next_image(self):
         (row, count) = self.current_file_index()
@@ -1382,6 +1440,15 @@ class PatternMatcherView(qt.QTabWidget):
             return ORBMatchVisualizer(main_view, scene, match_item)
         self.match_visualizer = visualizer
         self.app_model.set_algorithm('ORB')
+
+    def show_progress(self, window_label, cancel_label, min_value, max_value):
+        return ProgressDialog(
+            window_label,
+            cancel_label,
+            min_value,
+            max_value,
+            main_view=self,
+          )
 
     ###############  Methods to configure the pen colors  ###############
 
