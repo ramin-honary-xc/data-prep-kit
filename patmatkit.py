@@ -1,9 +1,10 @@
 #! /usr/bin/env python3
 
 import DataPrepKit.utilities as util
-import DataPrepKit.PatternMatcher as patm
+import DataPrepKit.RMEMatcher as rme
+from DataPrepKit.SingleFeatureMultiCrop import SingleFeatureMultiCrop, algorithm_name
 import DataPrepKit.PatternMatcherGUI as gui
-from DataPrepKit.FileSet import image_file_suffix_set
+from DataPrepKit.FileSet import image_file_suffix_set, image_file_format_suffix
 
 import argparse
 import sys
@@ -30,7 +31,7 @@ def main():
           you do not enable GUI mode, this program operates in "batch mode", creating the
           output directory and images without user intervention.
           """,
-      )
+        )
 
     arper.add_argument(
         '-v', '--verbose',
@@ -54,6 +55,25 @@ def main():
       )
 
     arper.add_argument(
+        '-A', '--algorithm',
+        dest='algorithm',
+        action='store',
+        default="ORB",
+        type=algorithm_name,
+        help="""
+            Choose the matching algorithm: MSE or ORB. MSE, "Mean
+            Squared Error", treats the reference image as a
+            convolution kernel and applies the mean square error
+            between it and the input image, selects with a single
+            threshold (simple effective, but does not work on rotated
+            items).  ORB, "Oriented-FAST Rotated BRIEF", selects
+            matches by comparing clusters of feature points (works
+            regardless of scaling or rotation, but might be harder to
+            get good results).
+          """,
+      )
+
+    arper.add_argument(
         '--no-gui',
         dest='gui',
         action='store_false',
@@ -66,7 +86,7 @@ def main():
         '-t', '--threshold',
         dest='threshold',
         action='store',
-        default='95',
+        default='92',
         type=util.threshold,
         help="""
           The minimum percentage of similarity reqiured between a pattern and a
@@ -93,7 +113,7 @@ def main():
         type=util.crop_region_json,
         help="""
           Without specifying this option, the image file used as the "--pattern"
-          argument will specify the pattern to seek in each target image, and
+          argument will specify the pattern to seek in each input image, and
           will also determine how big of an image to crop. However it is
           possible to specify a list of crop regions relative to the pattern
           image using this argument. The argument must be a string of valid
@@ -134,7 +154,7 @@ def main():
         action='store_true',
         default=False,
         help="""
-          Candidate matching points within a target that are similar may match the
+          Candidate matching points within a input that are similar may match the
           pattern image such that the crop region arount one candidate point overlaps
           with the crop region around a nearby candidate point. By default, when
           overlapping crop regions are found, the candidate point with the higher
@@ -161,6 +181,7 @@ def main():
         dest='encoding',
         action='store',
         default='png',
+        type=image_file_format_suffix,
         help=\
           f'A file extension symbol (without a dot) indicating how to encode\n'
           f'the output image files. The set of valid file encodings and their\n'
@@ -181,21 +202,18 @@ def main():
           """,
       )
 
-    (config, remaining_argv) = arper.parse_known_args()
-    matcher = patm.PatternMatcher(config)
-    if config.gui:
+    (cli_config, remaining_argv) = arper.parse_known_args()
+    app_model = SingleFeatureMultiCrop(cli_config)
+    if cli_config.gui:
         app = qt.QApplication(remaining_argv)
-        appWindow = gui.PatternMatcherView(matcher)
+        appWindow = gui.PatternMatcherView(app_model)
         appWindow.show()
         sys.exit(app.exec_())
     else:
-        if config.pattern is None or \
-          (len(config.inputs) == 0):
-            arper.print_usage()
-        else:
-            matcher.batch_crop_matched_patterns()
+        app_model.batch_crop_matched_patterns()
 
 ####################################################################################################
 
 if __name__ == "__main__":
     main()
+ 

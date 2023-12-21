@@ -6,6 +6,19 @@ import PyQt5.QtCore as qcore
 
 ####################################################################################################
 
+def QRectF_to_tuple(qrectf):
+    return (qrectf.x(), qrectf.y(), qrectf.width(), qrectf.height(),)
+
+def QGraphicsRectItem_to_tuple(item):
+    if isinstance(item, qgui.QGraphicsRectItem):
+        return QRectF_to_tuple(item.rect())
+    elif isinstance(item, qcore.QRectF):
+        return QRectF_to_tuple(item)
+    else:
+        raise ValueError('value of unexpected type {type(item)}', item)
+
+####################################################################################################
+
 qt_image_format_assocs = \
   [ (qgui.QImage.Format_Invalid, 'Invalid'),
     (qgui.QImage.Format_Mono, 'Mono'),

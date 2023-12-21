@@ -55,6 +55,7 @@ run_find() {
        -o -iname env \
        -o -iname .mypy_cache \
        -o -iname __pycache__ \
+       -o -iname 'example.py' \
        \) -prune -false -o \
        -type f \
        \( -iname '*.py' \

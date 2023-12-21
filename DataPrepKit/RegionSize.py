@@ -51,6 +51,8 @@ class RegionSize():
            shape = image.shape
            image_height = shape[0]
            image_width = shape[1]
+           x = relative_rect['x'] if relative_rect else 0
+           y = relative_rect['y'] if relative_rect else 0
            raise ValueError(
                "pattern crop not fully contained within pattern image",
                {"image_width": image_width,
@@ -87,7 +89,7 @@ class RegionSize():
          3. takes a PurePath() 'results_dir'
 
          4. The 'file_suffix' must be an element of
-            'DataPrepKit.FileSet.image_file_suffix_set', a file prefix
+            'DataPrepKit.FileSet.image_file_suffix_set', a file suffix
             with no dot (e.g. "png", "bmp", "jpg") indicating the file
             encoding to use according to the OpenCV imwrite()
             function. It defaults to "png".

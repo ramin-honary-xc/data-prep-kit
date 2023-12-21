@@ -15,6 +15,16 @@ class CachedCVImageLoader():
         self.path   = path
         self.image  = None
 
+    def assert_parameter(self, name):
+        """Check if this object is ready to be used, or else raise an exception."""
+        if self.image is None:
+            if self.path is None:
+                raise ValueError(f'{name} has not been selected')
+            else:
+                raise ValueError(f'{name} could not be used')
+        else:
+            return True
+
     def load_image(self, path=None, crop_rect=None):
         #print('CachedCVImageLoader.load_image(' +
         #      ('None' if path is None else f'"{path}"') +
@@ -29,6 +39,7 @@ class CachedCVImageLoader():
             pass
 
     def force_load_image(self, path):
+        #print(f'{self.__class__.__name__}.force_load_image({path!r})')
         self.image = cv.imread(os.fspath(path))
         if self.image is None:
             self.path = None
@@ -38,6 +49,7 @@ class CachedCVImageLoader():
               )
         else:
             self.path = path
+            return self.image
             #print(f'CachedCVImageLoader.force_load_image() #(success "{self.path}")')
 
     def get_path(self):
@@ -48,7 +60,7 @@ class CachedCVImageLoader():
         buffer if the set_crop_rect() method has been called to set a
         cropping region."""
         if self.image is None:
-            print(f'WARNING: CachedCVImageLoader("{self.path!s}").get_image() returned None')
+            #print(f'WARNING: CachedCVImageLoader("{self.path!r}").get_image() returned None')
             return None
         elif self.crop_rect is not None:
             region = RegionSize(*(self.crop_rect))
@@ -68,6 +80,14 @@ class CachedCVImageLoader():
     def clear(self):
         self.set_image(None, None)
 
+    def get_bounds_rect(self):
+        if self.image is None:
+            #print(f'{self.__class__.__name__}.get_bounds_rect() #(return None for {self.path!r})')
+            return None
+        else:
+            shape = self.image.shape
+            return (0, 0, shape[1], shape[0])
+
     def get_crop_rect(self):
         """You can crop the image before performing processing on it, you can
         do this for true of both pattern and target images. If
@@ -76,11 +96,7 @@ class CachedCVImageLoader():
         the whole image. If the image is not loaded, this function
         returns None."""
         if self.crop_rect is None:
-            if self.image is None:
-                return None
-            else:
-                shape = self.image.shape
-                return (0, 0, shape[1], shape[0])
+            return self.get_bounds_rect()
         else:
             return self.crop_rect
 

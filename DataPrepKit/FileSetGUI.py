@@ -1,4 +1,3 @@
-import DataPrepKit.PatternMatcher as patm
 from DataPrepKit.ContextMenuItem import context_menu_item
 from DataPrepKit.FileSet import FileSet
 from DataPrepKit.SimpleImagePreview import SimpleImagePreview
@@ -20,6 +19,17 @@ qt_image_file_filter_string = \
     ' *.exr *.hdr *.pic'
     ' )' \
   )
+
+def gather_QUrl_local_files(qurl_list):
+    """This function converts a list of URL values of type QUrl into a
+    list of PurePaths. It is useful for constructing 'FileListItem's
+    from the result of a file dialog selection.
+    """
+    urls = []
+    for url in qurl_list:
+        if url.isLocalFile():
+            urls.append(pathlib.PurePath(url.toLocalFile()))
+    return urls
 
 def qt_modal_file_selection(widget, default_dir=None, message='Select files', qt_file_filter_string=''):
     """Simplifies calling qt.QFileDialog.getOpenFileUrls() function, a
@@ -365,7 +375,7 @@ class FileSetGUI(qt.QWidget):
             event.accept()
             urls = mime_data.urls()
             #print(f'FilesSetGUI.dropEvent() #(urls: {urls})')
-            self.fileset.merge_recursive(patm.gather_QUrl_local_files(urls))
+            self.fileset.merge_recursive(gather_QUrl_local_files(urls))
             self.reset_paths_list()
         elif mime_data.hasText():
             event.accept()
