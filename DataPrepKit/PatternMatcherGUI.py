@@ -1276,8 +1276,14 @@ class AlgorithmSelector(qt.QTabWidget):
         """
         try:
             setter(fromStr(field.text()))
-        except ValueError as e:
-            self.notify.showMessage(e.args[0])
+        except ValueError as err:
+            self.notify.showMessage(err.args[0])
+
+    def reset_field(self, field, getter):
+        try:
+            field.setText(str(getter()))
+        except ValueError as err:
+            self.notify.showMessage(err.args[0])
 
     def check_nFeatures(self):
         self.update_field(self.nFeatures, int, self.orb_config.set_nFeatures)
@@ -1313,19 +1319,21 @@ class AlgorithmSelector(qt.QTabWidget):
         self.redo_button.setEnabled(len(self.orb_config_redo) != 0)
         self.undo_button.setEnabled(len(self.orb_config_undo) != 0)
 
+    def reset_all_fields(self):
+        self.reset_field(self.nFeatures, self.orb_config.get_nFeatures)
+        self.reset_field(self.scaleFactor, self.orb_config.get_scaleFactor)
+        self.reset_field(self.nLevels, self.orb_config.get_nLevels)
+        self.reset_field(self.edgeThreshold, self.orb_config.get_edgeThreshold)
+        self.reset_field(self.WTA_K, self.orb_config.get_WTA_K)
+        self.reset_field(self.patchSize, self.orb_config.get_patchSize)
+        self.reset_field(self.fastThreshold, self.orb_config.get_fastThreshold)
+        self.reset_field(self.descriptor_threshold, self.orb_config.get_descriptor_threshold)
+        self.reset_field(self.minimum_descriptor_count, self.orb_config.get_minimum_descriptor_count)
+        #self.reset_field(self.descriptor_neighbor_count, self.orb_config.get_descriptor_nearest_neigbor_count)
+
     def apply_changes_action(self):
         app_model = self.main_view.get_app_model()
-        self.check_nFeatures()
-        self.check_minimum_descriptor_count()
-        self.check_descriptor_threshold()
-        self.check_scaleFactor()
-        self.check_nLevels()
-        self.check_edgeThreshold()
-        self.check_WTA_K()
-        self.check_patchSize()
-        self.check_fastThreshold()
-        self.check_minimum_descriptor_count()
-        #self.check_descriptor_neighbor_count()
+        self.reset_all_fields()
         self.push_do(self.orb_config_undo)
         #print(f'ConfigTab.apply_changes_action({str(self.orb_config)})')
         orb_matcher = app_model.get_orb_matcher()
@@ -1341,7 +1349,8 @@ class AlgorithmSelector(qt.QTabWidget):
     def reset_defaults_action(self):
         #print(f'ConfigTab.reset_defaults_action()')
         self.push_do(self.orb_config_undo)
-        self.orb_config = ORBConfig()
+        self.orb_config = orb.ORBConfig()
+        self.reset_all_fields()
 
     def push_do(self, stack):
         """Pass 'self.orb_config_undo' or 'self.orb_config_redo' as the 'stack' argument."""

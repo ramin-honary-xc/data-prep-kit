@@ -610,7 +610,7 @@ class ORBMatcher(AbstractMatcher):
         return 100
 
     def match_on_file(self, progress=None):
-        if self.cached_image is None:
+        if self.cached_image is None or self.needs_refresh():
             return self.force_match_on_file(progress=progress)
         else:
             return self.get_matched_points()
