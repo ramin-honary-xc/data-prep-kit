@@ -177,6 +177,7 @@ class ORBMatchVisualizer():
         self.scene = scene
         self.match_item = match_item
         self.feature_line_list = []
+        self.feature_point_list = []
         self.crop_region_line_list_list = []
         self._draw()
 
@@ -186,9 +187,14 @@ class ORBMatchVisualizer():
     def clear(self):
         for item in self.feature_line_list:
             self.scene.removeItem(item)
+        self.feature_line_list = []
+        for item in self.feature_point_list:
+            self.scene.removeItem(item)
+        self.feature_point_list = []
         for crop_region_line_list in self.crop_region_line_list_list:
             for crop_region_line in crop_region_line_list:
                 self.scene.removeItem(crop_region_line)
+        self.crop_region_line_list_list = []
 
     def redraw(self, crop_rect_dict=None):
         self.clear()
@@ -200,6 +206,7 @@ class ORBMatchVisualizer():
         top_right_pen = self.main_view.get_opposite_feature_region_pen()
         crop_pen      = self.main_view.get_crop_region_pen()
         region_lines  = self.match_item.get_bound_lines()
+        feature_point_pen = self.main_view.get_feature_point_pen()
         (bottom0, bottom1) = region_lines[0]
         (left0  , left1  ) = region_lines[1]
         (top0   , top1   ) = region_lines[2]
@@ -210,7 +217,14 @@ class ORBMatchVisualizer():
             self.scene.addLine(   top0[0],    top0[1],    top1[0],    top1[1], top_right_pen),
             self.scene.addLine( right0[0],  right0[1],  right1[0],  right1[1], top_right_pen),
           ]
-        # TODO: display feature points
+        for (x,y) in self.match_item.get_match_points():
+            self.feature_point_list.append(
+                # the ORB algorithm built-in to OpenCV uses FAST-9 for
+                # feature points, which are points of a radius of 9
+                # pixels, so we draw a circle with a radius of 9
+                # centered around the point.
+                self.scene.addEllipse(round(x-9), round(y-9), 18, 18, feature_point_pen),
+              )
         if crop_rect_dict is not None:
             for (_label, rect) in crop_rect_dict.items():
                 line_list = []
@@ -1438,6 +1452,9 @@ class PatternMatcherView(qt.QTabWidget):
         self.crop_region_pen = qgui.QPen(qgui.QColor(255, 0, 0, 223))
         self.crop_region_pen.setCosmetic(True)
         self.crop_region_pen.setWidth(3)
+        self.feature_point_pen = qgui.QPen(qgui.QColor(0, 255, 0, 223))
+        self.feature_point_pen.setCosmetic(True)
+        self.feature_point_pen.setWidth(1)
         self.horizontal_feature_region_pen = qgui.QPen(qgui.QColor(255, 0, 255, 223))
         self.horizontal_feature_region_pen.setCosmetic(True)
         self.horizontal_feature_region_pen.setWidth(3)
@@ -1564,3 +1581,12 @@ class PatternMatcherView(qt.QTabWidget):
             raise ValueError('received argument that is not a QPen')
         else:
             self.crop_region_pen = pen
+
+    def get_feature_point_pen(self):
+        return self.feature_point_pen
+
+    def set_feature_point_pen(self, pen):
+        if not isinstance(pen, qgui.QPen):
+            raise ValueError('received argument that is not a QPen')
+        else:
+            self.feature_point_pen = pen

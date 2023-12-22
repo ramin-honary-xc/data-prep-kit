@@ -157,9 +157,10 @@ class FeatureProjection(AbstractMatchCandidate):
         #--------------------------------------------------
         try:
             offset = np.float32([self.rect[0], self.rect[1]])
+            self.train_points += offset
             (homography, _mask) = cv.findHomography(
                 self.query_points,
-                self.train_points + offset,
+                self.train_points,
                 cv.RANSAC,
                 5.0,
               )
@@ -181,6 +182,10 @@ class FeatureProjection(AbstractMatchCandidate):
 
     def get_match_score(self):
         return self.similarity
+
+    def get_match_points(self):
+        offset = np.float32([])
+        return self.train_points.reshape(-1,2)
 
     def get_bound_lines(self, rect=None):
         #print(f'{self.__class__.__name__}.get_bound_lines({rect})')
