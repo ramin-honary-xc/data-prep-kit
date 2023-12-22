@@ -169,7 +169,7 @@ class DistanceMap():
                 {"threshold": threshold},
               )
         elif threshold in self.memoized_regions:
-            print(f'{self.__class__.__name__}.find_matching_points(threshold={threshold}) #(threshold memoized, returning list of {len(self.memoized_regions[threshold])} items)')
+            #print(f'{self.__class__.__name__}.find_matching_points(threshold={threshold}) #(threshold memoized, returning list of {len(self.memoized_regions[threshold])} items)')
             return self.memoized_regions[threshold]
         else:
             pass
@@ -185,7 +185,7 @@ class DistanceMap():
             window_hcount, self.window_width
           )
 
-        print(f'{self.__class__.__name__}.find_matching_points(threshold={threshold}) #(searching image)')
+        #print(f'{self.__class__.__name__}.find_matching_points(threshold={threshold}) #(searching image)')
         results = []  # used to memoize these results
         for y in range(window_vcount):
             for x in range(window_hcount):
@@ -215,7 +215,7 @@ class DistanceMap():
                     pass
 
         self.memoized_regions[threshold] = results
-        print(f'{self.__class__.__name__}.find_matching_points(threshold={threshold}) #(memoized list of {len(results)} results)')
+        #print(f'{self.__class__.__name__}.find_matching_points(threshold={threshold}) #(memoized list of {len(results)} results)')
         return results
 
 #---------------------------------------------------------------------------------------------------
@@ -288,7 +288,7 @@ class RMECandidate(AbstractMatchCandidate):
 
     def crop_write_images(self, crop_rects, output_path):
         """See documentation for AbstractMatchCandidate.crop_write_image()."""
-        print(f'{self.__class__.__name__}.crop_write_images({crop_rects!r}), {str(output_path)!r})')
+        #print(f'{self.__class__.__name__}.crop_write_images({crop_rects!r}), {str(output_path)!r})')
         (x0, y0, _width, _height) = self.rect
         for (label, rect) in crop_rects.items():
             (x,y,width,height) = rect
@@ -296,7 +296,7 @@ class RMECandidate(AbstractMatchCandidate):
             y += y0
             image_ID = f'_{x:05}x{y:05}'
             outpath = str(output_path).format(label=label, image_ID=image_ID)
-            print(f'{self.__class__.__name__}.crop_write_images() #(save {outpath!r})')
+            #print(f'{self.__class__.__name__}.crop_write_images() #(save {outpath!r})')
             image = self.crop_image(rect)
             cv.imwrite(outpath, image)
 
@@ -341,7 +341,7 @@ class RMEMatcher(AbstractMatcher):
     def match_on_file(self, progress=None):
         """See documentation for DataPrepKit.AbstractMatcher.match_on_file()."""
         #target_image_path = self.target.get_path()
-        print(f'{self.__class__.__name__}.match_on_file()')
+        #print(f'{self.__class__.__name__}.match_on_file()')
         reference = self.app_model.get_reference_image()
         target    = self.app_model.get_target_image()
         suffix    = self.app_model.get_file_encoding()

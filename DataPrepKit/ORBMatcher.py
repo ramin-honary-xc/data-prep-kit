@@ -237,9 +237,6 @@ class FeatureProjection(AbstractMatchCandidate):
               )
             cv.imwrite(outpath, image)
 
-
-#np.float32([[-2.30960328e-01  9.38239747e-01  2.11603624e+02] [-9.51234563e-01 -2.76217543e-01  4.19597973e+02] [ 7.28159784e-05 -1.36636120e-04  1.00000000e+00]])
-
 #---------------------------------------------------------------------------------------------------
 
 class SegmentedImage():
@@ -251,11 +248,12 @@ class SegmentedImage():
     and hypotenuse is chosen as the segment size.
     """
 
-    def __init__(self, nparray2d, rect, progress=None):
+    def __init__(self, orb_config, nparray2d, rect, progress=None):
         (_x, _y, seg_width, seg_height) = rect
         shape = nparray2d.shape
         img_height = shape[0]
         img_width  = shape[1]
+        self.orb_config = orb_config
         self.progress_dialog = progress
         if (seg_height > img_height) and (seg_width > img_width):
             raise ValueError(f'bad reference image, both width and height ({seg_width},{seg_height}) are larger than search target image ({img_width},{img_height})', (seg_width, seg_height), (img_width, img_height))
@@ -330,6 +328,7 @@ class SegmentedImage():
         #print(f'{self.__class__.__name__}.compute(ref) #(ref is a {type(ref)})')
         ref.compute()
         (_x, _y, width, height) = ref.get_crop_rect()
+        descriptor_threshold = self.orb_config.get_descriptor_threshold()
         reference_keypoints = ref.get_keypoints()
         reference_descriptors = ref.get_descriptors()
         if reference_descriptors is None:
@@ -344,24 +343,28 @@ class SegmentedImage():
             segment_orb.compute()
             segment_keypoints = segment_orb.get_keypoints()
             segment_descriptors = segment_orb.get_descriptors()
-            if len(segment_descriptors) < 20:
+            if len(segment_descriptors) < self.orb_config.get_minimum_descriptor_count():
                 #print(f'ignore block ({x:05},{y:05}), only {len(segment_descriptors)} descriptors created')
                 pass
             else:
                 bruteforce_match = cv.BFMatcher()
-                matches = bruteforce_match.knnMatch(reference_descriptors, segment_descriptors, k=2)
+                matches = bruteforce_match.knnMatch(
+                    reference_descriptors,
+                    segment_descriptors,
+                    k=2
+                  )
                 best_matches = []
                 nsum = 0
                 bestsum = 0
                 for m,n in matches:
                     #print(f'M: {m.distance}, N: {n.distance}')
                     nsum += n.distance
-                    if m.distance < 0.7 * n.distance:
+                    if m.distance < descriptor_threshold * n.distance:
                         bestsum += m.distance
                         best_matches.append(m)
                     else:
                         pass
-                if len(best_matches) < 20:
+                if len(best_matches) < self.orb_config.get_minimum_descriptor_count():
                     #print(f'ignore block ({x:05},{y:05}), only {len(best_matches)} best matches (out of {len(matches)})')
                     pass
                 else:
@@ -379,7 +382,7 @@ class SegmentedImage():
                         (x, y, width, height,),
                         reference_selection,
                         target_selection,
-                        (bestsum/nsum)/0.7,
+                        (bestsum/nsum)/descriptor_threshold,
                       )
                     if proj is not None:
                         matched_points.append(proj)
@@ -389,18 +392,6 @@ class SegmentedImage():
         return matched_points
 
 #---------------------------------------------------------------------------------------------------
-
-def check_param(label, param, gte, lte):
-    """This function is used mostly when setting arguments taken from the
-    GUI. It raises a ValueError if the parameter is out of the bounds
-    given by 'gte' and 'lte', the GUI even handler needs to catch this
-    and report the error to the user."""
-    if gte <= param and param <= lte:
-        pass
-    else:
-        raise ValueError(
-            f'Parameter "{label}" must be greater/equal to {gte} and less/equal to {lte}'
-          )
 
 class ORBConfig():
     """This data type contains values used to parameterize the ORB feature
@@ -418,6 +409,9 @@ class ORBConfig():
         self.scoreType = 0 # O = HARRIS_SCORE (could also be 1 = FAST_SCORE)
         self.patchSize = 31
         self.fastThreshold = 20
+        self.descriptor_threshold = 0.7
+        self.minimum_descriptor_count = 20
+        #self.descriptor_nearest_neighbor_count = 2
 
     def __eq__(self, a):
         return (
@@ -430,7 +424,10 @@ class ORBConfig():
             (self.WTA_K == a.WTA_K) and \
             (self.scoreType == a.scoreType) and \
             (self.patchSize == a.patchSize) and \
-            (self.fastThreshold == a.fastThreshold) \
+            (self.fastThreshold == a.fastThreshold) and \
+            (self.descriptor_threshold == a.descriptor_threshold) and \
+            (self.minimum_descriptor_count == a.minimum_descriptor_count) \
+            #(self.descriptor_nearest_neighbor_count == a.descriptor_nearest_neighbor_count) \
           )
 
     def to_dict(self):
@@ -444,6 +441,9 @@ class ORBConfig():
             'scoreType': self.scoreType,
             'patchSize': self.patchSize,
             'fastThreshold': self.fastThreshold,
+            'descriptor_threshold': self.descriptor_threshold,
+            'minimum_descriptor_count': self.minimum_descriptor_count,
+            #'descriptor_nearest_neigbor_count': self.descriptor_nearest_neighbor_count,
           }
 
     def __str__(self):
@@ -453,21 +453,22 @@ class ORBConfig():
         return self.nFeatures
 
     def set_nFeatures(self, nFeatures):
-        check_param('number of features', nFeatures, 20, 20000)
+        util.check_param('number of features', nFeatures, 20, 20000)
         self.nFeatures = nFeatures
+        self.set_minimum_descriptor_count(self.minimum_descriptor_count)
 
     def get_scaleFactor(self):
         return self.scaleFactor
 
     def set_scaleFactor(self, scaleFactor):
-        check_param('scale factor', scaleFactor, 1.0, 2.0)
+        util.check_param('scale factor', scaleFactor, 1.0, 2.0)
         self.scaleFactor = scaleFactor
 
     def get_nLevels(self):
         return self.nLevels
 
     def set_nLevels(self, nLevels):
-        check_param('number of levels', nLevels, 2, 32)
+        util.check_param('number of levels', nLevels, 2, 32)
         self.nLevels = nLevels
         if self.firstLevel > nLevels:
             self.firstLevel = nLevels
@@ -478,21 +479,21 @@ class ORBConfig():
         return self.edgeThreshold
 
     def set_edgeThreshold(self, edgeThreshold):
-        check_param('edge threshold', edgeThreshold, 2, 1024)
+        util.check_param('edge threshold', edgeThreshold, 2, 1024)
         self.edgeThreshold = edgeThreshold
 
     def get_firstLevel(self):
         return self.firstLevel
 
     def set_firstLevel(self, firstLevel):
-        check_param('first level', firstLevel, 0, self.edgeThreshold)
+        util.check_param('first level', firstLevel, 0, self.edgeThreshold)
         self.firstLevel = firstLevel
 
     def get_WTA_K(self):
         return self.WTA_K
 
     def set_WTA_K(self, WTA_K):
-        check_param('"WTA" factor', WTA_K, 2, 4)
+        util.check_param('"WTA" factor', WTA_K, 2, 4)
         self.WTA_K = WTA_K
 
     def get_scoreType(self):
@@ -505,19 +506,42 @@ class ORBConfig():
         return self.patchSize
 
     def set_patchSize(self, patchSize):
-        check_param("patch size", patchSize, 2, 1024)
+        util.check_param("patch size", patchSize, 2, 1024)
         self.patchSize = patchSize
 
     def get_fastThreshold(self):
         return self.fastThreshold
 
     def set_fastThreshold(self, fastThreshold):
-        check_param('"FAST" threshold', fastThreshold, 2, 100)
+        util.check_param('"FAST" threshold', fastThreshold, 2, 100)
         self.fastThreshold = fastThreshold
+
+    def get_descriptor_threshold(self):
+        return self.descriptor_threshold
+
+    def set_descriptor_threshold(self, threshold):
+        util.check_param('descriptor threshold', threshold, 0.01, 2.0)
+        self.descriptor_threshold = threshold
+
+    def get_minimum_descriptor_count(self):
+        return self.minimum_descriptor_count
+
+    def set_minimum_descriptor_count(self, count):
+        """This parameter depends on the size of N-Features."""
+        util.check_param('descriptor threshold', count, 4, round(self.nFeatures / 2))
+        self.minimum_descriptor_count = count
+
+    # def get_descriptor_nearest_neigbor_count(self):
+    #     return self.descriptor_nearest_neighbor_count
+
+    # def set_descriptor_nearest_neigbor_count(self, K):
+    #     util.check_param('descriptor nearest neighbor count', K, 1, 5)
+    #     self.descriptor_nearest_neighbor_count = K
 
 #---------------------------------------------------------------------------------------------------
 
 class ORBMatcher(AbstractMatcher):
+
     """This class creates objects that represents the state of the whole
     application.
     """
@@ -550,7 +574,7 @@ class ORBMatcher(AbstractMatcher):
         return self.reference_with_orb
 
     def set_reference_with_orb(self, image):
-        self.reference_with_orb = ImageWithORB(image)
+        self.reference_with_orb = ImageWithORB(image, self.orb_config)
         self.reference_with_orb.compute()
 
     def get_keypoints(self):
@@ -575,7 +599,7 @@ class ORBMatcher(AbstractMatcher):
         """This function filters the list of matched items by their threshold
         value. All other functions which access the matched points in
         the image go through this function. """
-        print(f'{self.__class__.__name__}.set_threshold({threshold:.3})')
+        #print(f'{self.__class__.__name__}.set_threshold({threshold:.3})')
         return \
           [ item for item \
             in AbstractMatcher.get_matched_points(self) \
@@ -613,7 +637,12 @@ class ORBMatcher(AbstractMatcher):
             #print(f'{self.__class__.__name__}.match_on_file() #(self.reference.get_image() returned None)')
             raise ValueError('input image not selected')
         else:
-            segmented_image = SegmentedImage(target_image, reference_bounds, progress=progress)
+            segmented_image = SegmentedImage(
+                self.orb_config,
+                target_image,
+                reference_bounds,
+                progress=progress
+              )
             self.cached_image = segmented_image
             AbstractMatcher._update_matched_points(
                 self,
@@ -623,7 +652,7 @@ class ORBMatcher(AbstractMatcher):
             
     def get_matched_points(self):
         """See documentation for DataPrepKit.AbstractMatcher.get_matched_points()."""
-        print(f'{self.__class__.__name__}.get_matched_points()')
+        #print(f'{self.__class__.__name__}.get_matched_points()')
         threshold = self.app_model.get_threshold()
         return self.set_threshold(threshold)
 

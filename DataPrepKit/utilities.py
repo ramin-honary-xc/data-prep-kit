@@ -53,6 +53,19 @@ def threshold(val):
     else:
         raise ValueError("threshold must be percentage value between 0 and 100")
 
+def check_param(label, param, gte, lte):
+    """This function is used mostly when setting arguments taken from the
+    GUI. It raises a ValueError if the parameter is out of the bounds
+    given by 'gte' and 'lte', the GUI even handler needs to catch this
+    and report the error to the user."""
+    if gte <= param and param <= lte:
+        pass
+    else:
+        raise ValueError(
+            f'Parameter "{label}" must be greater/equal to {gte} and less/equal to {lte}',
+            (lte, gte)
+          )
+
 def crop_region_json(json_string):
     """Parse a JSON string from the command line into a dictionary of
     4-tuple crop regions."""
@@ -139,7 +152,8 @@ def numpy_map_colors(gray_image, color_map):
                 mapped[y,x] = color_map[gray_image[y,x]]
         return mapped
 
-#---------------------------------------------------------------------------------------------------
+####################################################################################################
+# rectangle operations
 
 def bounding_rect(rect_list):
     x_list = []

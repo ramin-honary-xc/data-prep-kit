@@ -78,7 +78,7 @@ class AbstractMatcher():
         computation needs to be refreshed, and caches the result. To
         obtain cached results, use 'get_matched_points() instead,
         which will only run this computation if necessary. """
-        return []
+        return self.matched_points
 
     def get_matched_points(self):
         """This function lazily computes a list of patterm matching regions
@@ -87,10 +87,7 @@ class AbstractMatcher():
         computes and caches the result if necessary, and then returns
         the most recently cached results. """
         #print(f'{self.__class__.__name__}.get_matched_points()')
-        if self.matched_points is None:
-            return self.match_on_file()
-        else:
-            return self.matched_points
+        return self.matched_points
 
     def set_threshold(self, threshold):
         """This method should update the state of the matcher so that

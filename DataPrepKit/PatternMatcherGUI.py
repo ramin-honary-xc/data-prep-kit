@@ -71,13 +71,13 @@ class InspectImagePreview(SimpleImagePreview):
         SimpleImagePreview.clear(self)
 
     def redraw(self):
-        print(f'{self.__class__.__name__}.redraw()')
+        #print(f'{self.__class__.__name__}.redraw()')
         app_model = self.main_view.get_app_model()
         match_list = app_model.get_matched_points()
         self.redraw_regions(match_list)
 
     def redraw_regions(self, match_list):
-        print(f'{self.__class__.__name__}.redraw_regions(match_list) #(len(match_list) = {len(match_list)})')
+        #print(f'{self.__class__.__name__}.redraw_regions(match_list) #(len(match_list) = {len(match_list)})')
         SimpleImagePreview.redraw(self)
         self.clear_rectangles()
         self.place_rectangles(match_list)
@@ -90,9 +90,9 @@ class InspectImagePreview(SimpleImagePreview):
         self.visualized_match_list = []
 
     def place_rectangles(self, match_list):
-        print(f'{self.__class__.__name__}.place_rectangles()')
+        #print(f'{self.__class__.__name__}.place_rectangles()')
         match_visualizer = self.main_view.get_match_visualizer()
-        print(f'{self.__class__.__name__}.place_rectangles() #(len(match_list) = {len(match_list)})')
+        #print(f'{self.__class__.__name__}.place_rectangles() #(len(match_list) = {len(match_list)})')
         scene = self.get_scene()
         self.clear_rectangles()
         for match in match_list:
@@ -236,52 +236,56 @@ class FilesTab(FileSetGUI):
     def post_init(self):
         pass
 
-    def activation_handler(self, path):
+    def activation_handler(self, path=None):
         """This is what happens when the return/enter key is pressed on a
         selected file, or when a file is double-clicked."""
         #print(f'{self.__class__.__name__}.activation_handler({path!r})')
-        app_model = self.main_view.get_app_model()
-        results = None
-        progress_dialog = None
-        try:
-            guess_steps = app_model.guess_compute_steps()
-            compute_steps = 2 if guess_steps is None else guess_steps + 2
-            target = app_model.get_target_image()
-            progress_dialog = self.main_view.show_progress(
-                f'Process image {str(target.get_path())!r}',
-                'Cancel', 0, compute_steps,
-              )
-            target.load_image(path)
-            progress_dialog.update_progress(1, label='Searching image...')
-            results = app_model.match_on_file(progress=progress_dialog)
-            progress_dialog.update_progress(1)
-            progress_dialog.done()
-            if results is not None:
-                if len(results) > 0:
-                    self.main_view.update_inspect_tab()
-                    self.main_view.show_inspect_tab()
+        path = path if path is not None else self.current_item_path()
+        if path is None:
+            self.main_view.error_message('No input files have been selected')
+        else:
+            app_model = self.main_view.get_app_model()
+            results = None
+            progress_dialog = None
+            try:
+                guess_steps = app_model.guess_compute_steps()
+                compute_steps = 2 if guess_steps is None else guess_steps + 2
+                target = app_model.get_target_image()
+                progress_dialog = self.main_view.show_progress(
+                    f'Process image {str(target.get_path())!r}',
+                    'Cancel', 0, compute_steps,
+                  )
+                target.load_image(path)
+                progress_dialog.update_progress(1, label='Searching image...')
+                results = app_model.match_on_file(progress=progress_dialog)
+                progress_dialog.update_progress(1)
+                progress_dialog.done()
+                if results is not None:
+                    if len(results) > 0:
+                        self.main_view.update_inspect_tab()
+                        self.main_view.show_inspect_tab()
+                    else:
+                        self.main_view.update_inspect_tab()
+                        self.main_view.error_message(
+                            "Pattern image could not be not found in this image",
+                          )
                 else:
-                    self.main_view.update_inspect_tab()
+                    if progress_dialog is not None:
+                        progress_dialog.cancel()
+                    else:
+                        pass
+                    self.main_view.show_pattern_tab()
                     self.main_view.error_message(
-                        "Pattern image could not be not found in this image",
+                        "Please select a pattern image",
                       )
-            else:
+            except ValueError as err:
                 if progress_dialog is not None:
                     progress_dialog.cancel()
                 else:
                     pass
                 self.main_view.show_pattern_tab()
-                self.main_view.error_message(
-                    "Please select a pattern image",
-                  )
-        except ValueError as err:
-            if progress_dialog is not None:
-                progress_dialog.cancel()
-            else:
-                pass
-            self.main_view.show_pattern_tab()
-            self.main_view.error_message(str(err))
-            print_exception(err)
+                self.main_view.error_message(str(err))
+                print_exception(err)
 
     def use_current_item_as_reference(self):
         path = self.current_item_path()
@@ -1093,7 +1097,7 @@ class InspectTab(qt.QWidget):
 
     def save_selected(self):
         print('------------------------------------------------------------')
-        print(f'{self.__class__.__name__}.save_selected()')
+        #print(f'{self.__class__.__name__}.save_selected()')
         app_model = self.main_view.get_app_model()
         output_dir = app_model.get_output_dir()
         output_dir = self.modal_prompt_get_directory(str(output_dir))
@@ -1105,7 +1109,7 @@ class InspectTab(qt.QWidget):
 
     def save_selected_all(self):
         print('------------------------------------------------------------')
-        print(f'{self.__class__.__name__}.save_selected_all()')
+        #print(f'{self.__class__.__name__}.save_selected_all()')
         app_model = self.main_view.get_app_model()
         output_dir = app_model.get_cli_config().output_dir
         output_dir = self.modal_prompt_get_directory(str(output_dir))
@@ -1175,31 +1179,39 @@ class AlgorithmSelector(qt.QTabWidget):
         #self.orb_config_view = qt.QWidget(self)
         self.nFeatures = qt.QLineEdit(str(self.orb_config.get_nFeatures()))
         self.nFeatures.editingFinished.connect(self.check_nFeatures)
+        self.minimum_descriptor_count = qt.QLineEdit(str(self.orb_config.get_minimum_descriptor_count()))
+        self.minimum_descriptor_count.editingFinished.connect(self.check_minimum_descriptor_count)
+        self.descriptor_threshold = qt.QLineEdit(str(self.orb_config.get_descriptor_threshold()))
+        self.descriptor_threshold.editingFinished.connect(self.check_descriptor_threshold)
         self.scaleFactor = qt.QLineEdit(str(self.orb_config.get_scaleFactor()))
         self.scaleFactor.editingFinished.connect(self.check_scaleFactor)
         self.nLevels = qt.QLineEdit(str(self.orb_config.get_nLevels()))
         self.nLevels.editingFinished.connect(self.check_nLevels)
         self.edgeThreshold = qt.QLineEdit(str(self.orb_config.get_edgeThreshold()))
         self.edgeThreshold.editingFinished.connect(self.check_edgeThreshold)
-        #self.firstLevel = qt.QLineEdit(str(self.orb_config.get_firstLevel()))
         self.WTA_K = qt.QLineEdit(str(self.orb_config.get_WTA_K()))
         self.WTA_K.editingFinished.connect(self.check_WTA_K)
         self.patchSize = qt.QLineEdit(str(self.orb_config.get_patchSize()))
         self.patchSize.editingFinished.connect(self.check_patchSize)
         self.fastThreshold = qt.QLineEdit(str(self.orb_config.get_fastThreshold()))
         self.fastThreshold.editingFinished.connect(self.check_fastThreshold)
+        #self.descriptor_neighbor_count = qt.QLineEdit(str(self.orb_config.get_descriptor_nearest_neigbor_count()))
+        #self.descriptor_neighbor_count.editingFinished.connect(self.check_descriptor_neighbor_count)
         ## -------------------- the form layout --------------------
         self.form_layout = qt.QFormLayout(self.orb_config_view)
         self.form_layout.setFieldGrowthPolicy(qt.QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         self.form_layout.setLabelAlignment(qcore.Qt.AlignmentFlag.AlignRight)
         self.form_layout.setFormAlignment(qcore.Qt.AlignmentFlag.AlignLeft)
         self.form_layout.addRow('Number of Features (>20, <20000)', self.nFeatures)
+        self.form_layout.addRow('Minimum Matching (>4, <N_features/2)', self.minimum_descriptor_count)
+        self.form_layout.addRow('Feature Threshold (>0.01, <2.0)', self.descriptor_threshold)
         self.form_layout.addRow('Number of Levels (>1, <64)', self.nLevels)
         self.form_layout.addRow('Scale Factor (>1.0, <2.0)', self.scaleFactor)
         self.form_layout.addRow('Edge Threshold (>2, <1024)', self.edgeThreshold)
         self.form_layout.addRow('Patch Size (>2, <1024)', self.patchSize)
         self.form_layout.addRow('WTA Factor (>2, <4)', self.WTA_K)
         self.form_layout.addRow('FAST Threshold (>2, <100)', self.fastThreshold)
+        #self.form_layout.addRow('Number of Neighbor (>2, <5)', self.descriptor_neighbor_count)
         ## -------------------- Control Buttons --------------------
         self.buttons = qt.QWidget(self)
         self.button_layout = qt.QHBoxLayout(self.buttons)
@@ -1288,6 +1300,15 @@ class AlgorithmSelector(qt.QTabWidget):
     def check_fastThreshold(self):
         self.update_field(self.fastThreshold, int, self.orb_config.set_fastThreshold)
 
+    def check_descriptor_threshold(self):
+        self.update_field(self.descriptor_threshold, float, self.orb_config.set_descriptor_threshold)
+
+    def check_minimum_descriptor_count(self):
+        self.update_field(self.minimum_descriptor_count, int, self.orb_config.set_minimum_descriptor_count)
+
+    # def check_descriptor_neighbor_count(self):
+    #     self.update_field(self.descriptor_neighbor_count, int, self.orb_config.set_descriptor_nearest_neigbor_count)
+
     def after_update(self):
         self.redo_button.setEnabled(len(self.orb_config_redo) != 0)
         self.undo_button.setEnabled(len(self.orb_config_undo) != 0)
@@ -1295,25 +1316,27 @@ class AlgorithmSelector(qt.QTabWidget):
     def apply_changes_action(self):
         app_model = self.main_view.get_app_model()
         self.check_nFeatures()
+        self.check_minimum_descriptor_count()
+        self.check_descriptor_threshold()
         self.check_scaleFactor()
         self.check_nLevels()
         self.check_edgeThreshold()
         self.check_WTA_K()
         self.check_patchSize()
         self.check_fastThreshold()
+        self.check_minimum_descriptor_count()
+        #self.check_descriptor_neighbor_count()
         self.push_do(self.orb_config_undo)
         #print(f'ConfigTab.apply_changes_action({str(self.orb_config)})')
         orb_matcher = app_model.get_orb_matcher()
         if orb_matcher:
             orb_matcher.set_orb_config(self.orb_config)
         else:
-            print(f'{self.__class__.__name__} #(cannot update ORB config)')
+            #print(f'{self.__class__.__name__} #(cannot update ORB config)')
+            pass
         self.after_update()
-        #ref_orb_image = app_model.get_reference_image()
-        #if ref_orb_image is not None:
-        #    self.main_view.change_to_reference_tab()
-        #else:
-        #    self.main_view.change_to_files_tab()
+        files_setup = self.main_view.get_files_setup()
+        files_setup.activation_handler()
 
     def reset_defaults_action(self):
         #print(f'ConfigTab.reset_defaults_action()')
@@ -1403,6 +1426,9 @@ class PatternMatcherView(qt.QTabWidget):
 
     def get_pattern_setup(self):
         return self.pattern_tab
+
+    def get_files_setup(self):
+        return self.files_tab
 
     def change_tab_handler(self, index):
         """Does the work of actually changing the GUI display to the "InspectTab".
