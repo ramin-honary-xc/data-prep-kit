@@ -164,6 +164,9 @@ class RMEMatchVisualizer():
         else:
             pass
 
+    def reference_visualizer(_main_view ,_matcher, _scene):
+        return []
+
 class ORBMatchVisualizer():
 
     def __init__(self, main_view, scene, match_item):
@@ -185,22 +188,27 @@ class ORBMatchVisualizer():
         return self.scene
 
     def clear(self):
+        scene = self.get_scene()
         for item in self.feature_line_list:
-            self.scene.removeItem(item)
+            scene.removeItem(item)
         self.feature_line_list = []
         for item in self.feature_point_list:
-            self.scene.removeItem(item)
+            scene.removeItem(item)
         self.feature_point_list = []
         for crop_region_line_list in self.crop_region_line_list_list:
             for crop_region_line in crop_region_line_list:
-                self.scene.removeItem(crop_region_line)
+                scene.removeItem(crop_region_line)
         self.crop_region_line_list_list = []
 
     def redraw(self, crop_rect_dict=None):
         self.clear()
         self._draw()
 
+    def draw_point(scene, x, y, pen):
+        return scene.addEllipse(round(x-9), round(y-9), 18, 18, pen)
+
     def _draw(self, crop_rect_dict=None):
+        scene         = self.get_scene()
         bottom_pen    = self.main_view.get_horizontal_feature_region_pen()
         left_pen      = self.main_view.get_vertical_feature_region_pen()
         top_right_pen = self.main_view.get_opposite_feature_region_pen()
@@ -212,10 +220,10 @@ class ORBMatchVisualizer():
         (top0   , top1   ) = region_lines[2]
         (right0 , right1 ) = region_lines[3]
         self.feature_line_list = \
-          [ self.scene.addLine(bottom0[0], bottom0[1], bottom1[0], bottom1[1], bottom_pen),
-            self.scene.addLine(  left0[0],   left0[1],   left1[0],   left1[1], left_pen),
-            self.scene.addLine(   top0[0],    top0[1],    top1[0],    top1[1], top_right_pen),
-            self.scene.addLine( right0[0],  right0[1],  right1[0],  right1[1], top_right_pen),
+          [ scene.addLine(bottom0[0], bottom0[1], bottom1[0], bottom1[1], bottom_pen),
+            scene.addLine(  left0[0],   left0[1],   left1[0],   left1[1], left_pen),
+            scene.addLine(   top0[0],    top0[1],    top1[0],    top1[1], top_right_pen),
+            scene.addLine( right0[0],  right0[1],  right1[0],  right1[1], top_right_pen),
           ]
         for (x,y) in self.match_item.get_match_points():
             self.feature_point_list.append(
@@ -223,18 +231,33 @@ class ORBMatchVisualizer():
                 # feature points, which are points of a radius of 9
                 # pixels, so we draw a circle with a radius of 9
                 # centered around the point.
-                self.scene.addEllipse(round(x-9), round(y-9), 18, 18, feature_point_pen),
+                ORBMatchVisualizer.draw_point(scene, x, y, feature_point_pen),
               )
         if crop_rect_dict is not None:
             for (_label, rect) in crop_rect_dict.items():
                 line_list = []
                 for (crop0, crop1) in self.match_item.get_bound_lines(rect):
                     line_list.append(
-                        self.scene.addLine(crop0[0], crop0[1], crop1[0], crop1[1], crop_pen),
+                        scene.addLine(crop0[0], crop0[1], crop1[0], crop1[1], crop_pen),
                       )
                 self.crop_region_line_list_list.append(line_list)
         else:
             pass
+
+    def reference_visualizer(main_view, matcher, scene):
+        points = matcher.get_feature_points()
+        if points is not None:
+            print(f'ORBMatchVisualizer.reference_visualizer() #(draw {len(points)} points)')
+            feature_point_pen = main_view.get_feature_point_pen()
+            result = []
+            for (x,y) in points:
+                result.append(
+                    ORBMatchVisualizer.draw_point(scene, x, y, feature_point_pen),
+                  )
+            return result
+        else:
+            print(f'ORBMatchVisualizer.reference_visualizer() #(points = None)')
+            return None
 
 #---------------------------------------------------------------------------------------------------
 
@@ -425,6 +448,8 @@ class PatternPreview(ReferenceImagePreview):
                 qt.QSizePolicy.Expanding,
               ),
           )
+        self.features_items = []
+        self._draw_feature_layer()
 
     def post_init(self):
         self.crop_rect_tool.post_init()
@@ -443,16 +468,43 @@ class PatternPreview(ReferenceImagePreview):
     #    self.crop_rect_tool.set_region_selection(name)
 
     def draw_rect(self, qrectf, pen):
+        print(f'{self.__class__.__name__}.draw_rect()')
         scene = self.get_scene()
         scene.addRect(qrectf, pen)
 
+    def _clear_feature_layer(self):
+        print(f'{self.__class__.__name__}._clear_feature_layer()')
+        scene = self.get_scene()
+        for item in self.feature_items:
+            scene.removeItem(item)
+        self.feature_items = []
+
+    def _draw_feature_layer(self):
+        print(f'{self.__class__.__name__}._draw_feature_layer()')
+        app_model = self.main_view.get_app_model()
+        visualizer = self.main_view.get_reference_visualizer()
+        if visualizer is not None:
+            self.feature_items = visualizer(
+                self.main_view,
+                app_model.get_algorithm(),
+                self.get_scene(),
+              )
+        else:
+            print(f'{self.__class__.__name__}._draw_feature_layer() #(ignoring feature layer, no visualizer)')
+            pass
+
     def clear(self):
+        print(f'{self.__class__.__name__}.clear()')
         self.crop_rect_tool.clear()
-        super(ReferenceImagePreview, self).clear()
+        self._clear_feature_layer()
+        ReferenceImagePreview.clear(self)
 
     def redraw(self):
-        super(ReferenceImagePreview, self).redraw()
+        print(f'{self.__class__.__name__}.redraw()')
+        app_model = self.main_view.get_app_model()
+        ReferenceImagePreview.redraw(self)
         self.crop_rect_tool.redraw()
+        self._draw_feature_layer()
 
 #---------------------------------------------------------------------------------------------------
 
@@ -1426,7 +1478,16 @@ class PatternMatcherView(qt.QTabWidget):
     def __init__(self, app_model, parent_view=None):
         super().__init__(parent_view)
         self.app_model = app_model
+        self.match_visualizer = None
+        self.reference_visualizer = None
         self.init_pen_colors()
+        algorithm = str(app_model.get_cli_config().algorithm).upper()
+        if algorithm == 'ORB':
+            self.set_algorithm_ORB()
+        elif algorithm == 'RME':
+            self.set_algorithm_RME()
+        else:
+            raise ValueError(f'unexpected algorithm {str(algorithm)!r}Q')
         #----------------------------------------
         # Setup the GUI
         self.notify = qt.QErrorMessage(self)
@@ -1508,15 +1569,20 @@ class PatternMatcherView(qt.QTabWidget):
     def get_match_visualizer(self):
         return self.match_visualizer
 
+    def get_reference_visualizer(self):
+        return self.reference_visualizer
+
     def set_algorithm_RME(self):
         def visualizer(main_view, scene, match_item):
             return RMEMatchVisualizer(main_view, scene, match_item)
+        self.reference_visualizer = RMEMatchVisualizer.reference_visualizer
         self.match_visualizer = visualizer
         self.app_model.set_algorithm('RME')
 
     def set_algorithm_ORB(self):
         def visualizer(main_view, scene, match_item):
             return ORBMatchVisualizer(main_view, scene, match_item)
+        self.reference_visualizer = ORBMatchVisualizer.reference_visualizer
         self.match_visualizer = visualizer
         self.app_model.set_algorithm('ORB')
 

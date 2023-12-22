@@ -280,6 +280,7 @@ class SegmentedImage():
     """
 
     def __init__(self, orb_config, nparray2d, rect, progress=None):
+        print(f'{self.__class__.__name__}.__init__()')
         (_x, _y, seg_width, seg_height) = rect
         shape = nparray2d.shape
         img_height = shape[0]
@@ -351,7 +352,7 @@ class SegmentedImage():
                     pass
 
     def find_matching_points(self, ref):
-        #print(f'{self.__class__.__name__}.find_matching_points(ref) #(ref is a {type(ref)})')
+        print(f'{self.__class__.__name__}.find_matching_points(ref) #(ref is a {type(ref)})')
         if self.matched_points is not None:
             return self.matched_points
         else:
@@ -359,7 +360,7 @@ class SegmentedImage():
             return self.matched_points
 
     def compute(self, ref):
-        #print(f'{self.__class__.__name__}.compute(ref) #(ref is a {type(ref)})')
+        print(f'{self.__class__.__name__}.compute(ref) #(ref is a {type(ref)})')
         ref.compute()
         (_x, _y, width, height) = ref.get_crop_rect()
         descriptor_threshold = self.orb_config.get_descriptor_threshold()
@@ -583,15 +584,20 @@ class ORBMatcher(AbstractMatcher):
     def __init__(self, app_model, orb_config=None):
         super().__init__(app_model)
         self.orb_config = ORBConfig()
-        self.reference_with_orb = None
         self.last_run_orb_config = None
         self.cached_image = None
+        self.reference_with_orb = None
+        reference = self.app_model.get_reference_image()
+        if reference:
+            self.preprocess_reference_image(reference=reference)
+        else:
+            pass
 
     def get_orb_config(self):
         return self.orb_config
 
     def set_orb_config(self, orb_config):
-        #print(f'ORBMatcher.set_orb_config({orb_config})')
+        print(f'ORBMatcher.set_orb_config({orb_config})')
         if (orb_config is not None) and (not isinstance(orb_config, ORBConfig)):
             raise ValueError(
                 f'MainAppMode.set_orb_config() called with value of type {str(type(orb_config))}',
@@ -601,13 +607,14 @@ class ORBMatcher(AbstractMatcher):
             self.reference_with_orb.set_orb_config(orb_config)
         else:
             pass
-        #print(f'ORBMatcher.set_orb_config() #(set self.orb_config = {orb_config})')
+        print(f'ORBMatcher.set_orb_config() #(set self.orb_config = {orb_config})')
         self.orb_config = deepcopy(orb_config)
 
     def get_reference_with_orb(self):
         return self.reference_with_orb
 
     def set_reference_with_orb(self, image):
+        print(f'{self.__class__.__name__}.set_Reference_with({image})')
         self.reference_with_orb = ImageWithORB(image, self.orb_config)
         self.reference_with_orb.compute()
 
@@ -632,13 +639,17 @@ class ORBMatcher(AbstractMatcher):
     def set_threshold(self, threshold):
         """This function filters the list of matched items by their threshold
         value. All other functions which access the matched points in
-        the image go through this function. """
-        #print(f'{self.__class__.__name__}.set_threshold({threshold:.3})')
-        return \
-          [ item for item \
-            in AbstractMatcher.get_matched_points(self) \
-            if item.get_match_score() >= threshold \
-          ]
+        the image go through this function. """ 
+        item_list = AbstractMatcher.get_matched_points(self)
+        if item_list is not None:
+            print(f'{self.__class__.__name__}.set_threshold({threshold:.3}) #(filter list of {len(item_list)} items)')
+            return \
+              [ item for item in item_list \
+                if item.get_match_score() >= threshold \
+              ]
+        else:
+            print(f'{self.__class__.__name__}.set_threshold({threshold:.3}) #(self.get_matched_points() returned None)')
+            return None
 
     def guess_compute_steps(self):
         cached = self.cached_image
@@ -648,27 +659,30 @@ class ORBMatcher(AbstractMatcher):
             return cached.guess_compute_steps()
 
     def match_on_file(self, progress=None):
-        #print(f'{self.__class__.__name__}.match_on_file()')
+        print(f'{self.__class__.__name__}.match_on_file()')
         points = AbstractMatcher.get_matched_points(self)
         if points is None or self.needs_refresh():
             return self.force_match_on_file(progress=progress)
         else:
             return self.get_match_points()
+
+    def preprocess_reference_image(self, reference=None):
+        reference = reference if reference is not None else self.app_model.get_reference_image()
+        if not reference:
+            raise ValueError('reference image has not been selected')
+        else:
+            self.reference_with_orb = ImageWithORB(reference, self.orb_config)
+            self.reference_with_orb.compute()
+            self.last_run_orb_config = self.orb_config
     
     def force_match_on_file(self, progress=None):
         """This function is triggered when you double-click on an item in the image
         list in the "FilesTab". It starts running the pattern matching algorithm
         and changes the display of the GUI over to the "InspectTab". """
-        #print(f'{self.__class__.__name__}.force_match_on_file()')
+        print(f'{self.__class__.__name__}.force_match_on_file()')
         target = self.app_model.get_target_image()
         if not self.reference_with_orb:
-            reference = self.app_model.get_reference_image()
-            if not reference:
-                raise ValueError('reference image has not been selected')
-            else:
-                self.reference_with_orb = ImageWithORB(reference, self.orb_config)
-                self.reference_with_orb.compute()
-                self.last_run_orb_config = self.orb_config
+            self.preprocess_reference_image()
         else:
             pass
         target = self.app_model.get_target_image()
@@ -678,6 +692,7 @@ class ORBMatcher(AbstractMatcher):
             #print(f'{self.__class__.__name__}.match_on_file() #(self.reference.get_image() returned None)')
             raise ValueError('input image not selected')
         else:
+            #print(f'{self.__class__.__name__}.force_match_on_file() #(construct SegmentedImage())')
             segmented_image = SegmentedImage(
                 self.orb_config,
                 target_image,
@@ -690,15 +705,21 @@ class ORBMatcher(AbstractMatcher):
                 progress.add_work(guess, label='Scanning image')
             else:
                 pass
-            AbstractMatcher._update_matched_points(
-                self,
-                segmented_image.find_matching_points(self.reference_with_orb),
-              )
+            matched_points = segmented_image.find_matching_points(self.reference_with_orb)
+            AbstractMatcher._update_matched_points(self, matched_points)
             return self.get_matched_points()
             
     def get_matched_points(self):
         """See documentation for DataPrepKit.AbstractMatcher.get_matched_points()."""
-        #print(f'{self.__class__.__name__}.get_matched_points()')
+        print(f'{self.__class__.__name__}.get_matched_points()')
         threshold = self.app_model.get_threshold()
         return self.set_threshold(threshold)
 
+    def get_feature_points(self):
+        if self.reference_with_orb is not None:
+            print(f'{self.__class__.__name__}.get_feature_points()')
+            points = self.reference_with_orb.get_keypoints()
+            return [point.pt for point in points]
+        else:
+            print(f'{self.__class__.__name__}.get_feature_points() #(ignored: self.reference_with_orb is None)')
+            return None

@@ -78,7 +78,7 @@ class SingleFeatureMultiCrop():
             self.crop_regions = config.crop_regions_json
         else:
             pass
-        self.set_algorithm(config.algorithm)
+        self.set_algorithm(str(config.algorithm).upper())
 
     def get_orb_matcher(self):
         return self.orb_matcher
