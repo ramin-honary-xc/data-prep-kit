@@ -272,9 +272,14 @@ class SegmentedImage():
         self.matched_points = None
         
     def guess_compute_steps_1D(img, seg, step_size_ratio=(1/4)):
+        """For the sake of a progress bar, this function is used to compute
+        how many tiles the image will contain, and so how many times
+        an OpenCV API must be called. """
         top = img - seg
         subseg = round(seg*step_size_ratio)
-        return(max(1, math.ceil(top / subseg)))
+        num_steps = max(1, math.ceil(top / subseg))
+        step = math.floor(top / num_steps)
+        return math.ceil(max(1, top / step))
 
     def foreach_1D(img, seg, step_size_ratio=(1/4)):
         """1-dimensional version of a kind of convolution-like operator that
@@ -289,20 +294,19 @@ class SegmentedImage():
         num_steps = max(1, math.ceil(top / subseg))
         step = top / num_steps
         i = 0.0
-        #print(f'---------- img={img}, seg={seg}, halfseg={halfseg}, step={step} top={top} ----------')
         while (i < top):
             i = math.floor(i)
             yield (i, i+seg)
             i += step
 
     def guess_compute_steps(self):
+        #print(f'{self.__class__.__name__}.guess_compute_steps()')
         return \
             SegmentedImage.guess_compute_steps_1D(self.image_height, self.segment_height) * \
             SegmentedImage.guess_compute_steps_1D(self.image_width,  self.segment_width)
 
     def foreach(self):
-        steps = self.guess_compute_steps()
-        count = 0
+        #print(f'{self.__class__.__name__}.foreach() #(progress.maximum = {self.progress_dialog.maximum()})')
         for (y_min,y_max) in SegmentedImage.foreach_1D(self.image_height, self.segment_height):
             for (x_min,x_max) in SegmentedImage.foreach_1D(self.image_width, self.segment_width):
                 #print(f'x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max}')
@@ -311,8 +315,7 @@ class SegmentedImage():
                       self.image[y_min:y_max, x_min:x_max],
                     )
                 if self.progress_dialog is not None:
-                    count += 1
-                    self.progress_dialog.set_progress(count, steps)
+                    self.progress_dialog.update_progress(1)
                 else:
                     pass
 
@@ -607,18 +610,25 @@ class ORBMatcher(AbstractMatcher):
           ]
 
     def guess_compute_steps(self):
-        return 100
+        cached = self.cached_image
+        if cached is None:
+            return 0
+        else:
+            return cached.guess_compute_steps()
 
     def match_on_file(self, progress=None):
-        if self.cached_image is None or self.needs_refresh():
+        #print(f'{self.__class__.__name__}.match_on_file()')
+        points = AbstractMatcher.get_matched_points(self)
+        if points is None or self.needs_refresh():
             return self.force_match_on_file(progress=progress)
         else:
-            return self.get_matched_points()
+            return self.get_match_points()
     
     def force_match_on_file(self, progress=None):
         """This function is triggered when you double-click on an item in the image
         list in the "FilesTab". It starts running the pattern matching algorithm
         and changes the display of the GUI over to the "InspectTab". """
+        #print(f'{self.__class__.__name__}.force_match_on_file()')
         target = self.app_model.get_target_image()
         if not self.reference_with_orb:
             reference = self.app_model.get_reference_image()
@@ -644,6 +654,11 @@ class ORBMatcher(AbstractMatcher):
                 progress=progress
               )
             self.cached_image = segmented_image
+            if progress is not None:
+                guess = self.guess_compute_steps()
+                progress.add_work(guess, label='Scanning image')
+            else:
+                pass
             AbstractMatcher._update_matched_points(
                 self,
                 segmented_image.find_matching_points(self.reference_with_orb),

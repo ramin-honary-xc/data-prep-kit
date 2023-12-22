@@ -38,23 +38,46 @@ class ProgressDialog(qt.QProgressDialog):
         self.setMinimumDuration(1000)
         self.setWindowModality(qcore.Qt.WindowModal)
 
-    def done(self):
-        self.reset()
+    def fail_if_canceled(self):
+        """Raises a RuntimeError if the Cancel button has been pressed
+        recently, otherwise does nothing. This function is
+        automatically called by both the "add_work()" and
+        "update_progress()" methods. """
+        if self.wasCanceled():
+            label = self.label()
+            #print(f'{self.__class__.__name__}.fail_if_canceled()')
+            raise RuntimeError(f'{str(label)!r} process canceled')
+        else:
+            pass
 
-    def set_progress(self, min_value, max_value, label=None):
+    def update_label(self, label=None):
         if label is not None:
             self.setLabelText(label)
         else:
             pass
-        self.setMaximum(max_value)
-        self.setValue(min_value)
+
+    def add_work(self, count, label=None):
+        """Add (or subtract) to the total number of things remaining to be done."""
+        self.fail_if_canceled()
+        self.update_label(label)
+        self.setMaximum(self.maximum() + count)
+        #print(f'{self.__class__.__name__}.add_work({count}) #(maximum = {self.maximum()})')
 
     def update_progress(self, steps, label=None):
-        if label is not None:
-            self.setLabelText(label)
-        else:
-            pass
+        """Add (or subtract) to the total amount of work that has already been done."""
+        self.fail_if_canceled()
+        self.update_label(label)
         self.setValue(self.value() + steps)
+        #print(f'{self.__class__.__name__}.update_progress({steps}, {label!r}) #(value = {self.value()})')
+
+    # def accept(self):
+    #     print(f'{self.__class__.__name__}.accept()')
+    #     qt.QProgressDialog.accept(self)
+        
+    # def reject(self):
+    #     print(f'{self.__class__.__name__}.reject()')
+    #     qt.QProgressDialog.reject(self)
+        
 
 class InspectImagePreview(SimpleImagePreview):
 
@@ -187,6 +210,7 @@ class ORBMatchVisualizer():
             self.scene.addLine(   top0[0],    top0[1],    top1[0],    top1[1], top_right_pen),
             self.scene.addLine( right0[0],  right0[1],  right1[0],  right1[1], top_right_pen),
           ]
+        # TODO: display feature points
         if crop_rect_dict is not None:
             for (_label, rect) in crop_rect_dict.items():
                 line_list = []
@@ -252,14 +276,15 @@ class FilesTab(FileSetGUI):
                 compute_steps = 2 if guess_steps is None else guess_steps + 2
                 target = app_model.get_target_image()
                 progress_dialog = self.main_view.show_progress(
-                    f'Process image {str(target.get_path())!r}',
+                    f'Load image {str(target.get_path())!r}',
                     'Cancel', 0, compute_steps,
                   )
+                progress_dialog.open()
                 target.load_image(path)
                 progress_dialog.update_progress(1, label='Searching image...')
                 results = app_model.match_on_file(progress=progress_dialog)
                 progress_dialog.update_progress(1)
-                progress_dialog.done()
+                progress_dialog.accept()
                 if results is not None:
                     if len(results) > 0:
                         self.main_view.update_inspect_tab()
@@ -271,7 +296,7 @@ class FilesTab(FileSetGUI):
                           )
                 else:
                     if progress_dialog is not None:
-                        progress_dialog.cancel()
+                        progress_dialogo.reject()
                     else:
                         pass
                     self.main_view.show_pattern_tab()
@@ -280,12 +305,14 @@ class FilesTab(FileSetGUI):
                       )
             except ValueError as err:
                 if progress_dialog is not None:
-                    progress_dialog.cancel()
+                    progress_dialog.reject()
                 else:
                     pass
                 self.main_view.show_pattern_tab()
                 self.main_view.error_message(str(err))
                 print_exception(err)
+            except RuntimeError as err:
+                pass
 
     def use_current_item_as_reference(self):
         path = self.current_item_path()
@@ -1120,7 +1147,7 @@ class InspectTab(qt.QWidget):
             'Cancel', 0, compute_steps,
           )
         app_model.batch_crop_matched_patterns(progress=progress_dialog)
-        progress_dialog.done()
+        progress_dialog.accept()
 
     def search_next_image(self):
         (row, count) = self.current_file_index()

@@ -180,7 +180,7 @@ class SingleFeatureMultiCrop():
         return self.output_dir
 
     def set_output_dir(self, output_dir):
-        print(f'{self.__class__.__name__}.set_output_dir({str(output_dir)!r})')
+        #print(f'{self.__class__.__name__}.set_output_dir({str(output_dir)!r})')
         self.output_dir = Path(output_dir)
 
     def guess_compute_steps(self):
@@ -323,16 +323,16 @@ class SingleFeatureMultiCrop():
         defined for this to work. """
         ref_rect = self.get_feature_region()
         if ref_rect is None:
-            print(f'{self.__class__.__name__}.iterate_crop_regions() #(no reference rectangle set)')
+            #print(f'{self.__class__.__name__}.iterate_crop_regions() #(no reference rectangle set)')
             return None
         else:
             (x0, y0, width, height) = ref_rect
             crop_rect_iter = self.get_crop_regions()
             if (crop_rect_iter is None) or (len(crop_rect_iter) == 0):
-                print(f'{self.__class__.__name__}.iterate_crop_regions() #(no crop regions, using feature region as single crop region)')
+                #print(f'{self.__class__.__name__}.iterate_crop_regions() #(no crop regions, using feature region as single crop region)')
                 crop_rect_iter = iter([(None, ref_rect)])
             else:
-                print(f'{self.__class__.__name__}.iterate_crop_regions() #(iterating over {len(crop_rect_iter)} crop regions)')
+                #print(f'{self.__class__.__name__}.iterate_crop_regions() #(iterating over {len(crop_rect_iter)} crop regions)')
                 crop_rect_iter = crop_rect_iter.items()
             #----------------------------------------
             for (x,y,_similarity) in point_list:
@@ -352,9 +352,9 @@ class SingleFeatureMultiCrop():
         return self.algorithm.get_matched_points()
 
     def save_selected(self, target_image=None, crop_regions=None, output_dir=None):
-        print(f'{self.__class__.__name__}.save_selected()')
+        #print(f'{self.__class__.__name__}.save_selected()')
         match_item_list = self.algorithm.match_on_file()
-        print(f'{self.__class__.__name__}.save_selected() #(match_on_file() -> {len(match_item_list)} matches)')
+        #print(f'{self.__class__.__name__}.save_selected() #(match_on_file() -> {len(match_item_list)} matches)')
         #for (i, pt) in zip(range(0,len(match_item_list)), match_item_list):
         #    print(f'    {i}: {pt}')
         # -----------------------------------------------------------------------
@@ -369,7 +369,7 @@ class SingleFeatureMultiCrop():
             self.algorithm.save_calculation(target_image)
         else:
             pass
-        print(f'{self.__class__.__name__}.save_selected() #(output_dir = {str(output_dir)!r})')
+        #print(f'{self.__class__.__name__}.save_selected() #(output_dir = {str(output_dir)!r})')
         target_image_path = target_image.get_path()
         for match_item in match_item_list:
             # Here we make use of the "iterate_crop_regions()" method
@@ -397,7 +397,7 @@ class SingleFeatureMultiCrop():
 
     def crop_matched_references(self, target_image_path=None, output_dir=None):
         # Create results directory if it does not exist
-        print(f'{self.__class__.__name__}.crop_matched_references({target_image_path!r}) #(after clean-up self.crop_regions)')
+        #print(f'{self.__class__.__name__}.crop_matched_references({target_image_path!r}) #(after clean-up self.crop_regions)')
         target_image = None
         if target_image_path is None:
             target_image = self.target
@@ -418,7 +418,7 @@ class SingleFeatureMultiCrop():
         directory. """
         target_fileset = self.target_fileset if target_fileset is None else target_fileset
         self.reference_image.load_image(crop_rect=self.feature_region)
-        print(f'{self.__class__.__name__}.batch_crop_matched_references() #(will operate on {len(self.target_fileset)} image files)')
+        #print(f'{self.__class__.__name__}.batch_crop_matched_references() #(will operate on {len(self.target_fileset)} image files)')
         for image in target_fileset:
             #print(
             #    f'image = {image!s}\n'
@@ -430,7 +430,18 @@ class SingleFeatureMultiCrop():
                 progress.update_progress(1, label=f'{str(image)!r}')
             else:
                 pass
-            self.crop_matched_references(image, output_dir)
+            try:
+                self.crop_matched_references(image, output_dir)
+            except Exception as err:
+                if progress is not None:
+                    progress.reject()
+                else:
+                    pass
+                raise err
+        if progress is not None:
+            progress.accept()
+        else:
+            pass
 
     ###############  Debugging methods  ###############
 
