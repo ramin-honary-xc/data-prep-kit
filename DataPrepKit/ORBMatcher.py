@@ -122,9 +122,9 @@ class FeatureProjection(AbstractMatchCandidate):
         self.rect = None
         self.homography = None
         self.inverse_homography = None
-        self.offset_homography = None
         self.query_points = None
         self.train_points = None
+        self.perspective_view = None
         self.closeness = 1.0 #(values closer to 0.0 are more accurate)
         self.similarity = 0.0 #(values closer to 100.0 are more accurate)
         self.bound_lines = None
@@ -170,6 +170,16 @@ class FeatureProjection(AbstractMatchCandidate):
             traceback.print_exception(err)
             return None
         #--------------------------------------------------
+        # Reject the homography if the computed perspective transfrom
+        # produces points that lie outside of the target image
+        height = self.image.shape[0]
+        width  = self.image.shape[1]
+        for (x,y) in self.get_perspective_bounds():
+            if (x < 0) or (x >= width) or (y < 0) or (y >= height):
+                return None
+            else:
+                continue
+        #--------------------------------------------------
         try:
             self.inverse_homography = numpy.linalg.inv(homography)
         except Exception as err:
@@ -187,16 +197,32 @@ class FeatureProjection(AbstractMatchCandidate):
         offset = np.float32([])
         return self.train_points.reshape(-1,2)
 
+    def get_perspective_bounds(self):
+        if self.perspective_view is None:
+            rect_matrix = util.rect_to_spline_matrix(
+                (0, 0, self.rect[2], self.rect[3],),
+              ).reshape(-1,1,2)
+            self.perspective_view = cv.perspectiveTransform(
+                rect_matrix,
+                self.homography,
+              ).reshape(-1,2)
+        else:
+            pass
+        return self.perspective_view
+
     def get_bound_lines(self, rect=None):
         #print(f'{self.__class__.__name__}.get_bound_lines({rect})')
-        rect = rect if rect is not None else (0, 0, self.rect[2], self.rect[3])
-        rect_matrix = util.rect_to_spline_matrix(rect).reshape(-1,1,2)
-        perspective_view = cv.perspectiveTransform(
-            rect_matrix,
-            self.homography,
-          ).reshape(-1,2)
-        r = util.spline_matrix4x2_to_lines(perspective_view)
-        return r
+        if (rect is None) and (self.perspective_view is not None):
+            return util.spline_matrix4x2_to_lines(self.perspective_view)
+        else:
+            rect_matrix = util.rect_to_spline_matrix(
+                (rect if rect is not None else (0, 0, self.rect[2], self.rect[3])),
+              ).reshape(-1,1,2)
+            perspective_view = cv.perspectiveTransform(
+                rect_matrix,
+                self.homography,
+              ).reshape(-1,2)
+            return util.spline_matrix4x2_to_lines(perspective_view)
 
     def get_string_id(self):
         """After the feature rectangle is transformed into some irregular
