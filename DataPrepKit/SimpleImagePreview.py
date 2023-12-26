@@ -144,9 +144,11 @@ class SimpleImagePreview(ImageDisplay, DragDropHandler):
             pass
 
     def clear(self):
+        #print(f'{self.__class__.__name__}.clear()')
         self._image_file_layer.clear()
         self.resetTransform()
 
     def redraw(self):
+        #print(f'{self.__class__.__name__}.redraw()')
         self._image_file_layer.layer_bounds_scene_rect()
         self._image_file_layer.redraw()

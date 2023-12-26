@@ -174,7 +174,7 @@ class CropRectTool():
             scene.removeItem(self.draw_rect)
             self.draw_rect = None
         else:
-            print(f'{self.__class__.__name__}.clear_draw_rect() #(self.draw_rect was None)')
+            #print(f'{self.__class__.__name__}.clear_draw_rect() #(self.draw_rect was None)')
             pass
 
     def update_rect(self):
@@ -204,13 +204,13 @@ class CropRectTool():
         """This method is called after a mouse drag event that has changed the
         "self.draw_rect" has completed. Overload this method depending
         on the model you are using. """
-        print(f'{self.__class__.__name__}.draw_rect_updated({rect!r})')
+        #print(f'{self.__class__.__name__}.draw_rect_updated({rect!r})')
 
     def draw_rect_cleared(self):
         """This method is called after a mouse down event where the end users
         wants to start drawing or re-drawing a rectangle, and the
         rectangle that existed prior needs to be deleted. """
-        print(f'{self.__class__.__name__}.draw_rect_cleared({rect!r})')
+        #print(f'{self.__class__.__name__}.draw_rect_cleared({rect!r})')
 
     def redraw(self):
         """This function redraws the crop_rect in the scene view. It usually

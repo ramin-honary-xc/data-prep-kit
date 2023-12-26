@@ -57,19 +57,19 @@ class DistanceMap():
         pat_shape = reference_image.shape
         self.reference_height = pat_shape[0]
         self.reference_width  = pat_shape[1]
-        print(
-            f"reference_width = {self.reference_width},"
-            f" reference_height = {self.reference_height},",
-          )
+        #print(
+        #    f"reference_width = {self.reference_width},"
+        #    f" reference_height = {self.reference_height},",
+        #  )
 
         target_image = target.get_image()
         targ_shape = target_image.shape
         self.target_height = targ_shape[0]
         self.target_width  = targ_shape[1]
-        print( \
-            f"target_width = {self.target_width},"
-            f" target_height = {self.target_height},",
-          )
+        #print( \
+        #    f"target_width = {self.target_width},"
+        #    f" target_height = {self.target_height},",
+        #  )
 
         # The target image might have also a cropping rectangle set to
         # limit the bounds of the reference matching. Apply this
@@ -107,7 +107,7 @@ class DistanceMap():
         self.window_width  = math.ceil(self.reference_width  / 2) \
             if self.reference_width  >= 4 else self.reference_width
 
-        print(f"window_height = {self.window_height}, window_width = {self.window_width}")
+        #print(f"window_height = {self.window_height}, window_width = {self.window_width}")
 
         ### Available methods for reference matching in OpenCV
         #
@@ -118,7 +118,7 @@ class DistanceMap():
         # Apply template Matching
         pre_distance_map = cv.matchTemplate(target_image, reference_image, cv.TM_SQDIFF_NORMED)
         pre_dist_map_height, pre_dist_map_width = pre_distance_map.shape
-        print(f"pre_dist_map_height = {pre_dist_map_height}, pre_dist_map_width = {pre_dist_map_width}")
+        #print(f"pre_dist_map_height = {pre_dist_map_height}, pre_dist_map_width = {pre_dist_map_width}")
 
         # Normalize result
         np.linalg.norm(pre_distance_map)
@@ -132,7 +132,7 @@ class DistanceMap():
             ), \
             dtype=np.float32,
           )
-        print(f"dist_map_height = {pre_dist_map_height}, dist_map_width = {pre_dist_map_width}")
+        #print(f"dist_map_height = {pre_dist_map_height}, dist_map_width = {pre_dist_map_width}")
 
         # Copy the result into the "search_image".
         self.distance_map[0:pre_dist_map_height, 0:pre_dist_map_width] = pre_distance_map
@@ -337,6 +337,10 @@ class RMEMatcher(AbstractMatcher):
 
     def guess_compute_steps(self):
         return 1
+
+    def update_reference_image(self, reference=None):
+        """Nothing needs to be computed on the referene image."""
+        pass
 
     def match_on_file(self, progress=None):
         """See documentation for DataPrepKit.AbstractMatcher.match_on_file()."""
