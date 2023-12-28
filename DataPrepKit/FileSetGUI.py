@@ -75,7 +75,7 @@ def qt_modal_file_selection(widget, default_dir=None, message='Select files', qt
           )
         return list(urls)
     else:
-        print(f'qt_modal_file_selection("{message}") #(returned empty list)')
+        #print(f'qt_modal_file_selection("{message}") #(returned empty list)')
         return []
 
 def qt_modal_image_file_selection(widget, default_dir=None, message="Open images files"):
@@ -311,7 +311,8 @@ class FileSetGUI(qt.QWidget):
             pass
         if path is None:
             # TODO: display an error message dialog box instead of a log message
-            print(f'FileSetGUI.activate_selected_item() #(no file item selected)')
+            #print(f'FileSetGUI.activate_selected_item() #(no file item selected)')
+            pass
         else:
             self.activation_handler(path)
 
@@ -352,7 +353,7 @@ class FileSetGUI(qt.QWidget):
         else:
             pass
         urls = self.file_selector(self, self.file_selector_message)
-        print(f"{self.__class__.__name__}.open_files_handler({default_dir!r}) #(selected urls = {urls})")
+        #print(f"{self.__class__.__name__}.open_files_handler({default_dir!r}) #(selected urls = {urls})")
         #urls = urls[0]
         if len(urls) > 0:
             self.fileset.merge_recursive(urls)

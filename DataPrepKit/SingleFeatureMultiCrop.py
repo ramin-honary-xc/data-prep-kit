@@ -78,7 +78,7 @@ class SingleFeatureMultiCrop():
             self.crop_regions = config.crop_regions_json
         else:
             pass
-        self.set_algorithm(config.algorithm)
+        self.set_algorithm(str(config.algorithm).upper())
 
     def get_orb_matcher(self):
         return self.orb_matcher
@@ -175,6 +175,7 @@ class SingleFeatureMultiCrop():
         else:
             raise ValueError('expecting CachedCVImageLoader or Path as argument')
         self.reference_image = reference
+        self.algorithm.update_reference_image()
 
     def get_output_dir(self):
         return self.output_dir
@@ -388,7 +389,7 @@ class SingleFeatureMultiCrop():
                     match_item.crop_write_images({'': feature_region}, str(output_path))
                 else:
                     output_path = output_dir / PurePath('{label}') / PurePath(
-                        target_image_name.stem + '{image_ID}' + suffix
+                        target_image_path.stem + f'{image_ID}' + suffix
                       )
                     #print(f'{self.__class__.__name__}.save_selected() #(output_dir = {str(output_path)!r})')
                     match_item.crop_write_image(crop_regions, str(output_path))

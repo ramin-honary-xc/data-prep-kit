@@ -61,7 +61,7 @@ class ImagePreview(qt.QGraphicsView):
                 self.display_pixmap_item = qt.QGraphicsPixmapItem(self.display_pixmap)
                 self.preview_scene.addItem(self.display_pixmap_item)
             else:
-                print(f'ImagePreview.update_display_item() #(failed to load file from path "{path}")')
+                #print(f'ImagePreview.update_display_item() #(failed to load file from path "{path}")')
                 pass
             self.current_display = image_with_orb
             rect = image_with_orb.get_crop_rect()
@@ -71,11 +71,11 @@ class ImagePreview(qt.QGraphicsView):
                     self.preview_scene.addRect(qrectf, self.crop_rect_pen)
                 self.setSceneRect(qrectf)
             else:
-                print(f'ImagePreview.update_display_item() #(scene crop_rect is None, reset to whole image)')
+                #print(f'ImagePreview.update_display_item() #(scene crop_rect is None, reset to whole image)')
                 size = self.display_pixmap.size()
                 self.setSceneRect(0, 0, size.width(), size.height())
         else:
-            print(f'ImagePreview.update_display_item() #(self.app_model.get_selected_item() -> None)')
+            #print(f'ImagePreview.update_display_item() #(self.app_model.get_selected_item() -> None)')
             pass
 
 
@@ -116,28 +116,28 @@ class ReferenceImageView(ImageDisplay):
     def draw_pixbuf(self):
         orb_image = self.app_model.get_reference_image()
         if orb_image is not None:
-            print(f'ReferenceImageView.draw_pixbuf("{str(orb_image.get_filepath())}")')
+            #print(f'ReferenceImageView.draw_pixbuf("{str(orb_image.get_filepath())}")')
             self.image_file_layer.set_filepath(orb_image.get_filepath())
         else:
-            print(f'ReferenceImageView.draw_pixbuf() #(no reference image)')
+            #print(f'ReferenceImageView.draw_pixbuf() #(no reference image)')
 
     def draw_keypoints(self):
         orb_image = self.app_model.get_reference_image()
-        print(f'ReferenceImageView.draw_keypoints("str(orb_image.get_filepath())")')
+        #print(f'ReferenceImageView.draw_keypoints("str(orb_image.get_filepath())")')
         if orb_image is not None:
             # First remove the existing keypoints.
             self.point_cloud_layer.clear()
             # Then get the new list of orb_image points.
             keypoints = orb_image.get_keypoints()
             if keypoints is not None:
-                print(f'ReferenceImageView.draw_keypoints("str(orb_image.get_filepath())") #(len(keypoints) = {len(keypoints)})')
+                #print(f'ReferenceImageView.draw_keypoints("str(orb_image.get_filepath())") #(len(keypoints) = {len(keypoints)})')
                 for key in keypoints:
                     (x, y) = key.pt
                     self.point_cloud_layer.add_point(x, y)
             else:
-                print(f'ReferenceImageView.draw_keypoints() #(orb_config has not been updated)')
+                #print(f'ReferenceImageView.draw_keypoints() #(orb_config has not been updated)')
         else:
-            print(f'ReferenceImageView.draw_keypoints() #(no reference image)')
+            #print(f'ReferenceImageView.draw_keypoints() #(no reference image)')
 
     def draw_reference_crop_rect(self):
         """This function draws the crop_rect in the view based on the crop_rect value
@@ -275,13 +275,13 @@ class FilesTab(qt.QWidget):
     def activate_handler(self, item):
         if item is not None:
             image_with_orb = item.get_image_with_orb()
-            print(f'FilesTab.activate_handler("{image_with_orb.get_filepath()}")')
+            #print(f'FilesTab.activate_handler("{image_with_orb.get_filepath()}")')
             self.app_model.set_reference_image(image_with_orb)
             self.app_view.redraw()
             self.app_view.update_display_selection()
             self.app_view.change_to_reference_tab()
         else:
-            print(f'FilesTab.activate_handler(None)')
+            #print(f'FilesTab.activate_handler(None)')
 
     def activate_selected_item(self):
         self.activate_handler(self.get_current_item())
@@ -294,9 +294,9 @@ class FilesTab(qt.QWidget):
                 self.app_model.set_selected_image(image_with_orb)
                 self.image_preview.update_display_item()
             else:
-                print(f'FilesTab.item_change_handler() #(item.get_image_with_orb() -> None)')
+                #print(f'FilesTab.item_change_handler() #(item.get_image_with_orb() -> None)')
         else:
-            print('FilesTab.item_change_handler(item=None)')
+            #print('FilesTab.item_change_handler(item=None)')
 
     def update_display_item(self):
         self.image_preview.update_display_item()
@@ -326,7 +326,7 @@ class FilesTab(qt.QWidget):
                 qt.QFileDialog.ReadOnly, \
                 ["file"] \
               )
-        print(f'FilesTab #(selected urls = {urls})')
+        #print(f'FilesTab #(selected urls = {urls})')
         urls = urls[0]
         if len(urls) > 0:
             self.add_image_list(gather_QUrl_local_files(urls))
@@ -348,7 +348,7 @@ class FilesTab(qt.QWidget):
             output_dir = self.modal_prompt_get_directory(None)
             item.crop_and_save(output_dir)
         else:
-            print(f'#(cannot save, no item selected)')
+            #print(f'#(cannot save, no item selected)')
 
     def do_save_all_images(self):
         output_dir = self.modal_prompt_get_directory(None)
@@ -360,7 +360,7 @@ class FilesTab(qt.QWidget):
         crop_rect) while the ReferenceImageTab was visible, this tab
         also needs to update it's view.
         """
-        print(f'FilesTab.focusInEvent()')
+        #print(f'FilesTab.focusInEvent()')
         self.image_preview.update_display_item()
         super(FilesTab, self).focusInEvent(event)
 
@@ -495,7 +495,7 @@ class ConfigTab(qt.QWidget):
         self.check_patchSize()
         self.check_fastThreshold()
         self.push_do(self.orb_config_undo)
-        print(f'ConfigTab.apply_changes_action({str(self.orb_config)})')
+        #print(f'ConfigTab.apply_changes_action({str(self.orb_config)})')
         self.app_model.set_orb_config(self.orb_config)
         self.after_update()
         ref_orb_image = self.app_model.get_reference_image()
@@ -506,7 +506,7 @@ class ConfigTab(qt.QWidget):
             self.app_view.change_to_files_tab()
 
     def reset_defaults_action(self):
-        print(f'ConfigTab.reset_defaults_action()')
+        #print(f'ConfigTab.reset_defaults_action()')
         self.push_do(self.orb_config_undo)
         self.orb_config = ORBConfig()
 
@@ -519,13 +519,13 @@ class ConfigTab(qt.QWidget):
 
     def shift_do(self, forward, reverse):
         if len(forward) > 0:
-            print(f'ConfigTab.shift_do() #(len(forward) -> {len(forward)}, len(reverse) -> {len(reverse)})')
+            #print(f'ConfigTab.shift_do() #(len(forward) -> {len(forward)}, len(reverse) -> {len(reverse)})')
             self.push_do(reverse)
             self.orb_config = deepcopy(forward[-1])
             del forward[-1]
             self.apply_changes_action()
         else:
-            print(f'ConfigTab.shift_do() #(cannot undo/redo, reached end of stack)')
+            #print(f'ConfigTab.shift_do() #(cannot undo/redo, reached end of stack)')
 
     def undo_action(self):
         self.shift_do(self.orb_config_undo, self.orb_config_redo)
@@ -580,8 +580,8 @@ class ImageCropKit(qt.QTabWidget):
     def redraw(self):
         ref_orb_image = self.app_model.get_reference_image()
         if ref_orb_image is not None:
-            print(f'ImageCropKit.redraw()')
+            #print(f'ImageCropKit.redraw()')
             self.reference_image_tab.redraw()
         else:
-            print(f'ImageCropKit.redraw() #(no reference image)')
+            #print(f'ImageCropKit.redraw() #(no reference image)')
 

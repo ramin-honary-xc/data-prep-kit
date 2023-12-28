@@ -62,6 +62,11 @@ class AbstractMatcher():
         self.matched_points = matched_points
         return matched_points
 
+    def update_reference_image(self, reference=None):
+        """Signals a change in the reference image, should trigger any
+        recomputation that might be necessary as a result."""
+        pass
+
     def needs_refresh(self):
         """Computes whether conditions have changes such that the pattern
         match algorithm needs to be run again. Conditions that would

@@ -22,7 +22,7 @@ def applyPixmapMask(sourcePath, maskImg, saveAs=None):
         saveAs = saveAs / Path('./masked_' + str(sourcePath.name))
     sourceImg = cv.imread(os.fspath(sourcePath))
     if sourceImg is None:
-        print(f'failed to load image path: {sourcePath!s}')
+        #print(f'failed to load image path: {sourcePath!s}')
     else:
          sourceImg = sourceImg * np.float32(1.0 / 255.0)
          result = np.uint8(cv.multiply(sourceImg, maskImg) * np.float32(255.0))
@@ -34,11 +34,11 @@ def applyMaskRecursive(dirPath, maskImg):
         if sourcePath.is_dir():
             applyMaskRecursive(sourcePath, maskImg)
         elif checkImageFileType(sourcePath):
-            print(f'apply mask to: {sourcePath!s})')
+            #print(f'apply mask to: {sourcePath!s})')
             applyPixmapMask(sourcePath, maskImg)
             gc.collect()
         else:
-            print(f'ignoring file of incorrect type: {sourcePath}')
+            #print(f'ignoring file of incorrect type: {sourcePath}')
 
 def applyAllFiles(dirPath, maskPath):
     maskImg = None

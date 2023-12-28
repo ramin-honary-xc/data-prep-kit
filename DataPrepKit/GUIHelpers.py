@@ -100,7 +100,7 @@ def QPixmap_to_numpy_array(pixmap, do_copy=False):
             pass
     else:
         raise ValueError(f'unsupported image format "{qt_image_format_labels[format]}"')
-    print(f'QPixmap_to_numpy_array({pixmap}) #(construct numpy.ndarray(shape={shape}, dtype=np.uint8)')
+    #print(f'QPixmap_to_numpy_array({pixmap}) #(construct numpy.ndarray(shape={shape}, dtype=np.uint8)')
     ndarray = np.ndarray(shape=tuple(shape), dtype=np.uint8, buffer=buffer)
     return (copy.deepcopy(ndarray) if do_copy else ndarray)
 
