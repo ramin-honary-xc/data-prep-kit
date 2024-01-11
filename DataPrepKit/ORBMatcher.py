@@ -82,7 +82,7 @@ class ImageWithORB():
         already has, otherwise if not compute it now. """
         #print(f'{self.__class__.__name__}.compute()')
         if (self.image is None):
-            raise ValueError(f'{self.__class__.__name__}.compute() #(failed to load pixmap for path {path}')
+            raise ValueError(f'{self.__class__.__name__}.compute() #(failed to load pixmap)')
         elif (self.descriptors is None) or (self.keypoints is None):
             # Set the init_crop_rect
             height = self.image.shape[0]
@@ -588,7 +588,7 @@ class ORBMatcher(AbstractMatcher):
         self.cached_image = None
         self.reference_with_orb = None
         reference = self.app_model.get_reference_image()
-        if reference:
+        if reference.get_path() is not None:
             self.update_reference_image(reference=reference)
         else:
             pass
@@ -667,10 +667,12 @@ class ORBMatcher(AbstractMatcher):
             return self.get_match_points()
 
     def update_reference_image(self, reference=None):
+        # Reference must be a CachedCVImageLoader object
         reference = reference if reference is not None else self.app_model.get_reference_image()
-        if not reference:
+        if not reference or reference.get_path() is None:
             raise ValueError('reference image has not been selected')
         else:
+            reference.load_image()
             self.reference_with_orb = ImageWithORB(reference, self.orb_config)
             self.reference_with_orb.compute()
             self.last_run_orb_config = self.orb_config

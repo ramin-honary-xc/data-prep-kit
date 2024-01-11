@@ -33,9 +33,10 @@ class CachedCVImageLoader():
         if path is None:
             path = self.path
             self.force_load_image(path)
-        elif path != self.path:
+        elif (self.image is None) or (path != self.path):
             self.force_load_image(path)
         else:
+            #print(f'{self.__class__.__name__}.load_image(path={path!r}, crop_rect={crop_rect!r}) #(already loaded)')
             pass
 
     def force_load_image(self, path):
@@ -49,8 +50,8 @@ class CachedCVImageLoader():
               )
         else:
             self.path = path
+            #print(f'{self.__class__.__name__}.force_load_image() #(success "{self.path}")')
             return self.image
-            #print(f'CachedCVImageLoader.force_load_image() #(success "{self.path}")')
 
     def get_path(self):
         return self.path

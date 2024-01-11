@@ -14,7 +14,7 @@ from DataPrepKit.SingleFeatureMultiCrop import SingleFeatureMultiCrop
 import DataPrepKit.GUIHelpers as dpk
 
 from pathlib import PurePath
-import traceback
+#import traceback
 
 import PyQt5.QtCore as qcore
 import PyQt5.QtGui as qgui
@@ -154,13 +154,17 @@ class RMEMatchVisualizer(AbstractMatchVisualizer):
         self.crop_region_qrect_list = []
 
     def get_match_scene(self):
-        return self.match_scene
+        return AbstractMatchVisualizer.get_match_scene(self)
 
     def clear_matches(self):
         #print(f'{self.__class__.__name__}.clear()')
         if self.feature_qrect is not None:
-            self.match_scene.removeItem(self.feature_qrect)
-            self.feature_qrect = None
+            match_scene = self.get_match_scene()
+            if match_scene is not None:
+                match_scene.removeItem(self.feature_qrect)
+                self.feature_qrect = None
+            else:
+                pass
         else:
             pass
         for item in self.crop_region_qrect_list:
@@ -352,18 +356,27 @@ class FilesTab(FileSetGUI):
             progress_dialog = None
             try:
                 guess_steps = app_model.guess_compute_steps()
-                compute_steps = 2 if guess_steps is None else guess_steps + 2
+                compute_steps = 0 if guess_steps is None else guess_steps
                 target = app_model.get_target_image()
-                progress_dialog = self.main_view.show_progress(
-                    f'Load image {str(target.get_path())!r}',
-                    'Cancel', 0, compute_steps,
-                  )
-                progress_dialog.open()
+                if compute_steps > 1:
+                    progress_dialog = self.main_view.show_progress(
+                        f'Load image {str(target.get_path())!r}',
+                        'Cancel', 0, compute_steps,
+                      )
+                    progress_dialog.open()
+                else:
+                    progress_dialog = None
                 target.load_image(path)
-                progress_dialog.update_progress(1, label='Searching image...')
+                if progress_dialog:
+                    progress_dialog.update_progress(0, label='Searching image...')
+                else:
+                    pass
                 results = app_model.match_on_file(progress=progress_dialog)
-                progress_dialog.update_progress(1)
-                progress_dialog.accept()
+                #print(f'{self.__class__.__name__}.activation_handler({path!r}) #(len(results) = {len(results)})')
+                if progress_dialog:
+                    progress_dialog.accept()
+                else:
+                    pass
                 if results is not None:
                     if len(results) > 0:
                         self.main_view.update_inspect_tab()
@@ -375,7 +388,7 @@ class FilesTab(FileSetGUI):
                           )
                 else:
                     if progress_dialog is not None:
-                        progress_dialogo.reject()
+                        progress_dialog.reject()
                     else:
                         pass
                     self.main_view.show_pattern_tab()
@@ -389,7 +402,7 @@ class FilesTab(FileSetGUI):
                     pass
                 self.main_view.show_pattern_tab()
                 self.main_view.error_message(str(err))
-                traceback.print_exception(err)
+                #traceback.print_exception(err)
             except RuntimeError as err:
                 pass
 
@@ -530,7 +543,7 @@ class PatternPreview(ReferenceImagePreview):
 
     def redraw(self):
         #print(f'{self.__class__.__name__}.redraw()')
-        traceback.print_stack()
+        #traceback.print_stack()
         app_model = self.main_view.get_app_model()
         ReferenceImagePreview.redraw(self)
         self._draw_feature_layer()
@@ -992,6 +1005,7 @@ class PatternSetupTab(qt.QWidget):
     #####################  Working with regions  #####################
 
     def redraw_all_regions(self):
+        #print(f'{self.__class__.__name__}.redraw_all_regions()')
         scene = self.preview_view.get_scene()
         app_model = self.main_view.get_app_model()
         feature_region = app_model.get_feature_region()
@@ -1198,6 +1212,7 @@ class InspectTab(qt.QWidget):
 
     def redraw_all_regions(self):
         #print(f'{self.__class__.__name__}.redraw_all_regions()')
+        #traceback.print_stack()
         app_model = self.main_view.get_app_model()
         target = app_model.get_target_image()
         path = target.get_path()

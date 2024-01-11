@@ -9,6 +9,7 @@ import os
 import os.path
 import sys
 from pathlib import PurePath
+#import traceback
 
 import cv2 as cv
 import numpy as np
@@ -344,10 +345,12 @@ class RMEMatcher(AbstractMatcher):
 
     def match_on_file(self, progress=None):
         """See documentation for DataPrepKit.AbstractMatcher.match_on_file()."""
-        #target_image_path = self.target.get_path()
+        #traceback.print_stack()
         #print(f'{self.__class__.__name__}.match_on_file()')
         reference = self.app_model.get_reference_image()
+        reference.load_image()
         target    = self.app_model.get_target_image()
+        target.load_image()
         suffix    = self.app_model.get_file_encoding()
         threshold = self.app_model.get_threshold()
         reference.assert_parameter('Pattern image')

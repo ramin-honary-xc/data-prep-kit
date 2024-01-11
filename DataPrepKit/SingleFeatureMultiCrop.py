@@ -175,7 +175,11 @@ class SingleFeatureMultiCrop():
         else:
             raise ValueError('expecting CachedCVImageLoader or Path as argument')
         self.reference_image = reference
-        self.algorithm.update_reference_image()
+        if reference is not None and reference.get_path() is not None:
+            #print(f'{self.__class__.__name__}.set_reference_image({reference.get_path()!r})')
+            self.algorithm.update_reference_image()
+        else:
+            pass
 
     def get_output_dir(self):
         return self.output_dir
