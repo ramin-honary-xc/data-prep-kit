@@ -500,7 +500,7 @@ class ORBConfig():
             'minimum_descriptor_count': self.set_minimum_descriptor_count,
           }
         used_handlers = set()
-        for (key, value) in config:
+        for (key, value) in config.items():
             lkey = key.lower()
             if lkey in key_handlers:
                 handler = key_handlers[lkey]

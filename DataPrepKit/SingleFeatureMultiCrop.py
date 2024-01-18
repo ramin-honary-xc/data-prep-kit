@@ -50,6 +50,7 @@ class SingleFeatureMultiCrop():
         self.orb_matcher = ORBMatcher(self)
         self.algorithm = None
         self.cli_config = None
+        self.default_config_file = None
         # Configure from JSON first, then override with CLI arguments
         if self.config_file_path is not None:
             self.configure_from_file(self.config_file_path)
@@ -90,15 +91,29 @@ class SingleFeatureMultiCrop():
             pass
         self.set_algorithm(str(config.algorithm).upper())
 
-    def configure_from_file(self, path):
+    def set_default_config_file(self, path):
         if isinstance(path, str) or isinstance(path, PurePath):
             path = Path(path)
         elif isinstance(path, Path):
             pass
         else:
             raise ValueError('expecting Path or string', path)
-        if not Path.exists() or Path.is_dir():
-            raise ValueError('path argument not correct type', path)
+        self.default_config_file = path
+
+    def get_default_config_file(self):
+        return self.default_config_file
+
+    def configure_from_file(self, path=None):
+        if path is None:
+            path = self.get_default_config_file()
+        else:
+            pass
+        if path is None:
+            raise ValueError('no config file path specified')
+        else:
+            pass
+        if not path.exists() or path.is_dir():
+            raise ValueError('path does not lead to a file', path)
         else:
             pass
         json_config = None
@@ -110,12 +125,16 @@ class SingleFeatureMultiCrop():
             pass
         return self.configure_from_json(json_config)
 
-    def configure_to_file(self, path):
+    def configure_to_file(self, path=None):
         """Save the configuration as a json file."""
-        if isinstance(path, str) or isinstance(path, PurePath):
-            path = Path(path)
+        if path is None:
+            path = self.get_default_config_file()
         else:
-            raise ValueError('path argument not correct type', path)
+            pass
+        if path is None:
+            raise ValueError('no config file path specified')
+        else:
+            pass
         json_config = self.configure_to_json()
         with open(path, 'w') as f:
             json.dump(json_config, f)
@@ -136,7 +155,7 @@ class SingleFeatureMultiCrop():
             if not isinstance(cfg, dict):
                 raise ValueError('JSON parameter "algorithm" must contain a list ["name", {...params...}]', cfg)
             else:
-                for (key,value) in cfg:
+                for (key,value) in cfg.items():
                     lkey = key.lower()
                     if lkey == 'use_algorithm':
                         uvalue = value.upper()
@@ -155,7 +174,7 @@ class SingleFeatureMultiCrop():
         else:
             pass
         if 'output_directory' in json_config:
-            self.set_output_dir(json_config['output_dir'])
+            self.set_output_dir(json_config['output_directory'])
         else:
             pass
         if 'reference_image' in json_config:
@@ -192,26 +211,6 @@ class SingleFeatureMultiCrop():
         function. """
         result = {}
         #--------------------------------------------------
-        algorithms = {}
-        value = self.get_algorithm()
-        if isinstance(value, RMEMatcher):
-            algorithms['use_algorithm'] = 'RME'
-        elif isinstance(value, ORBMatcher):
-            algorithms['use_algorithm'] = 'ORB'
-        elif value is None:
-            pass
-        else:
-            raise ValueError('algorithm field set to unknown type', type(value))
-        if self.rme_matcher is not None:
-            algorithms['RME'] = self.rme_matcher.configure_to_json()
-        else:
-            pass
-        if self.orb_matcher is not None:
-            algorithms['ORB'] = self.orb_matcher.configure_to_json()
-        else:
-            pass
-        result['algorithms'] = algorithms
-        #--------------------------------------------------
         value = self.get_output_dir()
         if value is not None:
             result['output_directory'] = str(value)
@@ -242,6 +241,27 @@ class SingleFeatureMultiCrop():
             result['input_images'] = list(iter(value))
         else:
             pass
+        #--------------------------------------------------
+        algorithms = {}
+        value = self.get_algorithm()
+        if isinstance(value, RMEMatcher):
+            algorithms['use_algorithm'] = 'RME'
+        elif isinstance(value, ORBMatcher):
+            algorithms['use_algorithm'] = 'ORB'
+        elif value is None:
+            pass
+        else:
+            raise ValueError('algorithm field set to unknown type', type(value))
+        if self.rme_matcher is not None:
+            algorithms['RME'] = self.rme_matcher.configure_to_json()
+        else:
+            pass
+        if self.orb_matcher is not None:
+            algorithms['ORB'] = self.orb_matcher.configure_to_json()
+        else:
+            pass
+        result['algorithms'] = algorithms
+        #--------------------------------------------------        
         return result
 
     def get_orb_matcher(self):

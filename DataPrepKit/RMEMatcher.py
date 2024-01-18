@@ -317,9 +317,13 @@ class RMEMatcher(AbstractMatcher):
         self.distance_map = None
         self.target_matched_points = None
 
+    def configure_to_json(self):
+        threshold = self.app_model.get_threshold()
+        return {'threshold': threshold}
+
     def configure_from_json(self, config):
-        if isintance(config, dict):
-            for (key,value) in config:
+        if isinstance(config, dict):
+            for (key,value) in config.items():
                 lkey = key.lower()
                 if lkey == 'threshold':
                     if isinstance(value, int) or isinstance(value, float):
