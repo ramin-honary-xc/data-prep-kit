@@ -12,6 +12,25 @@ def dict_keep_defined(d):
       {k:v for k,v in d.items() if v is not None} \
         if d is not None else {}
 
+def check_rect_config(r, err_msg):
+    if (isinstance(r, list) or isinstance(r, tuple)) and len(v) == 4:
+        for e in r:
+            if isinstance(e, int) or isinstance(e, float):
+                pass
+            else:
+                raise ValueError(f'{err_msg} region rectangles must be a list of 4 numbers [x,y,width,height]', k, v)
+        return (v[0], v[1], v[2], v[3])
+    else:
+        raise ValueError(f'{err_msg}, dictionary values must be a list of 4 numbers')
+
+def check_region_config(d, err_msg):
+    result = dict()
+    for k,v in d:
+        if isinstance(k, str):
+            result[k] = check_rect_config(v, f'{err_msg}, (key={key!r})')
+        else:
+            raise ValueError(f'{err_msg}, dictionary keys must be strings', k, d)
+    return result
 
 ####################################################################################################
 
@@ -66,6 +85,12 @@ def check_param(label, param, gte, lte):
             (lte, gte)
           )
 
+def rect_to_list(rect):
+    return [rect[0], rect[1], rect[2], rect[3]]
+
+def list_to_rect(rect):
+    return (rect[0], rect[1], rect[2], rect[3],)
+
 def crop_region_json(json_string):
     """Parse a JSON string from the command line into a dictionary of
     4-tuple crop regions."""
@@ -92,12 +117,7 @@ def crop_region_json(json_string):
                             (label, region),
                           )
                     else:
-                        crop_regions[label] = (
-                            region[0],
-                            region[1],
-                            region[2],
-                            region[3],
-                          )
+                        crop_regions[label] = list_to_rect(region)
     return crop_regions
 
 ####################################################################################################

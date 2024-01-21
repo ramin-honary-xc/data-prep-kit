@@ -319,12 +319,12 @@ class FilesTab(qt.QWidget):
     def open_image_files_handler(self):
         target_dir = os.getcwd()
         urls = \
-            qt.QFileDialog.getOpenFileUrls( \
-                self, "Open images in which to search for patterns", \
-                qcore.QUrl(str(target_dir)), \
-                'Images (*.png *.jpg *.jpeg)', '', \
-                qt.QFileDialog.ReadOnly, \
-                ["file"] \
+            qt.QFileDialog.getOpenFileUrls(
+                self, "Open images in which to search for patterns",
+                qcore.QUrl(str(target_dir)),
+                'Images (*.png *.jpg *.jpeg)', '',
+                qt.QFileDialog.ReadOnly,
+                ["file"],
               )
         #print(f'FilesTab #(selected urls = {urls})')
         urls = urls[0]

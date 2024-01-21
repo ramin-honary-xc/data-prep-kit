@@ -4,9 +4,10 @@ from DataPrepKit.RMEMatcher import RMEMatcher
 from DataPrepKit.ORBMatcher import ORBMatcher
 from DataPrepKit.RegionSize import RegionSize
 from pathlib import Path, PurePath
-from DataPrepKit.utilities import bounding_rect
+import DataPrepKit.utilities as util
 import sys
 import traceback
+import json
 
 def algorithm_name(name, get_constr=False):
     if isinstance(name, str):
@@ -32,6 +33,7 @@ class SingleFeatureMultiCrop():
     """
 
     def __init__(self, cli_config=None):
+        self.config_file_path = cli_config.config_file_path
         self.feature_region = None
         self.crop_regions = {}
         self.file_encoding = 'png'
@@ -44,14 +46,23 @@ class SingleFeatureMultiCrop():
         self.target_image = CachedCVImageLoader()
         self.reference_image = CachedCVImageLoader()
         self.threshold = 0.92
-        self.rme_matcher = None
-        self.orb_matcher = None
+        self.rme_matcher = RMEMatcher(self)
+        self.orb_matcher = ORBMatcher(self)
         self.algorithm = None
         self.cli_config = None
+        self.default_config_file = None
+        # Configure from JSON first, then override with CLI arguments
+        if self.config_file_path is not None:
+            self.configure_from_file(self.config_file_path)
+        else:
+            pass
+        # Evaluate the rest of the CLI arguments
         if cli_config:
             self.set_cli_config(cli_config)
         else:
             pass
+        # Set the default algorithm to ORB, this app cannot do
+        # anything without first selecting an algorithm.
         if self.algorithm is None:
             self.set_algorithm('ORB')
         else:
@@ -79,6 +90,179 @@ class SingleFeatureMultiCrop():
         else:
             pass
         self.set_algorithm(str(config.algorithm).upper())
+
+    def set_default_config_file(self, path):
+        if isinstance(path, str) or isinstance(path, PurePath):
+            path = Path(path)
+        elif isinstance(path, Path):
+            pass
+        else:
+            raise ValueError('expecting Path or string', path)
+        self.default_config_file = path
+
+    def get_default_config_file(self):
+        return self.default_config_file
+
+    def configure_from_file(self, path=None):
+        if path is None:
+            path = self.get_default_config_file()
+        else:
+            pass
+        if path is None:
+            raise ValueError('no config file path specified')
+        else:
+            pass
+        if not path.exists() or path.is_dir():
+            raise ValueError('path does not lead to a file', path)
+        else:
+            pass
+        json_config = None
+        with open(path, 'r') as f:
+            json_config = json.load(f)
+        if json_config is None:
+            raise ValueError('failed to read config file', path)
+        else:
+            pass
+        return self.configure_from_json(json_config)
+
+    def configure_to_file(self, path=None):
+        """Save the configuration as a json file."""
+        if path is None:
+            path = self.get_default_config_file()
+        else:
+            pass
+        if path is None:
+            raise ValueError('no config file path specified')
+        else:
+            pass
+        json_config = self.configure_to_json()
+        with open(path, 'w') as f:
+            json.dump(json_config, f)
+
+    def configure_from_json(self, json_config):
+        if 'algorithms' in json_config:
+            #Configuration should also contain algorithm-specific
+            #parameters. It should be expressed as a Lisp-like list:
+            # { ...: ...,
+            #   "algorithms":
+            #    {"use_algorithm": "ORB",
+            #     "ORB": {... ORB parameters ...},
+            #     "RME": { "threshold":92.0 }
+            #    },
+            #   ...: ...
+            # }
+            cfg = json_config['algorithms']
+            if not isinstance(cfg, dict):
+                raise ValueError('JSON parameter "algorithm" must contain a list ["name", {...params...}]', cfg)
+            else:
+                for (key,value) in cfg.items():
+                    lkey = key.lower()
+                    if lkey == 'use_algorithm':
+                        uvalue = value.upper()
+                        if uvalue == 'RME':
+                            self.set_algorithm('RME')
+                        elif uvalue == 'ORB':
+                            self.set_algorithm('ORB')
+                        else:
+                            raise ValueError('JSON parameter "algorithm.use" must be one of ["ORB","RME"]', value, cfg)
+                    elif lkey == 'rme':
+                        self.rme_matcher.configure_from_json(value)
+                    elif lkey == 'orb':
+                        self.orb_matcher.configure_from_json(value)
+                    else:
+                        raise ValueError('JSON parameter "algorithm" contains unknown algorithm (one of ["ORB","RME"])', key)
+        else:
+            pass
+        if 'output_directory' in json_config:
+            self.set_output_dir(json_config['output_directory'])
+        else:
+            pass
+        if 'reference_image' in json_config:
+            self.reference_image.set_path(PurePath(json_config['reference_image']))
+        else:
+            pass
+        if 'feature_region' in json_config:
+            rect = util.check_rect_config(json_config['feature_region'], f'in config file, "feature_region" parameter')
+            self.set_feature_region(rect)
+        else:
+            pass
+        if 'crop_regions' in json_config:
+            regions = util.check_region_config(json_config['crop_regions'], 'in config file, "crop_regions" parameter')
+            self.set_crop_regions(regions)
+        else:
+            pass
+        if 'input_images' in json_config:
+            inputs = json_config['input_images']
+            fileset = self.get_target_fileset()
+            if isinstance(inputs, str):
+                fileset.add(inputs)
+            elif isinstance(inputs, list):
+                for file in inputs:
+                    fileset.add(file)
+            else:
+                raise ValueError('config file "input_images" parameter must be 1 or more files/directories specified as a single string, or list of strings', inputs)
+        else:
+            pass
+
+    def configure_to_json(self):
+        """Return a dictionary constructed of primitive data types
+        (strings, numbers, lists) which can be written to a
+        JSON-formatted tex file using the Python json.dump()
+        function. """
+        result = {}
+        #--------------------------------------------------
+        value = self.get_output_dir()
+        if value is not None:
+            result['output_directory'] = str(value)
+        else:
+            pass
+        value = self.get_reference_image()
+        if value is not None:
+            value = value.get_path()
+            if value is not None:
+                result['reference_image'] = value
+            else:
+                pass
+        else:
+            pass
+        value = self.get_feature_region()
+        if value is not None:
+            result['feature_region'] = util.rect_to_list(value)
+        else:
+            pass
+        value = self.get_crop_regions()
+        if value is not None:
+            value = { k: util.rect_to_list(v) for k,v in value }
+            result['crop_regions'] = value
+        else:
+            pass
+        value = self.get_target_fileset()
+        if (value is not None) or (len(value) > 0):
+            result['input_images'] = list(iter(value))
+        else:
+            pass
+        #--------------------------------------------------
+        algorithms = {}
+        value = self.get_algorithm()
+        if isinstance(value, RMEMatcher):
+            algorithms['use_algorithm'] = 'RME'
+        elif isinstance(value, ORBMatcher):
+            algorithms['use_algorithm'] = 'ORB'
+        elif value is None:
+            pass
+        else:
+            raise ValueError('algorithm field set to unknown type', type(value))
+        if self.rme_matcher is not None:
+            algorithms['RME'] = self.rme_matcher.configure_to_json()
+        else:
+            pass
+        if self.orb_matcher is not None:
+            algorithms['ORB'] = self.orb_matcher.configure_to_json()
+        else:
+            pass
+        result['algorithms'] = algorithms
+        #--------------------------------------------------        
+        return result
 
     def get_orb_matcher(self):
         return self.orb_matcher

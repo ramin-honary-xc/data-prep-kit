@@ -317,6 +317,24 @@ class RMEMatcher(AbstractMatcher):
         self.distance_map = None
         self.target_matched_points = None
 
+    def configure_to_json(self):
+        threshold = self.app_model.get_threshold()
+        return {'threshold': threshold}
+
+    def configure_from_json(self, config):
+        if isinstance(config, dict):
+            for (key,value) in config.items():
+                lkey = key.lower()
+                if lkey == 'threshold':
+                    if isinstance(value, int) or isinstance(value, float):
+                        self.app_model.set_threshold(value)
+                    else:
+                        raise ValueError('RME algorithm config parameter "threshold" is not a number', value, config)
+                else:
+                    raise ValueError('RME algorithm config, unknown parameter', key, config)
+        else:
+            raise ValueError('RME algorithm config parameters is not a dictionary', config)
+
     def get_reference_image(self):
         return self.app_model.get_reference()
 

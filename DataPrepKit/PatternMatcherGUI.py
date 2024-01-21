@@ -13,7 +13,8 @@ from DataPrepKit.SingleFeatureMultiCrop import SingleFeatureMultiCrop
 
 import DataPrepKit.GUIHelpers as dpk
 
-from pathlib import PurePath
+from pathlib import Path, PurePath
+import os
 #import traceback
 
 import PyQt5.QtCore as qcore
@@ -1294,6 +1295,84 @@ class InspectTab(qt.QWidget):
 
 #---------------------------------------------------------------------------------------------------
 
+class ConfigFileSelector(qt.QWidget):
+    """This is a simple widget to choose a JSON file path and use it
+    to change all of the configuration settings."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.main_view = parent.main_view
+        self.app_model = self.main_view.get_app_model()
+        self.layout = qt.QHBoxLayout(self)
+        self.open_button = qt.QPushButton('Open')
+        self.open_button.clicked.connect(self.open_config_action)
+        self.save_button = qt.QPushButton('Save')
+        self.save_button.clicked.connect(self.save_config_action)
+        self.path_input_field = qt.QLineEdit()
+        self.layout.addWidget(self.open_button)
+        self.layout.addWidget(self.save_button)
+        self.layout.addWidget(self.path_input_field)
+
+    qt_file_dialog_filter_string = 'Files (*.cfg *.config *.ini *.json)'
+
+    def get_load_save_directory(self):
+        target_dir = self.app_model.get_default_config_file()
+        if target_dir is None:
+            target_dir = Path(os.getcwd())
+        else:
+            pass
+        if not target_dir.is_dir():
+            target_dir = target_dir.parent
+        else:
+            pass
+        return target_dir
+
+    def show_select_file_dialog(self, message, readwrite):
+        if len(urls) > 0:
+            return Path(urls[0])
+        else:
+            return None
+
+    def open_config_action(self):
+        open_file = self.path_input_field.text()
+        if (open_file is None) or (open_file == ''):
+            target_dir = self.get_load_save_directory()
+            open_file = qt.QFileDialog.getOpenFileName(
+                self, 'Choose a configuration file',
+                str(target_dir),
+                ConfigFileSelector.qt_file_dialog_filter_string,
+              )
+            open_file = open_file[0]
+        else:
+            pass
+        if (open_file is not None) and (open_file != ''):
+            self.app_model.set_default_config_file(open_file)
+            self.app_model.configure_from_file()
+            self.path_input_field.setText(str(self.app_model.get_default_config_file()))
+        else:
+            pass
+
+    def save_config_action(self):
+        save_file = self.path_input_field.text()
+        if (save_file is None) or (save_file == ''):
+            target_dir = self.get_load_save_directory()
+            save_file = qt.QFileDialog.getSaveFileName(
+                self, 'Save a configuration file',
+                str(target_dir),
+                ConfigFileSelector.qt_file_dialog_filter_string,
+              )
+            save_file = save_file[0]
+        else:
+            pass
+        if (save_file is not None) and (save_file != ''):
+            self.app_model.set_default_config_file(save_file)
+            self.app_model.configure_to_file()
+            self.path_input_field.setText(str(self.app_model.get_default_config_file()))
+        else:
+            pass
+
+#---------------------------------------------------------------------------------------------------
+
 class AlgorithmSelector(qt.QTabWidget):
     """This is the final tab, here you can select the pattern matching
     algorithm to be used. Only RME an ORB are supported as of right
@@ -1309,6 +1388,8 @@ class AlgorithmSelector(qt.QTabWidget):
         self.orb_config_undo = []
         self.orb_config_redo = []
         self.notify = qt.QErrorMessage(self)
+        ##--------------- The Config File selector ----------------
+        self.config_file_selector = ConfigFileSelector(self)
         ##-------------------- The text fields --------------------
         self.rme_checkbox = qt.QCheckBox('Root-Mean Error (RME) ')
         self.orb_config_view = qt.QGroupBox('Oriented Rotated BRIEF (ORB) ')
@@ -1376,6 +1457,7 @@ class AlgorithmSelector(qt.QTabWidget):
         self.rme_checkbox.stateChanged.connect(self.rme_checkbox_state_changed)
         self.orb_config_view.toggled.connect(self.orb_config_view_check_state_changed)
         self.whole_layout = qt.QVBoxLayout(self)
+        self.whole_layout.addWidget(self.config_file_selector)
         self.whole_layout.addWidget(self.rme_checkbox)
         self.whole_layout.addWidget(self.orb_config_view)
         self.whole_layout.addWidget(self.buttons)

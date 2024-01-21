@@ -465,21 +465,53 @@ class ORBConfig():
             #(self.descriptor_nearest_neighbor_count == a.descriptor_nearest_neighbor_count) \
           )
 
+    def from_dict(config):
+        pass
+
     def to_dict(self):
         return \
-          { 'nFeatures': self.nFeatures,
-            'scaleFactor': self.scaleFactor,
-            'nLevels': self.nLevels,
-            'edgeThreshold': self.edgeThreshold,
-            'firstLevel': self.firstLevel,
+          { 'N_features': self.nFeatures,
+            'scale_factor': self.scaleFactor,
+            'N_levels': self.nLevels,
+            'edge_threshold': self.edgeThreshold,
+            'first_level': self.firstLevel,
             'WTA_K': self.WTA_K,
-            'scoreType': self.scoreType,
-            'patchSize': self.patchSize,
-            'fastThreshold': self.fastThreshold,
+            'score_type': self.scoreType,
+            'patch_size': self.patchSize,
+            'fast_threshold': self.fastThreshold,
             'descriptor_threshold': self.descriptor_threshold,
             'minimum_descriptor_count': self.minimum_descriptor_count,
             #'descriptor_nearest_neigbor_count': self.descriptor_nearest_neighbor_count,
           }
+
+    def from_dict(config):
+        self = ORBConfig()
+        key_handlers = {
+            'n_features': self.set_nFeatures,
+            'scale_factor': self.set_scaleFactor,
+            'n_levels': self.set_nLevels,
+            'edge_threshold': self.set_edgeThreshold,
+            'first_level': self.set_firstLevel,
+            'wta_k': self.set_WTA_K,
+            'score_type': self.set_scoreType,
+            'patch_size': self.set_patchSize,
+            'fast_threshold': self.set_fastThreshold,
+            'descriptor_threshold': self.set_descriptor_threshold,
+            'minimum_descriptor_count': self.set_minimum_descriptor_count,
+          }
+        used_handlers = set()
+        for (key, value) in config.items():
+            lkey = key.lower()
+            if lkey in key_handlers:
+                handler = key_handlers[lkey]
+                del key_handlers[lkey]
+                used_handlers |= {lkey}
+                handler(value)
+            elif lkey in used_handlers:
+                raise ValueError('ORB config, parameter specified more than once', key, config)
+            else:
+                raise ValueError('ORB config, unknown parameter', key, config)
+        return self
 
     def __str__(self):
         return str(self.to_dict())
@@ -592,6 +624,26 @@ class ORBMatcher(AbstractMatcher):
             self.update_reference_image(reference=reference)
         else:
             pass
+
+    def configure_from_json(self, config):
+        if 'threshold' in config:
+            threshold = config['threshold']
+            if isinstance(threshold, int):
+                threshold = threshold / 100.0
+            elif isinstance(threshold, float):
+                pass
+            else:
+                raise ValueError('ORB config parameter "threshold" is not a number', threshold, config)
+            self.app_model.set_threshold(threshold)
+            del config['threshold']
+            self.orb_config = ORBConfig.from_dict(config)
+        else:
+            pass
+
+    def configure_to_json(self):
+        config = self.orb_config.to_dict()
+        config['threshold'] = self.app_model.get_threshold()
+        return config
 
     def get_orb_config(self):
         return self.orb_config
