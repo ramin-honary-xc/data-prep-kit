@@ -3,11 +3,12 @@ from DataPrepKit.CachedCVImageLoader import CachedCVImageLoader
 from DataPrepKit.RMEMatcher import RMEMatcher
 from DataPrepKit.ORBMatcher import ORBMatcher
 from DataPrepKit.RegionSize import RegionSize
+import DataPrepKit.logging as log
 from pathlib import Path, PurePath
 import DataPrepKit.utilities as util
 import sys
+from datetime import datetime
 import traceback
-import json
 
 def algorithm_name(name, get_constr=False):
     if isinstance(name, str):
@@ -46,11 +47,14 @@ class SingleFeatureMultiCrop():
         self.target_image = CachedCVImageLoader()
         self.reference_image = CachedCVImageLoader()
         self.threshold = 0.92
+        self.report_file_name = 'report.json'
         self.rme_matcher = RMEMatcher(self)
         self.orb_matcher = ORBMatcher(self)
         self.algorithm = None
         self.cli_config = None
         self.default_config_file = None
+        self.work_log = None
+        self.recent_start_time = None
         # Configure from JSON first, then override with CLI arguments
         if self.config_file_path is not None:
             self.configure_from_file(self.config_file_path)
@@ -67,6 +71,8 @@ class SingleFeatureMultiCrop():
             self.set_algorithm('ORB')
         else:
             pass
+
+    ##########  Configuration from CLI arguments  ##########
  
     def get_cli_config(self):
         return self.cli_config
@@ -85,11 +91,14 @@ class SingleFeatureMultiCrop():
         self.save_distance_map = config.save_map
         self.set_file_encoding(config.encoding)
         self.threshold = config.threshold
+        self.report_file_name = self.cli_config.report_file_name
         if config.crop_regions_json:
             self.crop_regions = config.crop_regions_json
         else:
             pass
         self.set_algorithm(str(config.algorithm).upper())
+
+    ##########  Load/Save JSON Configuration Files  ##########
 
     def set_default_config_file(self, path):
         if isinstance(path, str) or isinstance(path, PurePath):
@@ -137,7 +146,7 @@ class SingleFeatureMultiCrop():
             pass
         json_config = self.configure_to_json()
         with open(path, 'w') as f:
-            json.dump(json_config, f)
+            json.dump(json_config, f, indent=2)
 
     def configure_from_json(self, json_config):
         if 'algorithms' in json_config:
@@ -263,6 +272,71 @@ class SingleFeatureMultiCrop():
         result['algorithms'] = algorithms
         #--------------------------------------------------        
         return result
+
+    ##########  Recording work performed as a JSON object  ##########
+
+    def get_work_log(self):
+        return self.work_log
+
+    def begin_new_work_log(self):
+        st = datetime.now
+        log.info_json(lambda: {'begin_job': f'{st.year}-{st.month}-{st.day} {st.hour}:{st.minute}:{st.second}.{st.microsecond:06}'})
+        self.recent_start_time = st
+        cfg = self.configure_to_json()
+        alg_all = cfg['algorithms']
+        alg_using = alg_all['use_algorithm']
+        alg_this = {'use_algorithm': alg_using, alg_using: alg_all[alg_using]}
+        cfg['algorithms'] = alg_this
+        log.info_json({'configuration': cfg})
+        self.work_log = \
+          { 'start_time':
+             [st.year, st.month, st.day, st.hour, st.minute, st.second, st.microsecond],
+            'end_time': None,
+            'configuration': cfg,
+            'processing': [],
+          }
+        
+    def work_log_begin_processing(self, input_file_path, matchset_objects):
+        log.info_json({'output_results': [str(input_file_path)]})
+        self.work_log['processing'][str(input_file_path)] = \
+          { 'matching_regions': matchset_objects,
+            'output_results': [],
+          }
+
+    def work_log_output_file(self, input_file_path, result_object):
+        self.work_log['processing'][str(input_file_path)]['output_results'].append(result_object)
+
+    def end_work_log(self):
+        et = datetime.now()
+        log.info_json({'end_job': f'{et.year}-{et.month}-{et.day} {et.hour}:{et.minute}:{et.second}.{et.microsecond}'})
+        end_time = [et.year, et.month, et.day, et.hour, et.minute, et.second, et.microsecond],
+        self.work_log['end_time'] = end_time
+        dt = None
+        if self.recent_start_time is not None:
+            dt = self.recent_start_time - et
+            report = \
+              { 'days': dt.days,
+                'seconds': float(f'{dt.seconds}.{dt.microseconds:06}'),
+              }
+            self.work_log['elapsed_time'] = report
+            log.info_json({'elapsed_time': report})
+        else:
+            pass
+        
+    def write_work_log(self, path=None):
+        if path is None:
+            path = Path(self.get_output_dir())
+        if isinstance(path, str):
+            path = Path(path)
+        if isinstance(path, PurePath):
+            path = Path(path)
+        else:
+            raise ValueError('output_dir is not a Path or string value', self.output_dir)
+        path = path / self.report_file_name
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(self.work_log, f, indent=2)
+
+    ################  Matching algorithm and threshold  ###############
 
     def get_orb_matcher(self):
         return self.orb_matcher

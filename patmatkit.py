@@ -207,6 +207,19 @@ def main():
       )
 
     arper.add_argument(
+        '--report',
+        dest='report_file_name',
+        action='store',
+        default='report.json',
+        type=str,
+        help="""
+          Change the name of the report file that is written to the output directory along with all
+          image files created, which contains a record of information about the process which
+          created the image files.
+          """
+      )
+
+    arper.add_argument(
         'inputs',
         nargs='*',
         action='store',
