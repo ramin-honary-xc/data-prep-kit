@@ -24,7 +24,7 @@ class AbstractMatchCandidate():
     def check_crop_region_size(self):
         return False
 
-    def crop_write_image(self, crop_rects, output_path):
+    def crop_write_images(self, crop_rects, output_path):
         """The arguments are as follows:
 
           - rect_list: the dictionary of string labels associated with

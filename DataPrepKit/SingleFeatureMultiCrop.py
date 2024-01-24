@@ -405,11 +405,11 @@ class SingleFeatureMultiCrop():
         if not label:
             raise ValueError('cannot create crop region "None" as label')
         elif label in self.crop_regions:
-            self.print_state() 
+            #self.print_state() 
             return False
         else:
             self.crop_regions[label] = rect
-            self.print_state() 
+            #self.print_state() 
             return True
 
     def set_crop_region(self, region_name, rect):
@@ -417,27 +417,27 @@ class SingleFeatureMultiCrop():
         given is None, this function calls 'set_feature_region()' instead."""
         if region_name is None:
             #print(f'{self.__class__.__name__}.set_crop_region({region_name!r}, {rect}) #(set self.feature_region)')
-            self.print_state()
+            #self.print_state()
             self.feature_region = rect
         if region_name in self.crop_regions:
             if region_name in self.crop_regions:
                 #print(f'{self.__class__.__name__}.set_crop_region({region_name!r}, {rect}) #(set self.crop_region[{region_name!r}])')
-                self.print_state()
+                #self.print_state()
                 self.crop_regions[region_name] = rect
             else:
                 #print(f'{self.__class__.__name__}.set_crop_region({region_name!r}, {rect}) #(failed, {region_name!r} not defined)')
-                self.print_state()
+                #self.print_state()
                 return False
 
     def delete_crop_region(self, region_name):
         #print(f'{self.__class__.__name__}.delete_crop_region({region_name!r})')
         if region_name is None:
             self.feature_region = None
-            self.print_state()
+            #self.print_state()
             return True
         elif region_name in self.crop_regions:
             del self.crop_regions[region_name]
-            self.print_state()
+            #self.print_state()
             return True
         else:
             return False
@@ -451,7 +451,7 @@ class SingleFeatureMultiCrop():
         if new_name is None:
             result = self.delete_crop_region(old_name)
             #print(f'{self.__class__.__name__}.rename_crop_region({old_name!r}, {new_name!r}) #(crop_regions = {self.crop_regions})')
-            self.print_state()
+            #self.print_state()
             return result
         elif (new_name in self.crop_regions):
             #print(f'{self.__class__.__name__}.rename_crop_region({old_name!r}, {new_name!r}) #({new_name!r} already exists)')
@@ -464,7 +464,7 @@ class SingleFeatureMultiCrop():
             del self.crop_regions[old_name]
             self.crop_regions[new_name] = rect
             #print(f'{self.__class__.__name__}.rename_crop_region({old_name!r}, {new_name!r}) #(crop_regions = {self.crop_regions})')
-            self.print_state()
+            #self.print_state()
             return True
 
     ###############  Iterating over point sets  ###############
@@ -543,7 +543,7 @@ class SingleFeatureMultiCrop():
     def save_selected(self, target_image=None, crop_regions=None, output_dir=None):
         #print(f'{self.__class__.__name__}.save_selected()')
         match_item_list = self.algorithm.match_on_file()
-        #print(f'{self.__class__.__name__}.save_selected() #(match_on_file() -> {len(match_item_list)} matches)')
+        print(f'{self.__class__.__name__}.save_selected() #(match_on_file() -> {len(match_item_list)} matches)')
         #for (i, pt) in zip(range(0,len(match_item_list)), match_item_list):
         #    print(f'    {i}: {pt}')
         # -----------------------------------------------------------------------
@@ -567,26 +567,29 @@ class SingleFeatureMultiCrop():
             suffix = self.get_file_encoding()
             suffix = target_image_path.suffix \
                 if (suffix == '(same)') or (suffix is None) else f'.{suffix}'
+            #print(f'{self.__class__.__name__}.save_selected() #({type(match_item)} -> {match_item.get_string_id()})')
             try:
                 if (crop_regions is None) or (len(crop_regions) == 0):
                     output_path = output_dir / PurePath(
-                        target_image_path.stem + '{image_ID}' + suffix
+                        target_image_path.stem + '_{image_ID}' + suffix
                       )
                     feature_region = self.reference_image.get_crop_rect()
                     #print(f'{self.__class__.__name__}.save_selected() #(output_dir = {str(output_path)!r})')
                     match_item.crop_write_images({'': feature_region}, str(output_path))
                 else:
                     output_path = output_dir / PurePath('{label}') / PurePath(
-                        target_image_path.stem + f'{image_ID}' + suffix
+                        target_image_path.stem + '_{image_ID}' + suffix
                       )
                     #print(f'{self.__class__.__name__}.save_selected() #(output_dir = {str(output_path)!r})')
-                    match_item.crop_write_image(crop_regions, str(output_path))
+                    match_item.crop_write_images(crop_regions, str(output_path))
             except OSError as err:
+                traceback.print_exception(err)
+            except ValueError as err:
                 traceback.print_exception(err)
 
     def crop_matched_references(self, target_image_path=None, output_dir=None):
         # Create results directory if it does not exist
-        #print(f'{self.__class__.__name__}.crop_matched_references({target_image_path!r}) #(after clean-up self.crop_regions)')
+        print(f'{self.__class__.__name__}.crop_matched_references({target_image_path!r}) #(after clean-up self.crop_regions)')
         target_image = None
         if target_image_path is None:
             target_image = self.target
@@ -595,7 +598,7 @@ class SingleFeatureMultiCrop():
                 path=target_image_path,
                 crop_rect=self.target.get_crop_rect(),
               )
-        self.print_state()
+        #self.print_state()
         self.save_selected(target_image, output_dir)
 
     def batch_crop_matched_patterns(self, target_fileset=None, output_dir=None, progress=None):
@@ -607,7 +610,7 @@ class SingleFeatureMultiCrop():
         directory. """
         target_fileset = self.target_fileset if target_fileset is None else target_fileset
         self.reference_image.load_image(crop_rect=self.feature_region)
-        #print(f'{self.__class__.__name__}.batch_crop_matched_references() #(will operate on {len(self.target_fileset)} image files)')
+        print(f'{self.__class__.__name__}.batch_crop_matched_references() #(will operate on {len(self.target_fileset)} image files)')
         for image in target_fileset:
             #print(
             #    f'image = {image!s}\n'
@@ -615,12 +618,12 @@ class SingleFeatureMultiCrop():
             #    f'threshold = {self.threshold}\n'
             #    f'save_distance_map = {self.save_distance_map}',
             #  )
-            if progress is not None:
-                progress.update_progress(1, label=f'{str(image)!r}')
-            else:
-                pass
             try:
                 self.crop_matched_references(image, output_dir)
+                if progress is not None:
+                    progress.update_progress(1, label=f'{str(image)!r}')
+                else:
+                    pass
             except Exception as err:
                 if progress is not None:
                     progress.reject()

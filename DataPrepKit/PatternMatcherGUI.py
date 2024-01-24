@@ -169,7 +169,11 @@ class RMEMatchVisualizer(AbstractMatchVisualizer):
         else:
             pass
         for item in self.crop_region_qrect_list:
-            self.match_scene.removeItem(item)
+            match_scene = self.get_match_scene()
+            if match_scene is not None:
+                match_scene.removeItem(item)
+            else:
+                pass
         self.crop_region_qrect_list = []
 
     def clear_reference(self):
@@ -1254,7 +1258,7 @@ class InspectTab(qt.QWidget):
 
     def save_selected_all(self):
         #print('------------------------------------------------------------')
-        #print(f'{self.__class__.__name__}.save_selected_all()')
+        print(f'{self.__class__.__name__}.save_selected_all()')
         app_model = self.main_view.get_app_model()
         output_dir = app_model.get_cli_config().output_dir
         output_dir = self.modal_prompt_get_directory(str(output_dir))

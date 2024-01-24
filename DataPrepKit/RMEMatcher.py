@@ -245,45 +245,55 @@ class RMECandidate(AbstractMatchCandidate):
     def get_string_id(self):
         """See documentation for AbstractMatchCadndidate.get_string_id()"""
         (x, y, _width, _height) = self.rect
-        return f'{self.x:05}x{self.x:05}'
+        return f'{x:05}x{x:05}'
 
-    def check_crop_region_size(self):
-        """Return True if this RegionSize fits within the bounds of the given image."""
+    def check_crop_region_size(self, relative_rect=None):
+        """Return ((x_min, x_max), (y_min, y_max)) for a bounding
+        rectangle if this RegionSize fits within the bounds of the
+        given image, otherwise returns None."""
+        print(f'{self.__class__.__name__}.check_crop_region({relative_rect}) #(self.rect={self.rect})')
+        (x_min, y_min, width, height) = self.rect
+        if relative_rect is not None:
+            (x, y, width, height) = relative_rect
+            x_min += x
+            y_min += y
+        else:
+            pass
+        x_max = round(x_min + width)
+        y_max = round(y_min + height)
         image = self.image.get_image()
         shape = image.shape
         image_height = shape[0]
         image_width = shape[1]
-        if (self.x_min > image_width) or \
-           (self.y_min > image_height) or \
-           (self.x_max > image_width) or \
-           (self.y_max > image_height):
-               return None
+        result = ((x_min, x_max), (y_min, y_max))
+        if(x_min < 0) or (x_min > image_width)  or \
+          (y_min < 0) or (y_min > image_height) or \
+          (x_max < 0) or (x_max > image_width)  or \
+          (y_max < 0) or (y_max > image_height):
+            return (False, result)
         else:
-            return (image_width, image_height)
+            return (True, result)
 
     def crop_image(self, relative_rect=None):
         """Return a copy of the given image cropped to this object's
         rectangle. """
         image = self.image.get_image()
-        if self.check_crop_region_size():
-            return image[
-                self.y_min : self.y_max,
-                self.x_min : self.x_max,
-              ]
+        (ok, ((x_min, x_max), (y_min, y_max))) = self.check_crop_region_size(relative_rect)
+        if ok:
+            print(f'{self.__class__.__name__}.crop_image({relative_rect}) #(x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max})')
+            return image[y_min:y_max, x_min:x_max]
         else:
             shape = image.shape
             image_height = shape[0]
             image_width  = shape[1]
-            x = relative_rect['x'] if relative_rect else 0
-            y = relative_rect['y'] if relative_rect else 0
             raise ValueError(
                 "pattern crop not fully contained within pattern image",
                 {"image_width": image_width,
                  "image_height": image_height,
-                 "crop_X": x,
-                 "crop_width": self.x_max - self.x_min,
-                 "crop_Y": y,
-                 "crop_height": self.y_max - self.y_min,
+                 "crop_X": x_min,
+                 "crop_width": x_max - x_min,
+                 "crop_Y": y_min,
+                 "crop_height": y_max - y_min,
                  },
               )
 
@@ -293,12 +303,12 @@ class RMECandidate(AbstractMatchCandidate):
         (x0, y0, _width, _height) = self.rect
         for (label, rect) in crop_rects.items():
             (x,y,width,height) = rect
-            x += x0
-            y += y0
-            image_ID = f'_{x:05}x{y:05}'
+            x = round(x+x0)
+            y = round(y+y0)
+            image_ID = f'{x:05}x{y:05}'
             outpath = str(output_path).format(label=label, image_ID=image_ID)
-            #print(f'{self.__class__.__name__}.crop_write_images() #(save {outpath!r})')
-            image = self.crop_image(rect)
+            print(f'{self.__class__.__name__}.crop_write_images() #(save {outpath!r})')
+            image = self.crop_image((x,y,width,height,))
             cv.imwrite(outpath, image)
 
 #---------------------------------------------------------------------------------------------------
