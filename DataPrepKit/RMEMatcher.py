@@ -242,10 +242,12 @@ class RMECandidate(AbstractMatchCandidate):
     def get_match_score(self):
         return self.match_score
 
-    def get_string_id(self):
+    def get_string_id(self, rect=None):
         """See documentation for AbstractMatchCadndidate.get_string_id()"""
-        (x, y, _width, _height) = self.rect
-        return f'{x:05}x{x:05}'
+        (x, y, _width, _height) = rect if rect is not None else self.rect
+        x = round(x)
+        y = round(y)
+        return f'{x:05}x{y:05}'
 
     def check_crop_region_size(self, relative_rect=None):
         """Return ((x_min, x_max), (y_min, y_max)) for a bounding
@@ -254,9 +256,9 @@ class RMECandidate(AbstractMatchCandidate):
         print(f'{self.__class__.__name__}.check_crop_region({relative_rect}) #(self.rect={self.rect})')
         (x_min, y_min, width, height) = self.rect
         if relative_rect is not None:
-            (x, y, width, height) = relative_rect
-            x_min += x
-            y_min += y
+            (x_off, y_off, width, height) = relative_rect
+            x_min = round(x_min + x_off)
+            y_min = round(y_min + y_off)
         else:
             pass
         x_max = round(x_min + width)
@@ -302,13 +304,12 @@ class RMECandidate(AbstractMatchCandidate):
         #print(f'{self.__class__.__name__}.crop_write_images({crop_rects!r}), {str(output_path)!r})')
         (x0, y0, _width, _height) = self.rect
         for (label, rect) in crop_rects.items():
-            (x,y,width,height) = rect
-            x = round(x+x0)
-            y = round(y+y0)
-            image_ID = f'{x:05}x{y:05}'
+            (x_off, y_off, width, height) = rect
+            image_ID = self.get_string_id(rect=(round(x0+x_off), round(y0+y_off), width, height,))
+            print(f'{self.__class__.__name__}.crop_write_images(output_path={str(output_path)!r}) #(label={label!r}, image_ID={image_ID!r})')
             outpath = str(output_path).format(label=label, image_ID=image_ID)
-            print(f'{self.__class__.__name__}.crop_write_images() #(save {outpath!r})')
-            image = self.crop_image((x,y,width,height,))
+            image = self.crop_image(relative_rect=rect)
+            print(f'{self.__class__.__name__}.crop_write_images() #(imwrite({str(outpath)!r}))')
             cv.imwrite(outpath, image)
 
 #---------------------------------------------------------------------------------------------------

@@ -88,7 +88,7 @@ class AbstractMatcher():
     def get_matched_points(self):
         """This function lazily computes a list of patterm matching regions
         that are most similar to the reference image. It runs
-        'needs_refresh()' to see if the result needs to be computes,
+        'needs_refresh()' to see if the result needs to be computed,
         computes and caches the result if necessary, and then returns
         the most recently cached results. """
         #print(f'{self.__class__.__name__}.get_matched_points()')

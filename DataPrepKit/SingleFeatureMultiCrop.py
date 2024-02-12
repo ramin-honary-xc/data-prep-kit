@@ -550,10 +550,19 @@ class SingleFeatureMultiCrop():
         target_image = self.target_image if target_image is None else target_image
         output_dir = self.get_output_dir() if output_dir is None else output_dir
         if not output_dir.is_dir():
-            self.results.mkdir(parents=True, exist_ok=True)
+            self.output_dir.mkdir(parents=True, exist_ok=True)
         else:
             pass
         crop_regions = self.get_crop_regions() if crop_regions is None else crop_regions
+        if crop_regions is not None:
+            for key in crop_regions.keys():
+                output_subdir = output_dir / Path(key)
+                if not output_subdir.is_dir():
+                    output_subdir.mkdir(parents=True, exist_ok=True)
+                else:
+                    pass
+        else:
+            pass
         if self.save_distance_map:
             self.algorithm.save_calculation(target_image)
         else:
