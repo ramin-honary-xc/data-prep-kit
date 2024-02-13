@@ -1258,7 +1258,7 @@ class InspectTab(qt.QWidget):
 
     def save_selected_all(self):
         #print('------------------------------------------------------------')
-        print(f'{self.__class__.__name__}.save_selected_all()')
+        #print(f'{self.__class__.__name__}.save_selected_all()')
         app_model = self.main_view.get_app_model()
         output_dir = app_model.get_cli_config().output_dir
         output_dir = self.modal_prompt_get_directory(str(output_dir))

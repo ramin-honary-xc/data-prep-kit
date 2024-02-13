@@ -125,7 +125,7 @@ class BatchResize():
                     os.fspath(write_path),
                     self.resize_image_buffer(cv.imread(os.fspath(path))),
                   )
-                print(f'{write_path!s}')
+                #print(f'{write_path!s}')
             except Exception as e:
                 print(f'ERROR: {e}')
 
@@ -152,7 +152,7 @@ class BatchResize():
         """Resize a given image buffer using the configuration settings for
         this object, which are usually set on the command line or in
         the GUI."""
-        print(f'BatchResize.resize_image_buffer() #(image_buffer = {type(input_image)}, self.width = {self.width}, self.height = {self.height})')
+        #print(f'{self.__class__.__name__}.resize_image_buffer() #(image_buffer = {type(input_image)}, self.width = {self.width}, self.height = {self.height})')
         return cv.resize(
             input_image,
             (round(self.width), round(self.height)),

@@ -32,6 +32,6 @@ class EncodingMenu(qt.QWidget):
         self.setLayout(self.layout)
 
     def menu_item_selected(self, action):
-        print(f'InspectTabControl.menu_item_selected("{action.text()}")')
+        # print(f'{self.__class__.__name__}.menu_item_selected("{action.text()}")')
         self.app_model.set_file_encoding(action.text())
         self.popup_menu.setText(action.text())

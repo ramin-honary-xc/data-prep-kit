@@ -253,7 +253,7 @@ class RMECandidate(AbstractMatchCandidate):
         """Return ((x_min, x_max), (y_min, y_max)) for a bounding
         rectangle if this RegionSize fits within the bounds of the
         given image, otherwise returns None."""
-        print(f'{self.__class__.__name__}.check_crop_region({relative_rect}) #(self.rect={self.rect})')
+        #print(f'{self.__class__.__name__}.check_crop_region({relative_rect}) #(self.rect={self.rect})')
         (x_min, y_min, width, height) = self.rect
         if relative_rect is not None:
             (x_off, y_off, width, height) = relative_rect
@@ -282,7 +282,7 @@ class RMECandidate(AbstractMatchCandidate):
         image = self.image.get_image()
         (ok, ((x_min, x_max), (y_min, y_max))) = self.check_crop_region_size(relative_rect)
         if ok:
-            print(f'{self.__class__.__name__}.crop_image({relative_rect}) #(x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max})')
+            #print(f'{self.__class__.__name__}.crop_image({relative_rect}) #(x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max})')
             return image[y_min:y_max, x_min:x_max]
         else:
             shape = image.shape
@@ -306,10 +306,10 @@ class RMECandidate(AbstractMatchCandidate):
         for (label, rect) in crop_rects.items():
             (x_off, y_off, width, height) = rect
             image_ID = self.get_string_id(rect=(round(x0+x_off), round(y0+y_off), width, height,))
-            print(f'{self.__class__.__name__}.crop_write_images(output_path={str(output_path)!r}) #(label={label!r}, image_ID={image_ID!r})')
+            #print(f'{self.__class__.__name__}.crop_write_images(output_path={str(output_path)!r}) #(label={label!r}, image_ID={image_ID!r})')
             outpath = str(output_path).format(label=label, image_ID=image_ID)
             image = self.crop_image(relative_rect=rect)
-            print(f'{self.__class__.__name__}.crop_write_images() #(imwrite({str(outpath)!r}))')
+            #print(f'{self.__class__.__name__}.crop_write_images() #(imwrite({str(outpath)!r}))')
             cv.imwrite(outpath, image)
 
 #---------------------------------------------------------------------------------------------------

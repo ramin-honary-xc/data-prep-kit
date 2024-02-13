@@ -43,12 +43,12 @@ class DragDropHandler():
     def drop_url_handler(self, urls):
         """This is the default event handler that does nothing but print a log
         message."""
-        print(f'DragDropHandler.drop_url_handler() #(urls: {urls})')
+        print(f'{self.__class__.__name__}.drop_url_handler() #(urls: {urls})')
 
     def drop_text_handler(self, text):
         """This is the default event handler that does nothing but print a log
         message."""
-        print(f'DragDropHandler.drop_url_handler() #(text: "{text}")')
+        print(f'{self.__class__.__name__}.drop_url_handler() #(text: "{text}")')
 
     def enable_drop_text_handler(self, boolean):
         self._drop_text_handler = boolean

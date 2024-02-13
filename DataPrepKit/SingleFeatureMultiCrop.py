@@ -543,7 +543,7 @@ class SingleFeatureMultiCrop():
     def save_selected(self, target_image=None, crop_regions=None, output_dir=None):
         #print(f'{self.__class__.__name__}.save_selected()')
         match_item_list = self.algorithm.match_on_file()
-        print(f'{self.__class__.__name__}.save_selected() #(match_on_file() -> {len(match_item_list)} matches)')
+        #print(f'{self.__class__.__name__}.save_selected() #(match_on_file() -> {len(match_item_list)} matches)')
         #for (i, pt) in zip(range(0,len(match_item_list)), match_item_list):
         #    print(f'    {i}: {pt}')
         # -----------------------------------------------------------------------
@@ -598,7 +598,7 @@ class SingleFeatureMultiCrop():
 
     def crop_matched_references(self, target_image_path=None, output_dir=None):
         # Create results directory if it does not exist
-        print(f'{self.__class__.__name__}.crop_matched_references({target_image_path!r}) #(after clean-up self.crop_regions)')
+        #print(f'{self.__class__.__name__}.crop_matched_references({target_image_path!r}) #(after clean-up self.crop_regions)')
         target_image = None
         if target_image_path is None:
             target_image = self.target
@@ -619,7 +619,7 @@ class SingleFeatureMultiCrop():
         directory. """
         target_fileset = self.target_fileset if target_fileset is None else target_fileset
         self.reference_image.load_image(crop_rect=self.feature_region)
-        print(f'{self.__class__.__name__}.batch_crop_matched_references() #(will operate on {len(self.target_fileset)} image files)')
+        #print(f'{self.__class__.__name__}.batch_crop_matched_references() #(will operate on {len(self.target_fileset)} image files)')
         for image in target_fileset:
             #print(
             #    f'image = {image!s}\n'

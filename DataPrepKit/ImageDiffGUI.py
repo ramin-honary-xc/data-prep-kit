@@ -74,7 +74,7 @@ class FilesTab(fs.FileSetGUI):
             pass
 
     def activation_handler(self, path):
-        print(f'FilesTab.activation_handler("{path!s}")')
+        #print(f'{self.__class__.__name__}.activation_handler("{path!s}")')
         self.app_model.toggle_show_diff()
         self.item_change_handler(path)
 
@@ -100,7 +100,7 @@ class FilesTab(fs.FileSetGUI):
         
     def use_current_item_as_reference(self):
         path = self.current_item_path()
-        print(f'FilesTab.use_current_item_as_reference() #("{path}")')
+        #print(f'{self.__class__.__name__}.use_current_item_as_reference() #("{path}")')
         self.app_model.set_reference_image_path(path)
         self.main_view.update_reference_pixmap()
 
@@ -168,14 +168,14 @@ class ReferenceSetupTab(qt.QWidget):
         self.preview_view.update_reference_pixmap()
 
     def set_reference_image_path(self, path):
-        print(f'ReferenceSetupTab.set_reference_image_path("{path!s}")')
+        #print(f'{self.__class__.__name__}.set_reference_image_path("{path!s}")')
         self.preview_view.set_reference_image_path(path)
         self.app_model.set_reference_image_path(path)
 
     def open_reference_file_handler(self):
         #target_dir = self.app_model.get_config().reference
         paths = fs.qt_modal_image_file_selection(self, "Open images in which to search for patterns")
-        print(f'ReferenceSetupTab.open_reference_file_handler() #(paths = {paths})')
+        #print(f'{self.__class__.__name__}.open_reference_file_handler() #(paths = {paths})')
         if len(paths) > 0:
             self.set_reference_image_path(paths[0])
             if len(paths) > 1:
@@ -183,7 +183,7 @@ class ReferenceSetupTab(qt.QWidget):
             else:
                 pass
         else:
-            print(f'ReferenceSetupTab.open_reference_file_handler() #(file selector dialog box returned empty list)')
+            #print(f'{self.__class__.__name__}.open_reference_file_handler() #(file selector dialog box returned empty list)')
             pass
 
 #---------------------------------------------------------------------------------------------------

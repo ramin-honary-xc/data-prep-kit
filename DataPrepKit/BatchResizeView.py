@@ -133,7 +133,7 @@ class ImageFileView(FileSetGUI):
 
     def save_current_image_handler(self):
         if self.cached_path is None:
-            print(f'ImageFileiew.save_current_image_handler() #(failed: no selected image)')
+            print(f'{self.__class__.__name__}.save_current_image_handler() #(failed: no selected image)')
         else:
             out_path = self.modal_prompt_save_file(
                 self.app_model.get_diff_image().get_path(),
@@ -152,9 +152,7 @@ class ImageFileView(FileSetGUI):
         app_model.batch_resize_images()
 
     def item_change_handler(self, path):
-        #super().item_change_handler(path)
-        #return
-        print(f'ImageFileView.item_change_handler({str(path)!r})')
+        #print(f'ImageFileView.item_change_handler({str(path)!r})')
         if str(self.cached_path) == str(path):
             pass
         else:
@@ -165,19 +163,19 @@ class ImageFileView(FileSetGUI):
             if path_buffer:
                 (_, self.image_cached) = path_buffer
             else:
-                print(f'ImageFileView.item_change_handler() #(image_display.get_image_buffer() returned value of type {type(path_buffer)})')
+                #print(f'{self.__class__.__name__}.item_change_handler() #(image_display.get_image_buffer() returned value of type {type(path_buffer)})')
                 self.image_cached = None
             self.resized_image_cached = None
             if self.showing_resized:
                 self._show_resized_view()
             else:
-                print(f'ImageFileView.item_change_handler() #(not showing resized view)')
+                #print(f'{self.__class__.__name__}.item_change_handler() #(not showing resized view)')
                 pass
 
     def _show_resized_view(self):
-        print(f'ImageFileView._show_resized_view() #(evaluate resize on cached image)')
+        # print(f'{self.__class__.__name__}._show_resized_view() #(evaluate resize on cached image)')
         if not self.cached_path:
-            print(f'ImageFileView._show_resized_view() #(self.cached_path = None)')
+            #print(f'{self.__class__.__name__}._show_resized_view() #(self.cached_path = None)')
             return
         else:
             pass
@@ -189,7 +187,7 @@ class ImageFileView(FileSetGUI):
                     img = app_model.resize_image_buffer(QPixmap_to_numpy_array(img))
                     self.image_cached = numpy_array_to_QPixmap(img)
                 else:
-                    print(f'ImageFileView._show_resized_view() #(will not compute resized image, self.image_cache is of type {type(img)})')
+                    #print(f'{self.__class__.__name__}._show_resized_view() #(will not compute resized image, self.image_cache is of type {type(img)})')
                     pass
                 self.resized_image_cached = numpy_array_to_QPixmap(app_model.resize_image_buffer(img))
             else:
@@ -210,16 +208,17 @@ class ImageFileView(FileSetGUI):
             #     print('ImageFileView._show_resized_view() #(app_model.resize_image_file() returned None)')
         else:
             pass
-        print(f'ImageFileView._show_resized_view() #(resized_image_cache is of type {type(self.resized_image_cached)})')
+        #print(f'{self.__class__.__name__}._show_resized_view() #(resized_image_cache is of type {type(self.resized_image_cached)})')
         image_display = self.get_image_display()
         if self.resized_image_cached is not None:
             image_display.set_image_buffer(self.cached_path, self.resized_image_cached)
             self.showing_resized = True
         else:
-            print(f'ImageFileView._show_resized_view() #(cannot set resized view, self.resized_image_cache is {self.resized_image_cached!r})')
+            #print(f'{self.__class__.__name__}._show_resized_view() #(cannot set resized view, self.resized_image_cache is {self.resized_image_cached!r})')
+            pass
 
     def _show_original_size_view(self):
-        print(f'ImageFileView._show_original_size_view()')
+        #print(f'{self.__class__.__name__}._show_original_size_view()')
         image_display = self.get_image_display()
         image_display.set_image_buffer(self.cached_path, self.image_cached)
         self.showing_resized = False
@@ -229,7 +228,7 @@ class ImageFileView(FileSetGUI):
 
     def set_showing_resized(self, yesno):
         if yesno == self.showing_resized:
-            print(f'ImageFileView.set_showing_resized({yesno}) #(is already {self.showing_resized})')
+            #print(f'{self.__class__.__name__}.set_showing_resized({yesno}) #(is already {self.showing_resized})')
             pass
         else:
             self.showing_resized = yesno
@@ -267,5 +266,5 @@ class BatchResizeView(qt.QWidget):
         return self.app_model
 
     def do_show_resize(self, yesno):
-        print(f'BatchResizeView.do_show_resize({yesno})')
+        #print(f'{self.__class__.__name__}.do_show_resize({yesno})')
         self.fileset_gui.set_showing_resized(yesno)
