@@ -2,7 +2,6 @@ import DataPrepKit.FileSet as fs
 from DataPrepKit.CachedCVImageLoader import CachedCVImageLoader
 from DataPrepKit.RMEMatcher import RMEMatcher
 from DataPrepKit.ORBMatcher import ORBMatcher
-from DataPrepKit.RegionSize import RegionSize
 from pathlib import Path, PurePath
 import DataPrepKit.utilities as util
 import sys
@@ -17,9 +16,9 @@ def algorithm_name(name, get_constr=False):
         elif name == 'ORB':
             return 'ORB' if not get_constr else ORBMatcher.__init__
         else:
-            raise ValueError(f'unepxected algorithm "{algorithm}", must be one of "ORB" or "RME"')
+            raise ValueError(f'unepxected algorithm "{name}", must be one of "ORB" or "RME"')
     else:
-        raise ValueError(f'algorithm_name() expects a string', name)
+        raise ValueError('algorithm_name() expects a string', name)
 
 #---------------------------------------------------------------------------------------------------
 
@@ -182,7 +181,7 @@ class SingleFeatureMultiCrop():
         else:
             pass
         if 'feature_region' in json_config:
-            rect = util.check_rect_config(json_config['feature_region'], f'in config file, "feature_region" parameter')
+            rect = util.check_rect_config(json_config['feature_region'], 'in config file, "feature_region" parameter')
             self.set_feature_region(rect)
         else:
             pass
@@ -288,7 +287,7 @@ class SingleFeatureMultiCrop():
             self.algorithm = self.orb_matcher
         else:
             raise ValueError(
-                f'unexpected algorithm "{config.algorithm}", must be one of "ORB" or "RME"'
+                f'unexpected algorithm "{algorithm_label}", must be one of "ORB" or "RME"'
               )
 
     def get_threshold(self):

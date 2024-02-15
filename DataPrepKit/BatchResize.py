@@ -1,7 +1,7 @@
 from DataPrepKit.FileSet import FileSet, image_file_suffix_set
 
 import gc
-from pathlib import Path
+from pathlib import Path, PurePath
 import os
 
 import cv2 as cv
@@ -40,7 +40,7 @@ class BatchResize():
             self.encoding = encoding if encoding is not None else config.encoding
         else:
             self.output_dir = output_dir
-            self.interpolate = iterp
+            self.interpolate = interpolate
         self.width = \
             width if width is not None else cfg_w
         self.height = \

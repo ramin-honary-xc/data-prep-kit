@@ -61,7 +61,7 @@ def numpy_array_to_QPixmap(array):
     """This function does the impedance matching between the in-memory
     data format of NumPy arrays to the image format used by
     QPixmap(). """
-    d = qgui.QPixmap.defaultDepth()
+    #d = qgui.QPixmap.defaultDepth()
     #print(f'numpy_array_to_QPixmap() #(shape: {array.shape}, depth: {d})')
     if (len(array.shape) == 3) and (array.shape[2] == 3 or array.shape[2] == 4):
         # This is most likely an RGB color image

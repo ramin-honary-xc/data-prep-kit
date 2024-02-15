@@ -1,9 +1,5 @@
 from pathlib import PurePath
 
-import PyQt5.QtCore as qcore
-import PyQt5.QtGui as qgui
-import PyQt5.QtWidgets as qt
-
 class DragDropHandler():
     """This class provides a higher-level wrapper around the Qt drag and
     drop event handlers. This class can be inhereited so it can make

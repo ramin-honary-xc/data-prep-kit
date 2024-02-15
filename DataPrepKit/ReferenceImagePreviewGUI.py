@@ -2,7 +2,7 @@ import DataPrepKit.utilities as util
 from DataPrepKit.SimpleImagePreview import SimpleImagePreview
 import PyQt5.QtWidgets as qt
 
-from pathlib import PurePath
+from pathlib import Path, PurePath
 
 class ReferenceImagePreview(SimpleImagePreview):
     """A QGraphicsView for displaying a reference image, such as the
@@ -36,14 +36,14 @@ class ReferenceImagePreview(SimpleImagePreview):
         self.update_reference_pixmap()
 
     def drop_url_handler(self, urls):
-        app_model = self.main_view.get_app_model()
+        #app_model = self.main_view.get_app_model()
         if len(urls) > 0:
             path = urls[0]
             if len(urls) > 1:
                 print(f'WARNING: drag dropped more than one file, will use only first: "{path}"')
             else:
                 pass
-            if isinstance(path, PurePath):
+            if isinstance(path, PurePath) or isinstance(path, Path):
                 self.set_reference_image(path)
             elif isinstance(path, str):
                 self.set_reference_image(Path(path))
@@ -54,7 +54,7 @@ class ReferenceImagePreview(SimpleImagePreview):
             pass
 
     def drop_text_handler(self, text):
-        app_model = self.main_view.get_app_model()
+        #app_model = self.main_view.get_app_model()
         files = util.split_linebreaks(text)
         if len(files) > 0:
             path = PurePath(files[0])
@@ -63,7 +63,7 @@ class ReferenceImagePreview(SimpleImagePreview):
             else:
                 self.report_file_not_found(path)
         else:
-            print(f'WARNING: drag dropped text contains no file paths, ignoring')
+            print('WARNING: drag dropped text contains no file paths, ignoring')
             pass
 
     def report_file_not_found(self, path):

@@ -1,8 +1,5 @@
-from DataPrepKit.SingleFeatureMultiCrop import SingleFeatureMultiCrop
-
 import PyQt5.QtCore as qcore
 import PyQt5.QtGui as qgui
-import PyQt5.QtWidgets as qt
 
 def qcolorRepr(qcolor):
     if isinstance(qcolor, qgui.QPen):

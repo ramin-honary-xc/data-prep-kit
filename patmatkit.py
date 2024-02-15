@@ -1,7 +1,6 @@
 #! /usr/bin/env python3
 
 import DataPrepKit.utilities as util
-import DataPrepKit.RMEMatcher as rme
 from DataPrepKit.SingleFeatureMultiCrop import SingleFeatureMultiCrop, algorithm_name
 import DataPrepKit.PatternMatcherGUI as gui
 from DataPrepKit.FileSet import image_file_suffix_set, image_file_format_suffix

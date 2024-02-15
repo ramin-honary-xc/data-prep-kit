@@ -1,13 +1,9 @@
-import DataPrepKit.ImageDiff as patm
-from DataPrepKit.PercentSlider import PercentSlider
 import DataPrepKit.FileSetGUI as fs
 from DataPrepKit.SimpleImagePreview import ImagePreview
 from DataPrepKit.ContextMenuItem import context_menu_item
 from DataPrepKit.ReferenceImagePreviewGUI import ReferenceImagePreview
-from DataPrepKit.CropRectTool import CropRectTool
 from DataPrepKit.GUIHelpers import numpy_array_to_QPixmap
 
-import pathlib
 from pathlib import Path, PurePath
 
 import PyQt5.QtCore as qcore
@@ -141,7 +137,7 @@ class FilesTab(fs.FileSetGUI):
             self.app_model.save_all(output_dir=output_dir)
         else:
             # TODO: display error dialog box
-            print(f'WARNING: no reference image selected')
+            print('WARNING: no reference image selected')
 
 #---------------------------------------------------------------------------------------------------
 
@@ -179,7 +175,7 @@ class ReferenceSetupTab(qt.QWidget):
         if len(paths) > 0:
             self.set_reference_image_path(paths[0])
             if len(paths) > 1:
-                print(f'WARNING: more than one file selected, only using the first file: "{path[0]}"')
+                print(f'WARNING: more than one file selected, only using the first file: {paths[0]!r}')
             else:
                 pass
         else:

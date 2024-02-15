@@ -1,6 +1,5 @@
 import PyQt5.QtCore as qcore
 import PyQt5.QtGui as qgui
-import PyQt5.QtWidgets as qt
 
 class PointCloudLayer():
     """This class is for displaying point clouds as a layer within a

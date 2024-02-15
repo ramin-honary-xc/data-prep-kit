@@ -1,5 +1,4 @@
 from DataPrepKit.FileSet import FileSet
-from DataPrepKit.FileSetGUI import FileSetGUI
 from DataPrepKit.CachedCVImageLoader import CachedCVImageLoader
 import DataPrepKit.utilities as util
 import DataPrepKit.Consts as const
@@ -36,7 +35,6 @@ def diff_images(refimg, srcimg, color_map=None):
             f'unexpected result image shape {shape}',
           )
     (h, w) = (shape[0], shape[1])
-    sum = np.sum(result_img)
     similarity = 1.0 - np.sum(result_img) / (h*w*255)
     if color_map is None:
         pass
@@ -89,7 +87,7 @@ class ImageDiff():
     def __init__(self, path=None, file_set=None):
         self.reference = CachedCVImageLoader(path=path)
         self.file_set = FileSet(initset=file_set)
-        self.compare_image = CachedCVImageLoader();
+        self.compare_image = CachedCVImageLoader()
         self.diff_image = CachedCVImageLoader()
         self.show_diff_enabled = True
         self.color_map = const.color_forest_fire
@@ -153,7 +151,7 @@ class ImageDiff():
             self.color_map = color_map
         else:
             raise ValueError(
-                f'color scheme must be numpy.ndarray of dtype uint8 and shape (256,3)',
+                'color scheme must be numpy.ndarray of dtype uint8 and shape (256,3)',
                 color_map
               )
 
@@ -179,7 +177,7 @@ class ImageDiff():
         input_image = self.compare_image.get_raw_image()
         #print(f'ImageDiff.update_diff_image() #(type(ref_image) = {type(ref_image)}, type(input_image) = {type(input_image)})')
         if (ref_image is None) or (input_image is None):
-            print(f'WARNING: no reference image set, cannot compute image difference')
+            print('WARNING: no reference image set, cannot compute image difference')
         elif _warn_different_shapes(self.reference, self.compare_image):
             self.diff_image.clear()
             self.similarity = None
@@ -215,10 +213,10 @@ class ImageDiff():
         elif isinstance(output_dir, str):
             output_dir = PurePath(output_dir)
         else:
-            raise ValueError(f'argument must be string or instance of PurePath', output_dir)
+            raise ValueError('argument must be string or instance of PurePath', output_dir)
         ref_image = self.reference.get_image()
         if ref_image is None:
-            raise ValueError(f'no reference image set')
+            raise ValueError('no reference image set')
         else:
             pass
         with \
