@@ -3,3 +3,4 @@ results
 test-results
 __pycache__
 testimg
+.ruff_cache
