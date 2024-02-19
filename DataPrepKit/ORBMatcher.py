@@ -705,11 +705,11 @@ class ORBMatcher(AbstractMatcher):
         else:
             return cached.guess_compute_steps()
 
-    def match_on_file(self, progress=None):
+    def match_on_file(self, image_loader=None, progress=None):
         #print(f'{self.__class__.__name__}.match_on_file()')
         points = AbstractMatcher.get_matched_points(self)
         if points is None or self.needs_refresh():
-            return self.force_match_on_file(progress=progress)
+            return self.force_match_on_file(image_loader, progress=progress)
         else:
             return self.get_match_points()
 
@@ -724,17 +724,22 @@ class ORBMatcher(AbstractMatcher):
             self.reference_with_orb.compute()
             self.last_run_orb_config = self.orb_config
     
-    def force_match_on_file(self, progress=None):
+    def force_match_on_file(self, image_loader, progress=None):
         """This function is triggered when you double-click on an item in the image
         list in the "FilesTab". It starts running the pattern matching algorithm
         and changes the display of the GUI over to the "InspectTab". """
         #print(f'{self.__class__.__name__}.force_match_on_file()')
-        target = self.app_model.get_target_image()
+        target = None
+        if image_loader is not None:
+            target = image_loader
+        else:
+            target = self.app_model.get_target_image()
+        #print(f'{self.__class__.__name__}.force_match_on_file() #(target = {target})')
         if not self.reference_with_orb:
             self.update_reference_image()
         else:
             pass
-        target = self.app_model.get_target_image()
+        target.load_image()
         target_image = target.get_image()
         reference_bounds = self.reference_with_orb.get_crop_rect()
         if target_image is None:

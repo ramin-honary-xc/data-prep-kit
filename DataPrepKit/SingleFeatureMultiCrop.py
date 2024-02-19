@@ -541,7 +541,7 @@ class SingleFeatureMultiCrop():
 
     def save_selected(self, target_image=None, crop_regions=None, output_dir=None):
         #print(f'{self.__class__.__name__}.save_selected()')
-        match_item_list = self.algorithm.match_on_file()
+        match_item_list = self.algorithm.match_on_file(image_loader=target_image)
         #print(f'{self.__class__.__name__}.save_selected() #(match_on_file() -> {len(match_item_list)} matches)')
         #for (i, pt) in zip(range(0,len(match_item_list)), match_item_list):
         #    print(f'    {i}: {pt}')

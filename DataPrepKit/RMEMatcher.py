@@ -370,13 +370,17 @@ class RMEMatcher(AbstractMatcher):
         """Nothing needs to be computed on the referene image."""
         pass
 
-    def match_on_file(self, progress=None):
+    def match_on_file(self, image_loader=None, progress=None):
         """See documentation for DataPrepKit.AbstractMatcher.match_on_file()."""
         #traceback.print_stack()
         #print(f'{self.__class__.__name__}.match_on_file()')
         reference = self.app_model.get_reference_image()
         reference.load_image()
-        target    = self.app_model.get_target_image()
+        target = None
+        if image_loader is not None:
+            target = image_loader
+        else:
+            target = self.app_model.get_target_image()
         target.load_image()
         suffix    = self.app_model.get_file_encoding()
         threshold = self.app_model.get_threshold()
