@@ -566,7 +566,7 @@ class SingleFeatureMultiCrop():
             self.algorithm.save_calculation(target_image)
         else:
             pass
-        #print(f'{self.__class__.__name__}.save_selected() #(output_dir = {str(output_dir)!r})')
+        #print(f'{self.__class__.__name__}.save_selected() #({len(match_item_list)} matches, output_dir = {str(output_dir)!r})')
         target_image_path = target_image.get_path()
         for match_item in match_item_list:
             # Here we make use of the "iterate_crop_regions()" method
@@ -618,7 +618,7 @@ class SingleFeatureMultiCrop():
         directory. """
         target_fileset = self.target_fileset if target_fileset is None else target_fileset
         self.reference_image.load_image(crop_rect=self.feature_region)
-        #print(f'{self.__class__.__name__}.batch_crop_matched_references() #(will operate on {len(self.target_fileset)} image files)')
+        #print(f'{self.__class__.__name__}.batch_crop_matched_patterns() #(will operate on {len(self.target_fileset)} image files)')
         for image in target_fileset:
             #print(
             #    f'image = {image!s}\n'
