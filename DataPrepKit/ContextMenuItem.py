@@ -1,5 +1,3 @@
-import PyQt5.QtCore as qcore
-import PyQt5.QtGui as qgui
 import PyQt5.QtWidgets as qt
 
 def context_menu_item(label, action, shortcut=None):

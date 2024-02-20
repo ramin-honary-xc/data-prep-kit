@@ -7,7 +7,7 @@ from DataPrepKit.ImageDisplay    import ImageDisplay
 
 from copy import deepcopy
 import os
-from pathlib import (PurePath, Path)
+from pathlib import PurePath
 
 import PyQt5.QtCore as qcore
 import PyQt5.QtGui as qgui
@@ -120,6 +120,7 @@ class ReferenceImageView(ImageDisplay):
             self.image_file_layer.set_filepath(orb_image.get_filepath())
         else:
             #print(f'ReferenceImageView.draw_pixbuf() #(no reference image)')
+            pass
 
     def draw_keypoints(self):
         orb_image = self.app_model.get_reference_image()
@@ -136,8 +137,10 @@ class ReferenceImageView(ImageDisplay):
                     self.point_cloud_layer.add_point(x, y)
             else:
                 #print(f'ReferenceImageView.draw_keypoints() #(orb_config has not been updated)')
+                pass
         else:
             #print(f'ReferenceImageView.draw_keypoints() #(no reference image)')
+            pass
 
     def draw_reference_crop_rect(self):
         """This function draws the crop_rect in the view based on the crop_rect value
@@ -282,6 +285,7 @@ class FilesTab(qt.QWidget):
             self.app_view.change_to_reference_tab()
         else:
             #print(f'FilesTab.activate_handler(None)')
+            pass
 
     def activate_selected_item(self):
         self.activate_handler(self.get_current_item())
@@ -295,8 +299,10 @@ class FilesTab(qt.QWidget):
                 self.image_preview.update_display_item()
             else:
                 #print(f'FilesTab.item_change_handler() #(item.get_image_with_orb() -> None)')
+                pass
         else:
             #print('FilesTab.item_change_handler(item=None)')
+            pass
 
     def update_display_item(self):
         self.image_preview.update_display_item()
@@ -349,6 +355,7 @@ class FilesTab(qt.QWidget):
             item.crop_and_save(output_dir)
         else:
             #print(f'#(cannot save, no item selected)')
+            pass
 
     def do_save_all_images(self):
         output_dir = self.modal_prompt_get_directory(None)
@@ -508,7 +515,7 @@ class ConfigTab(qt.QWidget):
     def reset_defaults_action(self):
         #print(f'ConfigTab.reset_defaults_action()')
         self.push_do(self.orb_config_undo)
-        self.orb_config = ORBConfig()
+        self.orb_config = orbm.ORBConfig()
 
     def push_do(self, stack):
         """Pass 'self.orb_config_undo' or 'self.orb_config_redo' as the 'stack' argument."""
@@ -526,6 +533,7 @@ class ConfigTab(qt.QWidget):
             self.apply_changes_action()
         else:
             #print(f'ConfigTab.shift_do() #(cannot undo/redo, reached end of stack)')
+            pass
 
     def undo_action(self):
         self.shift_do(self.orb_config_undo, self.orb_config_redo)
@@ -584,4 +592,4 @@ class ImageCropKit(qt.QTabWidget):
             self.reference_image_tab.redraw()
         else:
             #print(f'ImageCropKit.redraw() #(no reference image)')
-
+            pass

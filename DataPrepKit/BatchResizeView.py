@@ -1,4 +1,4 @@
-from DataPrepKit.FileSetGUI import FileSetGUI, qt_modal_image_file_selection
+from DataPrepKit.FileSetGUI import FileSetGUI
 from DataPrepKit.EncodingMenu import EncodingMenu
 from DataPrepKit.SimpleImagePreview import SimpleImagePreview
 from DataPrepKit.GUIHelpers import numpy_array_to_QPixmap, QPixmap_to_numpy_array
@@ -9,6 +9,7 @@ import PyQt5.QtGui as qgui
 import PyQt5.QtCore as qcore
 
 import os
+import cv2 as cv
 from pathlib import PurePath
 
 ####################################################################################################

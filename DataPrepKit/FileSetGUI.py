@@ -1,6 +1,7 @@
 from DataPrepKit.ContextMenuItem import context_menu_item
 from DataPrepKit.FileSet import FileSet
 from DataPrepKit.SimpleImagePreview import SimpleImagePreview
+import DataPrepKit.utilities as util
 
 import pathlib
 
@@ -270,7 +271,7 @@ class FileSetGUI(qt.QWidget):
         if isinstance(item, qt.QAction):
             self.list_widget.addAction(item)
         else:
-            raise ValueError(f'not an instance of QAction', item)
+            raise ValueError('not an instance of QAction', item)
 
     def image_display_add_context_menu_item(self, item):
         if isinstance(item, qt.QAction):
@@ -279,7 +280,7 @@ class FileSetGUI(qt.QWidget):
             else:
                 pass
         else:
-            raise ValueError(f'not an instance of QAction', item)
+            raise ValueError('not an instance of QAction', item)
 
     def __activation_handler(self, item):
         self.activation_handler(item.get_path())

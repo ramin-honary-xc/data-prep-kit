@@ -1,5 +1,3 @@
-import PyQt5.QtCore as qcore
-import PyQt5.QtGui as qgui
 import PyQt5.QtWidgets as qt
 
 def left_mouse_button(event):
@@ -76,7 +74,7 @@ class ImageDisplay(qt.QGraphicsView):
             self._scene = scene
             super(ImageDisplay, self).setScene(scene)
         else:
-            raise ValueError(f'self.scene is not a LayeredGraphicsScene')
+            raise ValueError('self.scene is not a LayeredGraphicsScene')
 
     def clear(self):
         self._scene.clear()

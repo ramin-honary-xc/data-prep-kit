@@ -1,4 +1,3 @@
-import DataPrepKit.utilities as util
 import DataPrepKit.RMEMatcher as rme
 import DataPrepKit.ORBMatcher as orb
 from DataPrepKit.PercentSlider import PercentSlider
@@ -7,13 +6,12 @@ from DataPrepKit.ContextMenuItem import context_menu_item
 from DataPrepKit.SimpleImagePreview import SimpleImagePreview
 from DataPrepKit.ReferenceImagePreviewGUI import ReferenceImagePreview
 from DataPrepKit.CropRectTool import CropRectTool
-from DataPrepKit.FileSet import image_file_suffix_set
 from DataPrepKit.EncodingMenu import EncodingMenu
-from DataPrepKit.SingleFeatureMultiCrop import SingleFeatureMultiCrop
 
 import DataPrepKit.GUIHelpers as dpk
 
 from pathlib import Path, PurePath
+from copy import deepcopy
 import os
 #import traceback
 
@@ -293,7 +291,7 @@ class ORBMatchVisualizer(AbstractMatchVisualizer):
         #print(f'{self.__class__.__name__}.draw_features()')
         app_model = self.main_view.get_app_model()
         matcher = app_model.get_algorithm()
-        scene = self.get_reference_scene()
+        #scene = self.get_reference_scene()
         points = matcher.get_feature_points()
         if points is not None:
             #print(f'ORBMatchVisualizer.draw_features() #(draw {len(points)} points)')
@@ -408,7 +406,7 @@ class FilesTab(FileSetGUI):
                 self.main_view.show_pattern_tab()
                 self.main_view.error_message(str(err))
                 #traceback.print_exception(err)
-            except RuntimeError as err:
+            except RuntimeError:
                 pass
 
     def use_current_item_as_reference(self):
@@ -523,7 +521,7 @@ class PatternPreview(ReferenceImagePreview):
 
     def _clear_feature_layer(self):
         #print(f'{self.__class__.__name__}._clear_feature_layer()')
-        scene = self.get_scene()
+        #scene = self.get_scene()
         visualizer = self.main_view.get_visualizer()
         if visualizer is not None:
             visualizer.clear_features()
@@ -532,7 +530,7 @@ class PatternPreview(ReferenceImagePreview):
 
     def _draw_feature_layer(self):
         #print(f'{self.__class__.__name__}._draw_feature_layer()')
-        app_model = self.main_view.get_app_model()
+        #app_model = self.main_view.get_app_model()
         visualizer = self.main_view.get_visualizer()
         if visualizer is not None:
             visualizer.draw_features()
@@ -549,7 +547,7 @@ class PatternPreview(ReferenceImagePreview):
     def redraw(self):
         #print(f'{self.__class__.__name__}.redraw()')
         #traceback.print_stack()
-        app_model = self.main_view.get_app_model()
+        #app_model = self.main_view.get_app_model()
         ReferenceImagePreview.redraw(self)
         self._draw_feature_layer()
         self.crop_rect_tool.redraw()
@@ -857,7 +855,7 @@ class PatternSetupTab(qt.QWidget):
     SingleFeatureMultiCrop class. """
 
     def __init__(self, main_view):
-        screenWidth = qgui.QGuiApplication.primaryScreen().virtualSize().width()
+        #screenWidth = qgui.QGuiApplication.primaryScreen().virtualSize().width()
         super().__init__(main_view)
         self.setObjectName("PatternSetupTab")
         self.setAcceptDrops(True)
@@ -1069,7 +1067,7 @@ class PatternSetupTab(qt.QWidget):
             del self.crop_regions[label]
             app_model.delete_crop_region(label)
         else:
-            raise ValueError(f'cannot delete label, does not exist', label)
+            raise ValueError('cannot delete label, does not exist', label)
 
     def get_region_selector(self):
         return self.selected_region_label
@@ -1140,7 +1138,7 @@ class InspectTab(qt.QWidget):
     def __init__(self, main_view):
         super().__init__(main_view)
         self.main_view = main_view
-        app_model = self.main_view.get_app_model()
+        #app_model = self.main_view.get_app_model()
         self.distance_map = None
         self.setObjectName("InspectTab")
         # The layout of this widget is a top bar with a threshold slider and a graphics view or
@@ -1265,7 +1263,7 @@ class InspectTab(qt.QWidget):
         app_model.set_output_dir(PurePath(output_dir))
         compute_steps = len(app_model.get_target_fileset())
         progress_dialog = self.main_view.show_progress(
-            f'Processing all files...',
+            'Processing all files...',
             'Cancel', 0, compute_steps,
           )
         app_model.batch_crop_matched_patterns(progress=progress_dialog)
@@ -1330,12 +1328,6 @@ class ConfigFileSelector(qt.QWidget):
         else:
             pass
         return target_dir
-
-    def show_select_file_dialog(self, message, readwrite):
-        if len(urls) > 0:
-            return Path(urls[0])
-        else:
-            return None
 
     def open_config_action(self):
         open_file = self.path_input_field.text()

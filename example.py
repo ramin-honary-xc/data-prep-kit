@@ -1,6 +1,4 @@
 import cv2 as cv
-import numpy as np
-import math
 from pathlib import Path
 import DataPrepKit.ORBMatcher as orb
 from DataPrepKit.CachedCVImageLoader import CachedCVImageLoader

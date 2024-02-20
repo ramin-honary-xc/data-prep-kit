@@ -4,9 +4,7 @@ import DataPrepKit.utilities as util
 
 from copy import deepcopy
 import math
-import os
 from pathlib import (PurePath, Path)
-import statistics
 
 import cv2 as cv
 import numpy as np
@@ -85,8 +83,8 @@ class ImageWithORB():
             raise ValueError(f'{self.__class__.__name__}.compute() #(failed to load pixmap)')
         elif (self.descriptors is None) or (self.keypoints is None):
             # Set the init_crop_rect
-            height = self.image.shape[0]
-            width = self.image.shape[1]
+            #height = self.image.shape[0]
+            #width = self.image.shape[1]
             #print(f'compute ORB (image size ({width},{height}))')
             # Run the ORB algorithm
             #print(f'ImageWithORB.compute({str(orb_config)})')
@@ -182,7 +180,7 @@ class FeatureProjection(AbstractMatchCandidate):
         #--------------------------------------------------
         try:
             self.inverse_homography = numpy.linalg.inv(homography)
-        except Exception as err:
+        except Exception:
             #print(f'ignoring, failed to compute inverse matrix for:\n{homography}')
             return None
         return self
@@ -194,7 +192,7 @@ class FeatureProjection(AbstractMatchCandidate):
         return self.similarity
 
     def get_match_points(self):
-        offset = np.float32([])
+        #offset = np.float32([])
         return self.train_points.reshape(-1,2)
 
     def get_perspective_bounds(self):
@@ -253,7 +251,7 @@ class FeatureProjection(AbstractMatchCandidate):
         return cv.warpPerspective(
             self.image,
             self.inverse_homography,
-            (width, heigth),
+            (width, height),
           )
 
     def crop_write_images(self, crop_rects, output_path):
@@ -290,9 +288,9 @@ class SegmentedImage():
         if (seg_height > img_height) and (seg_width > img_width):
             raise ValueError(f'bad reference image, both width and height ({seg_width},{seg_height}) are larger than search target image ({img_width},{img_height})', (seg_width, seg_height), (img_width, img_height))
         elif (seg_height > img_height):
-            raise ValueError(f'bad reference image, height is larger than search target image', seg_height, img_height)
+            raise ValueError('bad reference image, height is larger than search target image', seg_height, img_height)
         elif (seg_width > img_width):
-            raise ValueError(f'bad reference image, width is larger than search target image', seg_width, img_width)
+            raise ValueError('bad reference image, width is larger than search target image', seg_width, img_width)
         else:
             pass
         hypotenuse = math.ceil(math.sqrt(seg_width*seg_width + seg_height*seg_height))
@@ -376,7 +374,7 @@ class SegmentedImage():
         for ((x, y, _w, _h), segment) in self.foreach():
             segment_orb = ImageWithORB(segment, ref.get_orb_config())
             segment_orb.compute()
-            segment_keypoints = segment_orb.get_keypoints()
+            #segment_keypoints = segment_orb.get_keypoints()
             segment_descriptors = segment_orb.get_descriptors()
             if len(segment_descriptors) < self.orb_config.get_minimum_descriptor_count():
                 #print(f'ignore block ({x:05},{y:05}), only {len(segment_descriptors)} descriptors created')
@@ -464,9 +462,6 @@ class ORBConfig():
             (self.minimum_descriptor_count == a.minimum_descriptor_count) \
             #(self.descriptor_nearest_neighbor_count == a.descriptor_nearest_neighbor_count) \
           )
-
-    def from_dict(config):
-        pass
 
     def to_dict(self):
         return \
@@ -710,11 +705,11 @@ class ORBMatcher(AbstractMatcher):
         else:
             return cached.guess_compute_steps()
 
-    def match_on_file(self, progress=None):
+    def match_on_file(self, image_loader=None, progress=None):
         #print(f'{self.__class__.__name__}.match_on_file()')
         points = AbstractMatcher.get_matched_points(self)
         if points is None or self.needs_refresh():
-            return self.force_match_on_file(progress=progress)
+            return self.force_match_on_file(image_loader, progress=progress)
         else:
             return self.get_match_points()
 
@@ -729,17 +724,22 @@ class ORBMatcher(AbstractMatcher):
             self.reference_with_orb.compute()
             self.last_run_orb_config = self.orb_config
     
-    def force_match_on_file(self, progress=None):
+    def force_match_on_file(self, image_loader, progress=None):
         """This function is triggered when you double-click on an item in the image
         list in the "FilesTab". It starts running the pattern matching algorithm
         and changes the display of the GUI over to the "InspectTab". """
         #print(f'{self.__class__.__name__}.force_match_on_file()')
-        target = self.app_model.get_target_image()
+        target = None
+        if image_loader is not None:
+            target = image_loader
+        else:
+            target = self.app_model.get_target_image()
+        #print(f'{self.__class__.__name__}.force_match_on_file() #(target = {target})')
         if not self.reference_with_orb:
             self.update_reference_image()
         else:
             pass
-        target = self.app_model.get_target_image()
+        target.load_image()
         target_image = target.get_image()
         reference_bounds = self.reference_with_orb.get_crop_rect()
         if target_image is None:

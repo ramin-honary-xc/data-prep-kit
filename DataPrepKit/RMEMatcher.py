@@ -1,4 +1,3 @@
-import DataPrepKit.FileSet as fs
 from DataPrepKit.CachedCVImageLoader import CachedCVImageLoader
 from DataPrepKit.RegionSize import RegionSize
 from DataPrepKit.AbstractMatcher import AbstractMatcher, AbstractMatchCandidate
@@ -7,7 +6,6 @@ import DataPrepKit.utilities as util
 import math
 import os
 import os.path
-import sys
 from pathlib import PurePath
 #import traceback
 
@@ -48,7 +46,7 @@ class DistanceMap():
         else:
             pass
         if not isinstance(pattern, CachedCVImageLoader):
-            raise ValueError(f'DistanceMap() argument "reference" wrong type: {type(reference)}')
+            raise ValueError(f'DistanceMap() argument "reference" wrong type: {type(pattern)}')
         else:
             pass
         #----------------------------------------
@@ -363,7 +361,7 @@ class RMEMatcher(AbstractMatcher):
         # False (does not need refresh) regardless of whether the
         # threshold has changed or not, and allow the 'DistanceMap' to
         # check whether it has points cached for the current threshold value.
-        return AbstractMatcher(self, needs_refresh)
+        return AbstractMatcher.needs_refresh(self)
 
     def guess_compute_steps(self):
         return 1
@@ -372,13 +370,17 @@ class RMEMatcher(AbstractMatcher):
         """Nothing needs to be computed on the referene image."""
         pass
 
-    def match_on_file(self, progress=None):
+    def match_on_file(self, image_loader=None, progress=None):
         """See documentation for DataPrepKit.AbstractMatcher.match_on_file()."""
         #traceback.print_stack()
         #print(f'{self.__class__.__name__}.match_on_file()')
         reference = self.app_model.get_reference_image()
         reference.load_image()
-        target    = self.app_model.get_target_image()
+        target = None
+        if image_loader is not None:
+            target = image_loader
+        else:
+            target = self.app_model.get_target_image()
         target.load_image()
         suffix    = self.app_model.get_file_encoding()
         threshold = self.app_model.get_threshold()
@@ -404,7 +406,7 @@ class RMEMatcher(AbstractMatcher):
 
     def save_calculations(self):
         """See documentation for DataPrepKit.AbstractMatcher.save_calculations."""
-        interm_calc_path = PurePath(target_image_path)
+        interm_calc_path = PurePath(self.get_target_image().get_path())
         interm_calc_path = PurePath(
             interm_calc_path.parent / \
             ( interm_calc_path.stem + \

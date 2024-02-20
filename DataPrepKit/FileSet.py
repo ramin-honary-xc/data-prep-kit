@@ -27,7 +27,7 @@ def image_file_format_suffix(suffix):
     if (suffix.lower() in image_file_suffix_set):
         return suffix
     else:
-        raise ValueError(f'unknown file format suffix', suffix)
+        raise ValueError('unknown file format suffix', suffix)
 
 class FileSet():
     """A FileSet is a class of mutable objects responsible for keeping
@@ -80,7 +80,7 @@ class FileSet():
         if otherset is None:
             pass
         elif isinstance(otherset, list) or \
-             isinstance(otherset, st) or \
+             isinstance(otherset, set) or \
              isinstance(otherset, frozenset):
             for i, item in zip(range(len(otherset)), otherset):
                 self.__add(item, index=i)
@@ -128,7 +128,7 @@ class FileSet():
 
     def add(self, filepath):
         """Add a filepath to this FileSet."""
-        filepath = FileSet.check_item_type(index, filepath)
+        filepath = FileSet.check_item_type(len(self.fileset), filepath)
             # ^ raises error if item is not an acceptable type
         self.__add(filepath, None)
 

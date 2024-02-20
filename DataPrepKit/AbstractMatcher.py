@@ -78,11 +78,13 @@ class AbstractMatcher():
             (self.last_run_target != self.app_model.get_target_image().get_path()) or \
             (self.last_run_reference != self.app_model.get_reference_image().get_path())
 
-    def match_on_file(self):
-        """Runs the pattern matching algorithm regardless of whether the
-        computation needs to be refreshed, and caches the result. To
-        obtain cached results, use 'get_matched_points() instead,
-        which will only run this computation if necessary. """
+    def match_on_file(self, image_loader=None):
+        """Runs the pattern matching algorithm regardless of whether
+        the computation needs to be refreshed, and caches the
+        result. To obtain cached results, use 'get_matched_points()
+        instead, which will only run this computation if
+        necessary. The "image_loader" argument should be of type
+        CachedCVImageLoader, or None. """
         return self.matched_points
 
     def get_matched_points(self):

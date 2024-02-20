@@ -13,13 +13,13 @@ def dict_keep_defined(d):
         if d is not None else {}
 
 def check_rect_config(r, err_msg):
-    if (isinstance(r, list) or isinstance(r, tuple)) and len(v) == 4:
+    if (isinstance(r, list) or isinstance(r, tuple)) and len(r) == 4:
         for e in r:
             if isinstance(e, int) or isinstance(e, float):
                 pass
             else:
-                raise ValueError(f'{err_msg} region rectangles must be a list of 4 numbers [x,y,width,height]', k, v)
-        return (v[0], v[1], v[2], v[3])
+                raise ValueError(f'{err_msg} region rectangles must be a list of 4 numbers [x,y,width,height]', e, r)
+        return (r[0], r[1], r[2], r[3])
     else:
         raise ValueError(f'{err_msg}, dictionary values must be a list of 4 numbers')
 
@@ -27,7 +27,7 @@ def check_region_config(d, err_msg):
     result = dict()
     for k,v in d:
         if isinstance(k, str):
-            result[k] = check_rect_config(v, f'{err_msg}, (key={key!r})')
+            result[k] = check_rect_config(v, f'{err_msg}, (key={k!r})')
         else:
             raise ValueError(f'{err_msg}, dictionary keys must be strings', k, d)
     return result
@@ -96,23 +96,23 @@ def crop_region_json(json_string):
     4-tuple crop regions."""
     crop_regions = json.loads(json_string)
     if not isinstance(crop_regions, dict):
-        raise ArgumentError('"--crop-regions" argument must be a JSON dictionary')
+        raise ValueError('"--crop-regions" argument must be a JSON dictionary')
     else:
         for label, region in crop_regions.items():
             if not isinstance(region, list):
-                raise ArgumentError(
+                raise ValueError(
                     '"--crop-regions" argument, {label!r}, expected list, got {type(region)}',
                     (label, region),
                   )
             elif len(region) != 4:
-                raise ArgumentError(
+                raise ValueError(
                     f'"--crop-regions" argument, {label!r} expected length 4, got length {len(region)}',
                     (label, region),
                   )
             else:
                 for i,n in zip(range(0,4), region):
                     if not (isinstance(n, int) or isinstance(n, float)):
-                        raise ArgumentError(
+                        raise ValueError(
                             '"--crop-regions" argument, {label!r}[{i}] expected number, got {type(n)}',
                             (label, region),
                           )
@@ -156,13 +156,13 @@ def numpy_map_colors(gray_image, color_map):
       (gray_image.dtype != np.uint8) or \
       (len(gray_image.shape) != 2):
         raise ValueError(
-            f'first argument must be np.ndarray of dtype uint8',
+            'first argument must be np.ndarray of dtype uint8',
           )
     elif not isinstance(color_map, np.ndarray) or \
       (color_map.dtype != np.uint8) or \
       (color_map.shape != (256,3)):
         raise ValueError(
-            f'second argument must be a color map, i.e. np.ndarray of dtype uint8 and of shape (256,3)',
+            'second argument must be a color map, i.e. np.ndarray of dtype uint8 and of shape (256,3)',
           )
     else:
         (h, w) = gray_image.shape

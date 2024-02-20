@@ -1,5 +1,5 @@
 import PyQt5.QtWidgets as qt
-from DataPrepKit.FileSet import FileSet, image_file_suffix_set
+from DataPrepKit.FileSet import image_file_suffix_set
 
 class EncodingMenu(qt.QWidget):
     """Group box showing the popup-down menu where the image encoding can be selected."""

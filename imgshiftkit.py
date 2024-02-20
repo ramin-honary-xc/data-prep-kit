@@ -2,7 +2,7 @@ import argparse
 import sys
 import traceback
 from random import random
-from pathlib import Path, PurePath
+from pathlib import Path
 
 import cv2 as cv
 import numpy as np
