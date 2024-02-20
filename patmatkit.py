@@ -59,7 +59,7 @@ arper.add_argument(
     '-A', '--algorithm',
     dest='algorithm',
     action='store',
-    default="ORB",
+    default="RME",
     type=algorithm_name,
     help="""
         Choose the matching algorithm: MSE  or ORB. MSE, "Mean Squared
@@ -168,19 +168,6 @@ arper.add_argument(
         regardless  of whether  they  overlap  candidates with  higher
         similarity values.
       """
-  )
-
-arper.add_argument(
-    '--save-map',
-    dest='save_map',
-    action='store',
-    default=None,
-    help="""
-        If a filename suffix string  is supplied as this argument, the
-        resulting image  of the pattern matching  convolution is saved
-        to a file of  the same name as the input  file with the prefix
-        apended to the filename (but before the file extension).
-      """,
   )
 
 arper.add_argument(

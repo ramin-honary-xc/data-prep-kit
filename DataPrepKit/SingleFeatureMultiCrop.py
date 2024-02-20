@@ -39,7 +39,7 @@ class SingleFeatureMultiCrop():
         self.output_dir = Path.cwd()
         self.set_target_fileset(None)
         self.output_dir = None
-        self.save_distance_map = None
+        self.save_distance_map = False
         self.target = CachedCVImageLoader()
         self.target_matched_points = []
         self.target_image = CachedCVImageLoader()
@@ -81,7 +81,6 @@ class SingleFeatureMultiCrop():
         self.output_dir = Path(config.output_dir)
         self.threshold = config.threshold
         self.file_encoding = config.encoding
-        self.save_distance_map = config.save_map
         self.set_file_encoding(config.encoding)
         self.threshold = config.threshold
         if config.crop_regions_json:

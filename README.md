@@ -95,15 +95,54 @@ user feedback.
 When  running  as a  batch  script,  you  must provide  the  following
 parameters:
 
-  - `--pattern <image-file>` -- "pattern image" (the reference image)
+  - `-p` or `--pattern=<image-file>` -- "pattern image" (the reference image)
   
-  - `--threshold <percentage>` -- a similarity threshold value between
-    0.0 and  100.0. Note that  a 100.0 precent threshold  only accepts
-    **exact** pixel-for-pixel matches to the reference image.
+  - `-t` or `--threshold=<percentage>` -- a similarity threshold value
+    between 0.0  and 100.0. Note  that a 100.0 precent  threshold only
+    accepts **exact** pixel-for-pixel matches to the reference image.
 
-  - `--output-dir <directory>`  --  the  directory into  which cropped
-    image files (areas of each  target image that match the reference)
-    should be written. The directory is created if it does not exist.
+  -  `-o` or  `--output-dir=<directory>` --  the directory  into which
+    cropped image  files (areas  of each target  image that  match the
+    reference) should be written. The  directory is created if it does
+    not exist.
+
+  - `-A` or `--algorithm={RME|ORB}` -- set the algorithm to RME (Root
+    Mean Error, this is the default) to do pattern matching using the
+    pattern image as a convolution where the root-mean error equation
+    is used to determine how similar a portion of the image is to the
+    pattern. Error values closer to zero are more similar and will be
+    cropped from the input image.
+
+    See below for more details about the [ORB algorithm].
+
+    [ORB algorithm]: #the-oriented-fast-rotated-brief-orb-algorithm
+
+  - `-x`  or `--crop-regions='{"region-name":[x,y,width,height],...}'`
+    -- this  allows you to enter  crop regions on the  command line. A
+    crop region  is a region  relative to  the the location  where the
+    pattern has been found in an  input image. Rather than cutting out
+    the portion  of the  image exactly  equal in  size to  the pattern
+    image, you  can specify a  different rectangular area to  crop out
+    instead. The  `x` and `y`  values can  be negative or  positive as
+    they are  relative to the location  of the match within  the input
+    image. The `width` and `height` values must be greater than zero.
+
+  - `--encoding={PNG|JPG|BMP}` -- when creating files, force the files
+    created from cropping the input image to assume this file
+    encoding, rather than the default behavior which is to use the
+    same encoding as the input image file. The full list of valid file
+    encodings is determined by the capabilities of the OpenCV library,
+    refer to the [OpenCV documentation][OpenCV-Docs].
+    
+    [OpenCV-Docs]:  https://docs.opencv.org/3.4/d4/da8/group__imgcodecs.html#ga288b8b3da0892bd651fce07b3bbd3a56
+
+  -  `--config=<path-to-config>`  --   rather  than  configuring  this
+    program using these CLI arguments,  you can save the configuration
+    to a JSON  file (usually done in the GUI),  and use these settings
+    again when  running the program in  batch mode (in the  CLI rather
+    than the GUI).  If this argument is specified on  the command line
+    but the `<path-to-config>` does not exist, it is created using the
+    configuration specified by all of the other CLI arguments.
 
 Other CLI arguments include:
 
@@ -128,6 +167,62 @@ Other CLI arguments include:
     process  standard  output --  therefore  these  log messages  will
     usually be  visible in  the CLI  window from  which the  script is
     launched.
+
+#### The Oriented-FAST Rotated BRIEF (ORB) Algorithm
+
+ORB is an algorithm in OpenCV used  to search for features in an image
+similar to features found in  a reference image. This section provides
+a  brief overview  of how  ORB  works, but  for detailed  information,
+please  read the  [research  paper][ORB Paper]  published  by the  ORB
+authors:
+
+[ORB Paper]: https://www.researchgate.net/publication/221111151_ORB_an_efficient_alternative_to_SIFT_or_SURF
+
+The algorithm looks for things in the picture that look like corners
+or points or angles. When it finds one, it takes a circle of pixels
+around the center of that point. It then guesses the angle that the
+circle is rotated by comparing the position of the centroid of the
+pixels within the circle. It then uses that circle of pixels as a
+"descriptor" which is compared to other descriptors that are found.If
+at least 4 (but by default 20) points are found to be similar, it is
+assumed that the points are a projection of the reference image.The
+important factors are:
+
+**NOTE** it  is important  that the  pattern image  have distinguished
+features. A smooth or round  solid-colored object with no texture will
+not be useful to ORB when trying to determine the feature points.
+
+The ORB algorithm takes a few parameters which can be configured in
+the "Settings" tab of the GUI:
+
+  - **number of features:** finds more points to identify the plane in
+    the image.  Higher numbers takes more computing time.
+
+  - **Number  of matches:** not all  1000 feature points are  going to
+    match  exactly.  This  number  (defaulting to  20) determines  the
+    minimum number  of matches that  are allowed  for a region  in the
+    target image to be considered a match.
+
+  - **feature  threshold:** the percentage difference  between feature
+    points.   This value  effects the  sensitivity of  the interactive
+    threshold slider in the "Inspect" tab.
+
+  - **number of levels:** the reference image copied and resized to be
+    bigger this  many times, each copy  is a "level". This  allows the
+    algorithm  to  objects in  the  photo  that  are larger  than  the
+    reference image.
+
+  - **scale factor:**  when an image is copied resized  to construct a
+    "level", how much bigger is it made.
+
+For the other parameters, please read the [original research
+paper][ORB Paper] noted above.
+
+There  is also  a [tutorial  in the  OpenCV documentation][OpenCV  ORB
+Tutorial]  that explains  how this  algorithm  can be  used in  Python
+programs.
+
+[OpenCV ORB Tutorial]: https://docs.opencv.org/4.x/d1/de0/tutorial_py_feature_homography.html
 
 ### `imgdiffkit.py`: an image comparison tool
 
@@ -164,20 +259,25 @@ value. Difference values are color-coded:
 
 ### `imgsizekit.py`: a batch image resizing tool
 
-This program allows you to select batch-resize a list of images.
+This program allows you to batch-resize a list of selected images.
 
-### `imgcropkit.py`: a feature matching tool
+### `imgshiftkit.py`: translate or shift images with wrapping
 
-**WARNING:** experimental.
-  
-Used for crop specific objects or recognizable features in larger
-images. This tool allows you to select a reference image to set the
-cropping area relative to certain features in the image. Then, given a
-larger set of images, similar features are searched-for in each image
-and cropped according to the reference image.
+Shift with wrap, that is, to transform an image by moving it without
+changing its size, and the part of the image that have gone off of the
+canvas, for example off to the left, are moved to the right-most part
+of the canvas, parts of the image that have gone off the bottom of the
+canvas are moved to the top-most part of the cavnas.
 
-The [ORB feature-matching algorithm](https://docs.opencv.org/3.4/d1/d89/tutorial_py_orb.html)
-is used to find and label features.
+This tool is intended to perform data augmentation of images for
+computer vision applications. If you have a dataset of image files,
+where each image is a pattern or texture of some kind, shifting the
+image can create a new data point from an existing data point that
+might be useful to the machine learning training process, "teaching" a
+neural network to disregard artifacts in the patterns or textures that
+might occur regularly in a particular location in each image.
 
-This script cannot be run as a batch script, so a GUI is always
-displayed when the script runs.
+Therefore, by default, without any other arguments, each image is
+shifted by a random amount. It is also possible to specify shifts at
+regular intervals, for example 3 equal shifts to the right and 2 equal
+shifts down, which will result in 6 output images.

@@ -82,7 +82,6 @@ def main():
           """,
         exit_on_error=False,
         epilog="""
-
           Shift with wrap, that is, to transform an image by moving it
           without changing its size, and the part of the image that
           have gone off of the canvas, for example off to the left,
