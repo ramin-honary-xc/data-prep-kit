@@ -37,21 +37,123 @@ pip install -r requirements.txt  # 3. Install package requirements
 
 #### On Windows systems:
 
-Using  *PowerShell* with  the  Python installed  and  included in  the
-`%PATH%` environment variable:
+It might be necessary to use the `py` application, if you installed
+Python using the installer from https://www.python.org/downloads .
+The documentation for `py.exe` is available at the Python website:
+https://docs.python.org/3/using/windows.html
 
-```sh
-python -m venv env               # 1. Setup the environment state directory
-. .\env\bin\Activate.ps1         # 2. Define the shell variables in the current shell
-pip install -r requirements.txt  # 3. Install package requirements
+**The first thing** you must do is install create the `env` directory
+(a [Python virtual environment](https://docs.python.org/3/library/venv.html ) )
+using the `py -m venv env` command. You can do this with the `py` or `python`
+command depending on how you installed Python onto your computer:
+
+```cmd
+:: First "cd" into the directory containing this application:
+
+cd C:\Users\myname\data-prep-kit
+
+:: Only run one of these, depending on your Python installation:
+
+py -m venv env
+
+:::::: or ::::::
+
+python -m venv env
 ```
+
+Confirm if the above command worked correctly by running the command
+`dir env`:
+
+```cmd
+dir env
+```
+
+The output of the `dir env` command should look something like this
+(note that the `Scripts` and `Lib` directories should exist):
+
+```
+Directory of C:\Users\myname\data-prep-kit\env
+
+2024/03/21  11:34 AM    <DIR>    .
+2024/03/21  11:34 AM    <DIR>    ..
+2024/03/21  11:34 AM    <DIR>    Lib
+2024/03/21  11:34 AM    <DIR>    Scripts
+2024/03/21  11:34 PM    <DIR>    Share
+              3 Dir(s)  13, 879, 459, 840 bytes free
+```
+
+Using *PowerShell* (you may need to run the command `powershell` once)
+activate the virtual environment.
+
+```PowerShell
+.\env\Scripts\Activate.ps1       # Define the shell variables in the current shell
+pip install -r requirements.txt  # Install package requirements
+```
+
+Now you should see the prompt change to include the symbol `(env)` like so:
+
+```
+(env) C:\Users\myname\data-prep-kit>
+```
+
+This indicates that you are ready to use the `pip` and `python`
+commands to run the Data Prep Kit application.
+
+Finally, install the package dependencies. You will only need to do
+this once, once installed into the `env` directory, the files should
+always be ready to use.
+
+```powershell
+pip install -r requirements.txt
+```
+
+This command will download several large files from the internet and
+install them into the `env` directory, which will allow you to run the
+Data Prep Kit application.
+
+Once this step is done, you can skip to the next section "Running the
+program" every time you want to use Data Prep Kit.
+
+### A common error on Windows
+
+Hopefully you will not need to perform the following steps, but on
+some Windows computers, you might see this error message when you try
+to run the command `python ./patmatkit.py --gui`:
+
+```
+This application failed to start because it could not find or
+load the Qt platform plugin "windows"
+```
+
+This is a sign that your `QT_PLUGIN_PATH` environment variable has not
+been set by the `pip install` command. The plugin path is installed in
+`.\env\Lib\PyQt5\Qt5`, so in PowerShell make sure to set this
+variable:
+
+```PowerShell
+$Env:QT_PLUGIN_PATH = "C:\Users\myname\data-prep-kit\env\Lib\python3.10\site-packages\PyQt5\Qt5\plugins"
+```
+
+The exact path that you should set into the `$Env.QT_PLUGIN_PATH`
+environment variable may differ depending on what version of Qt and
+Python you are using, so please search through the
+`env\Lib\python3.10\site-packages\PyQt5` directory and confirm the
+location of this directory, it must be called `plugins`.
+
+You can write the line of PowerShell `$Env:QT_PLUGIN_PATH = "C:\..."`
+code to the end of the `.\env\Scripts\Activate.ps1` file for
+convenience.
 
 ### Running the program
 
-After setting up your Python environment with the "activate" commad,
-your shell is now ready to run the scripts in this directory. The main
-scripts are `patmatkit.py`, `imgsizekit.py`, and `imgdiffkit.py`. Run
-any one of them like so:
+Make sure your CLI shell prompt is showing the `(env)` symbol, and
+that your current directory (output of the `pwd` command) shows
+`data-prep-kit` as the final path element of the prompt. This is done
+by running the "activate" script as described in the previous section.
+
+Your shell should now be ready to run the scripts in this
+directory. The main scripts are `patmatkit.py`, `imgsizekit.py`, and
+`imgdiffkit.py`. Run any one of them like so:
 
 ```shell
 python ./patmatkit.py --gui
@@ -61,13 +163,6 @@ python ./imgdiffkit.py --gui
 
 **Note** that the `--gui` argument is  required if you want to use the
 script with a GUI, the default beahvior is to run as a batch process.
-
-There  is also  an **experimental**  cropping tool  that uses  the ORB
-algorithm to find  patterns, rather than an  ordinary convolution with
-the root-mean error:
-
-```
-python ./imgcropkit.py
 ```
 
 ## About each of the tools in this kit
