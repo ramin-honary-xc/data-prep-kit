@@ -319,6 +319,45 @@ programs.
 
 [OpenCV ORB Tutorial]: https://docs.opencv.org/4.x/d1/de0/tutorial_py_feature_homography.html
 
+### `maskkit.py` : a script to apply a mask to a batch of images
+
+This program takes a mask image and applies it to each input image
+listed on the command line.
+
+#### CLI Arguments
+
+- `-m <FILE>` or `--mask=<FILE>` specifies the mask image.
+
+- `-Q` or `--quiet` to suppress console log output,
+  this script is verbose by default.
+
+- All other CLI arguments must be an image file, or a directory
+  containing image files. Files are filtered by extension, only files
+  named with the `.jpg`, `.png`, or `.bmp` suffixes are used as
+  inputs.
+
+#### The input image files
+
+The mask image must be an 8-bit (1-channel) grayscale image where
+white pixels allow the input image to be visible in the output, and
+black pixels are black in the output. Gray pixels darken the output
+pixel.
+
+#### The output image files
+
+Once a mask is applied, an output image of the same file type is
+created with the mask applied. The name of the output file is the
+string `"masked_"` preprended to the name of the file. For example, if
+your input file is `flower-001.png` then the masked output file is `
+
+#### The width/height of the images
+
+It is assumed the width and height of every input image is the same as
+that of the mask image. However if the sizes are different, the
+minimum size of either the mask or the input is used, producing a
+result image where the mask and input intersect starting at pixel
+index `(x=0,y=0)`.
+
 ### `imgdiffkit.py`: an image comparison tool
 
 This program is used to validate the results of the `patmatkit.py`
